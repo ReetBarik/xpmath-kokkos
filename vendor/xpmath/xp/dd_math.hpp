@@ -1,0 +1,2705 @@
+// SPDX-License-Identifier: LicenseRef-DHB-License
+// SPDX-FileCopyrightText: Copyright (c) 2024 David H. Bailey
+// SPDX-FileCopyrightText: Modifications Copyright (c) 2026 UChicago Argonne, LLC
+//
+// Ported from DDFUN v04:
+//   https://www.davidhbailey.com/dhbsoftware/ddfun-v04.tar.gz
+//   Original author: David H. Bailey (LBNL retired / UC Davis)
+//   Original license: DHB-License (modified BSD-3-Clause with §3
+//     grant-back clause). Full text: LICENSES/LicenseRef-DHB-License.txt
+//     or https://www.davidhbailey.com/dhbsoftware/DHB-License.txt.
+//
+// This C++ port is a derivative work distributed under the same
+// DHB-License. See §3 of that license regarding upstream
+// contribution rights.
+//
+// Modifications from the original DDFUN v04 sources:
+//   * Translated from Fortran-90 (ddfuna.f90, ddfune.f90) to
+//     header-only C++17.
+//   * Every function XPMATH_INLINE_FUNCTION for host + device
+//     portability across CUDA/HIP/SYCL/OpenMP-target.
+//   * Namespaced as xp::DoubleDouble with STL-style
+//     free-function names.
+//   * See docs/TEST_SUITE_PLAN.md "Upstreaming considerations" for
+//     naming and API conventions.
+
+#pragma once
+
+// Double-double real arithmetic — xp::DoubleDouble. ~31 decimal digits
+// from an unevaluated sum of two FP64 components (hi + lo, |lo| <= ulp(hi)/2).
+//
+// Ported from DDFUN (David H. Bailey, Lawrence Berkeley National Lab) Fortran
+// sources (ddfuna.f90, ddfune.f90).
+//
+// DEPENDENCIES: none beyond the C++17 standard library. In particular this
+// header does NOT include or require Kokkos — see xp/config.hpp for how the
+// four portability facilities it needs (inline annotation, on-device
+// detection, scalar math dispatch, diagnostic printf) are supplied. Kokkos
+// users get today's `Kokkos::Experimental::DoubleDouble` API unchanged through
+// the Kokkos::Experimental wrappers in the xpmath-kokkos repository
+// (formerly third_party/include/dd_math.hpp in this tree; last at commit 158d618).
+//
+// NAMING (ratified via S2 naming memo + S3): xp:: = extended precision,
+// companion to MxP (mixed precision). See include/xp/config.hpp for rationale.
+//
+// Naming conventions (T0.4):
+//   * Type + math live in one flat namespace so an upstream move is
+//     mechanical rather than a rewrite.
+//   * Arithmetic free functions use STL-style names (add/subtract/multiply/
+//     divide/negate) and are also reachable through operator overloads.
+//   * Constants are free functions DoubleDouble_pi(), DoubleDouble_e(), ...
+//     Chosen over a constants::pi<DoubleDouble>() template because it mirrors
+//     Kokkos's existing M_PI-style accessors and reads shorter at the call site;
+//     they cannot be constexpr template variables (Kokkos::numbers style) because
+//     each is built at runtime from IEEE-754 bit patterns, not a literal.
+//   * The former bit-pattern constructor became the static factory
+//     DoubleDouble::from_bits(hi, lo): it is namespaced to the type,
+//     discoverable, and needs no free-function symbol.
+//   * Math functions are ADL-findable via the argument's namespace. The
+//     `Kokkos::`-namespace forwarding overloads that used to sit at the bottom
+//     of this header (so Kokkos::exp(dd) works like Kokkos::exp(double)) now
+//     live in the compat wrapper, since they are Kokkos-specific API surface.
+//     add/subtract/multiply/divide are not forwarded — they are for operators
+//     and explicit ADL only.
+
+#include <xp/config.hpp>
+#include <xp/trig_reduction.hpp>
+#include <cstdint>
+#include <cstring>
+#include <cmath>
+
+#if !defined(XPMATH_ON_DEVICE)
+#  include <iomanip>
+#  include <ostream>
+#endif
+
+namespace xp {
+// ============================================================
+// Forward declarations (struct uses them in operator bodies)
+// ============================================================
+struct DoubleDouble;
+XPMATH_INLINE_FUNCTION DoubleDouble add(DoubleDouble a, DoubleDouble b);
+XPMATH_INLINE_FUNCTION DoubleDouble subtract(DoubleDouble a, DoubleDouble b);
+XPMATH_FWDDECL_FUNCTION DoubleDouble multiply(DoubleDouble a, DoubleDouble b);
+XPMATH_FWDDECL_FUNCTION DoubleDouble divide(DoubleDouble a, DoubleDouble b);
+XPMATH_INLINE_FUNCTION DoubleDouble multiply_scalar(DoubleDouble a, double b);
+XPMATH_INLINE_FUNCTION DoubleDouble divide_scalar(DoubleDouble a, double b);
+XPMATH_INLINE_FUNCTION DoubleDouble negate(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble abs(DoubleDouble a);
+XPMATH_FWDDECL_FUNCTION DoubleDouble sqrt(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble round_to_nearest_int(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble pow_int(DoubleDouble a, int n);
+XPMATH_FWDDECL_FUNCTION DoubleDouble exp(DoubleDouble a);
+XPMATH_FWDDECL_FUNCTION DoubleDouble log(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble pow(DoubleDouble a, DoubleDouble b);
+// KI-44: the unevaluated-pair trio behind pow. Defined after the Shewchuk
+// expansion helpers they use (dd_expansion_push / _compress, ~line 1715), which
+// sit below pow in this header; declared here so pow can call them.
+namespace detail {
+XPMATH_INLINE_FUNCTION DoubleDouble dd_mul_ext(DoubleDouble x, DoubleDouble y, double& err);
+XPMATH_INLINE_FUNCTION DoubleDouble dd_log_ext(DoubleDouble a, double& err);
+XPMATH_INLINE_FUNCTION DoubleDouble dd_exp_ext(DoubleDouble a, double resid);
+}  // namespace detail
+XPMATH_INLINE_FUNCTION void   sinhcosh(DoubleDouble a, DoubleDouble& x, DoubleDouble& y);
+XPMATH_INLINE_FUNCTION void   sincos(DoubleDouble a, DoubleDouble& x, DoubleDouble& y);
+XPMATH_INLINE_FUNCTION DoubleDouble angle(DoubleDouble x, DoubleDouble y);
+
+// ============================================================
+// DoubleDouble struct
+// ============================================================
+struct DoubleDouble {
+    double hi;
+    double lo;
+
+    XPMATH_INLINE_FUNCTION DoubleDouble() : hi(0.0), lo(0.0) {}
+    XPMATH_INLINE_FUNCTION DoubleDouble(double h) : hi(h), lo(0.0) {}
+    XPMATH_INLINE_FUNCTION DoubleDouble(double h, double l) : hi(h), lo(l) {}
+    XPMATH_INLINE_FUNCTION DoubleDouble(const DoubleDouble& o) : hi(o.hi), lo(o.lo) {}
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator=(const DoubleDouble& o) { hi=o.hi; lo=o.lo; return *this; }
+
+    // Factory: build a DoubleDouble from the IEEE-754 bit patterns of its two
+    // components. Safe on host (memcpy) and device (__longlong_as_double).
+    // Replaces the former free bit-pattern constructor function.
+    //
+    // The guard is XPMATH_ON_DEVICE_CUDA_OR_HIP, deliberately NOT the general
+    // XPMATH_ON_DEVICE: __longlong_as_double is a CUDA/HIP global-namespace
+    // intrinsic with no SYCL equivalent, so a SYCL device build must take the
+    // std::memcpy path. Both paths are the identical bit reinterpretation, so
+    // this widening is a portability fix with no numerical content.
+    static XPMATH_INLINE_FUNCTION DoubleDouble from_bits(uint64_t hi_bits, uint64_t lo_bits) {
+        double h, l;
+#if !defined(XPMATH_ON_DEVICE_CUDA_OR_HIP)
+        std::memcpy(&h, &hi_bits, sizeof(double));
+        std::memcpy(&l, &lo_bits, sizeof(double));
+#else
+        h = __longlong_as_double(static_cast<long long>(hi_bits));
+        l = __longlong_as_double(static_cast<long long>(lo_bits));
+#endif
+        return DoubleDouble(h, l);
+    }
+
+    XPMATH_INLINE_FUNCTION DoubleDouble operator-() const { return negate(*this); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator+(DoubleDouble b) const { return add(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator-(DoubleDouble b) const { return subtract(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator*(DoubleDouble b) const { return multiply(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator/(DoubleDouble b) const { return divide(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator*(double b)  const { return multiply_scalar(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator/(double b)  const { return divide_scalar(*this, b); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator+(double b)  const { return add(*this, DoubleDouble(b)); }
+    XPMATH_INLINE_FUNCTION DoubleDouble operator-(double b)  const { return subtract(*this, DoubleDouble(b)); }
+
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator+=(DoubleDouble b) { *this = *this + b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator-=(DoubleDouble b) { *this = *this - b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator*=(DoubleDouble b) { *this = *this * b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator/=(DoubleDouble b) { *this = *this / b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator+=(double b) { *this = *this + b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator-=(double b) { *this = *this - b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator*=(double b) { *this = multiply_scalar(*this, b); return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDouble& operator/=(double b) { *this = divide_scalar(*this, b); return *this; }
+
+    XPMATH_INLINE_FUNCTION bool operator==(DoubleDouble b) const { return hi==b.hi && lo==b.lo; }
+    XPMATH_INLINE_FUNCTION bool operator!=(DoubleDouble b) const { return !(*this == b); }
+    XPMATH_INLINE_FUNCTION bool operator<(DoubleDouble b)  const { return hi<b.hi || (hi==b.hi && lo<b.lo); }
+    XPMATH_INLINE_FUNCTION bool operator>(DoubleDouble b)  const { return hi>b.hi || (hi==b.hi && lo>b.lo); }
+    XPMATH_INLINE_FUNCTION bool operator<=(DoubleDouble b) const { return !(b < *this); }
+    XPMATH_INLINE_FUNCTION bool operator>=(DoubleDouble b) const { return !(*this < b); }
+};
+
+XPMATH_INLINE_FUNCTION DoubleDouble operator+(double a, DoubleDouble b) { return add(DoubleDouble(a), b); }
+XPMATH_INLINE_FUNCTION DoubleDouble operator-(double a, DoubleDouble b) { return subtract(DoubleDouble(a), b); }
+XPMATH_INLINE_FUNCTION DoubleDouble operator*(double a, DoubleDouble b) { return multiply_scalar(b, a); }
+XPMATH_INLINE_FUNCTION DoubleDouble operator/(double a, DoubleDouble b) { return divide(DoubleDouble(a), b); }
+
+// Host-only: <ostream> is not usable in a device compilation pass. Guarded by
+// XPMATH_ON_DEVICE (all three vendors), not the CUDA-only spelling.
+#if !defined(XPMATH_ON_DEVICE)
+inline std::ostream& operator<<(std::ostream& os, const DoubleDouble& d) {
+    os << "[" << std::setprecision(16) << std::scientific << d.hi
+       << ", " << d.lo << "]";
+    return os;
+}
+#endif
+
+// ============================================================
+// Constants via bit-pattern construction (safe on host + device)
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_pi()          { return DoubleDouble::from_bits(0x400921fb54442d18ULL, 0x3ca1a62633145c07ULL); }
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_e()           { return DoubleDouble::from_bits(0x4005bf0a8b145769ULL, 0x3ca4d57ee2b1013aULL); }
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_log2()        { return DoubleDouble::from_bits(0x3fe62e42fefa39efULL, 0x3c7abc9e3b39803fULL); }
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_log10()       { return DoubleDouble::from_bits(0x40026bb1bbb55516ULL, 0xbcaf48ad494ea3eaULL); } // ln(10)
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_sqrt2()       { return DoubleDouble::from_bits(0x3ff6a09e667f3bcdULL, 0xbc9bdd3413b26456ULL); }
+XPMATH_INLINE_FUNCTION DoubleDouble DoubleDouble_euler_gamma() { return DoubleDouble::from_bits(0x3fe2788cfc6fb619ULL, 0xbc56cb90701fbfabULL); }
+
+// ============================================================
+// Primitive arithmetic
+// ============================================================
+
+XPMATH_INLINE_FUNCTION DoubleDouble negate(DoubleDouble a) {
+    return DoubleDouble(-a.hi, -a.lo);
+}
+
+// TwoSum (Knuth). Every +/− goes through detail::eft_* so hipcc/gfx90a
+// cannot reassociate the residual (config.hpp §5).
+XPMATH_INLINE_FUNCTION DoubleDouble add(DoubleDouble a, DoubleDouble b) {
+    double t1 = detail::eft_add(a.hi, b.hi);
+    double e  = detail::eft_sub(t1, a.hi);
+    double t2 = detail::eft_add(detail::eft_add(
+                    detail::eft_add(detail::eft_sub(b.hi, e),
+                                    detail::eft_sub(a.hi, detail::eft_sub(t1, e))),
+                    a.lo), b.lo);
+    double hi = detail::eft_add(t1, t2);
+    double lo = detail::eft_sub(t2, detail::eft_sub(hi, t1));
+    return DoubleDouble(hi, lo);
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble subtract(DoubleDouble a, DoubleDouble b) {
+    double t1 = detail::eft_sub(a.hi, b.hi);
+    double e  = detail::eft_sub(t1, a.hi);
+    double t2 = detail::eft_sub(
+            detail::eft_add(
+                detail::eft_add(detail::eft_sub(-b.hi, e),
+                                detail::eft_sub(a.hi, detail::eft_sub(t1, e))),
+                a.lo),
+            b.lo);
+    double hi = detail::eft_add(t1, t2);
+    double lo = detail::eft_sub(t2, detail::eft_sub(hi, t1));
+    return DoubleDouble(hi, lo);
+}
+
+// KI-30.  Veltkamp split with a large-magnitude guard: the FP64 counterpart of
+// qf_math.hpp:qf_split / tf_math.hpp:tf_split, and a port of QD's own
+// `qd::split` (QD 2.3.24 qd/include/qd/inline.h:66-83) whose threshold branch
+// the DD port had dropped.
+//
+// Splitter 134217729.0 = 2^27+1 for the 53-bit FP64 mantissa.  Without the
+// branch, `a * split` overflows to ±inf for |a| > DBL_MAX / (split + 1) ~
+// 1.34e300, and then `hi = temp - (temp - a)` is inf - inf = NaN, which poisons
+// every consumer: multiply, multiply_scalar and two_prod all returned NaN for
+// ANY operand past that point, even where the true product is exactly
+// representable.  Measured before the fix, with the true product exactly 1.0:
+//   multiply(1e-300, 1e300) -> 1.0    (below the threshold, fine)
+//   multiply(1e-302, 1e302) -> NaN    (above it; the answer is still 1.0)
+// This is the FP64 instance of KI-9, which fixed the same defect at FP32 in
+// qf_split/tf_split and, separately, in DD's own divide()/divide_scalar().
+// multiply was never audited at the time.  It is distinct from KI-27, which
+// concerns products that GENUINELY overflow, where ±inf is the right answer;
+// here nothing overflows but the splitter itself.
+//
+// The guard scales by an exact power of two, so it introduces no rounding:
+// pre-scale by 2^-28 (bringing DBL_MAX down to 6.70e299, inside the safe band —
+// split * 6.70e299 = 8.99e307 < DBL_MAX), split, then unscale hi and lo by 2^28.
+// Both unscalings are exact: |hi| <= |a| and |lo| < ulp(a), so neither can
+// overflow, and |lo| >= 2^-28 * ulp(DBL_MIN_normal) stays 218 binades clear of
+// the subnormal floor.  These are QD's own 2^-28 / 2^28 constants.
+//
+// As in qf_split — and unlike ff_math.hpp's B9 guard, which scales the whole
+// operand and unscales the RESULT — scaling only INSIDE the split leaves the
+// product `p = a.hi * b.hi` untouched.  The non-hazard path is therefore
+// bit-identical to the unguarded code it replaces (same three operations, same
+// order), and the hazard path costs no extra rounding.
+XPMATH_INLINE_FUNCTION void dd_split(double a, double& hi, double& lo) {
+    const double split  = 134217729.0;
+    const double thresh = 1.3393857e300;     // DBL_MAX / (split + 1)
+    if (a > thresh || a < -thresh) {
+        a  *= 3.7252902984619140625e-09;     // 2^-28, exact
+        detail::eft_split(a, split, hi, lo);
+        hi  *= 268435456.0;                  // 2^28, exact
+        lo  *= 268435456.0;
+    } else {
+        detail::eft_split(a, split, hi, lo);
+    }
+}
+
+// KI-27.  Non-finite / degenerate signalling on the PRODUCT, the multiply-side
+// counterpart of the guard KI-19 put on divide().  The error-free transform
+// below is only meaningful while the hardware product is a finite non-zero
+// number; outside that, `p` is already the IEEE-correct answer and the residual
+// expression manufactures a NaN out of it (c11 = ±inf makes a1*b1 - c11 =
+// ∓inf and then e = t1 - c11 = NaN).  Measured before the fix:
+//   multiply(1e300, 1e300) -> NaN   (true 1e600, +inf is the answer)
+//   multiply(2.0,   inf)   -> NaN   (IEEE 754-2019 §6.1 requires +inf)
+// and, through the complex division formula which multiplies before it divides,
+//   (1e300+1e300i)/(1e-10+1e-10i) -> NaN
+// even after the KI-19 divide fix.  QF and TF already carry exactly this guard
+// at qf_two_prod/tf_two_prod ("the error term of an overflowed product carries
+// no information, so the only defensible value is 0"); this is the same rule at
+// DD's monolithic site.
+//
+// Three cases fold into one test on `p = a.hi * b.hi`:
+//   |p| = inf   the true product exceeds the format; ±inf with the IEEE sign.
+//   p   = NaN   a genuinely undefined form (0·inf, or a NaN operand); kept.
+//   p   = 0     |a| <= |a.hi|(1+2^-53) and likewise for b, so a product whose
+//               leading term underflows to zero is below the smallest subnormal
+//               and ±0 with the IEEE sign is the answer.  The low words cannot
+//               rescue it: |a.lo*b.hi| <= |a.hi*b.hi| * 2^-53.
+// The guard is placed BEFORE any splitter scaling so that it reads the true
+// hardware product, not a rescaled stand-in.
+//
+// TwoProduct (Dekker splitting)
+XPMATH_NOINLINE_FUNCTION DoubleDouble multiply(DoubleDouble a, DoubleDouble b) {
+    const double p = a.hi * b.hi;                                   // KI-27
+    if (!detail::isfinite(p) || p == 0.0) return DoubleDouble(p, 0.0);
+    double a1, a2, b1, b2;                                          // KI-30
+    dd_split(a.hi, a1, a2);
+    dd_split(b.hi, b1, b2);
+    double c11 = detail::eft_mul(a.hi, b.hi);
+    double c21 = detail::eft_add(detail::eft_add(detail::eft_add(
+                      detail::eft_sub(detail::eft_mul(a1, b1), c11),
+                      detail::eft_mul(a1, b2)),
+                      detail::eft_mul(a2, b1)),
+                      detail::eft_mul(a2, b2));
+    double c2  = detail::eft_add(detail::eft_mul(a.hi, b.lo),
+                                 detail::eft_mul(a.lo, b.hi));
+    double t1  = detail::eft_add(c11, c2);
+    double e   = detail::eft_sub(t1, c11);
+    double t2  = detail::eft_add(detail::eft_add(
+                      detail::eft_add(detail::eft_sub(c2, e),
+                                      detail::eft_sub(c11, detail::eft_sub(t1, e))),
+                      c21),
+                      detail::eft_mul(a.lo, b.lo));
+    double hi  = detail::eft_add(t1, t2);
+    double lo  = detail::eft_sub(t2, detail::eft_sub(hi, t1));
+    return DoubleDouble(hi, lo);
+}
+
+// KI-19 (DD sibling audit — the KI was filed QF-only; the same three-zone
+// defect is present here at FP64 scale and is fixed with the same structure
+// ff_math.hpp:divide already carries as B8/B10).  Measured before the fix:
+//   1e301/1.0    -> NaN   (quotient 1e301 IS representable)
+//   1e300/1e-10  -> NaN   (quotient 1e310, should be +inf)
+//   1.0/0.0      -> NaN   (should be +inf)
+//   1.0/inf      -> NaN   (IEEE 754-2019 §6.1 requires +0)
+//
+//   guard 1  non-finite DIVISOR.  conb = b.hi * split is inf and
+//            b1 = conb - (conb - b.hi) = inf - inf = NaN, poisoning a quotient
+//            IEEE defines exactly.  The bare double quotient IS the answer:
+//            finite/±inf -> correctly-signed ±0, ±inf/±inf -> NaN (kept as NaN
+//            precisely because the quotient is returned rather than a
+//            copysign form), anything/NaN -> NaN.
+//   Zone A   |s1| <= thresh.  Untouched, bit-identical to before.
+//   Zone B   thresh < |s1| < inf.  The splitter overflows on the QUOTIENT
+//            ESTIMATE with both operands well inside range, yet the true
+//            quotient is representable.  Pre-scale the NUMERATOR by the exact
+//            power of two 2^-64 and multiply the result back by 2^64; every
+//            Dekker intermediate scales with it, so the recovery is exact.
+//   Zone C   |s1| = inf.  No finite DoubleDouble exists (|value| is bounded by
+//            |hi|(1+2^-53)), so ±inf IS the answer — this is the KI-19 case.
+//            Includes x/0, where IEEE already requires ±inf.
+//   |s1| = 0 the true quotient is below the smallest subnormal; ±0 is the
+//            answer and IEEE's sign rules already give the right zero.
+//   s1 = NaN 0/0 and inf/inf only; falls through unchanged and stays NaN.
+//
+// Zone B's 2^-64 has ample headroom at both ends: |s1| <= 2^1024 maps to 2^960
+// and 2^960 * split ~ 2^987 << DBL_MAX, while the smallest a.lo that can reach
+// Zone B (b.hi subnormal) is ~7e-40, i.e. ~4e-59 after scaling — 249 binades
+// clear of the subnormal floor.  B8 and B10 remain mutually exclusive for the
+// reason ff_math.hpp gives: the divisor guard forces |s1| <= split+1.
+namespace detail {
+XPMATH_INLINE_FUNCTION DoubleDouble dd_pow2_scale(DoubleDouble a, double s);   // defined below
+
+// KI-41 at the UNDERFLOW end.  KI-19's three zones below are all splitter-
+// OVERFLOW guards at the TOP of the range; this is the bottom.  Same defect,
+// same remedy and same derivation as qf_math.hpp:divide, read it there.  DD is
+// two words, so the residual's low word sits at |a|·2^-53 and its Dekker tail
+// one word further down at |a|·2^-106; the predicate tests 2^-53 and the lift
+// targets 2^-106.  Cap 2^159, for the reason qf_math.hpp gives.
+//
+// DD's cliff is at |operand| ~ 7.2e-276, so this fires on far fewer rows than
+// the FP32 backends' — 27 and 50 of 1200 in the probe's two low bands, against
+// QF's 483 and 577.  It is here because the defect is the same one and DD is
+// not exempt from it, not because DD's sweep rows were visibly wrong.
+XPMATH_INLINE_FUNCTION bool dd_div_lift_wanted(DoubleDouble a, DoubleDouble b) {
+    const double a0 = detail::fabs(a.hi), b0 = detail::fabs(b.hi);
+    if (a0 == 0.0 || b0 == 0.0) return false;
+    const double m = (a0 < b0) ? a0 : b0;
+    return m * 0x1p-53 < 2.2250738585072014e-308 * 4.0;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble dd_divide_core(DoubleDouble a, DoubleDouble b) {
+    const double split = 134217729.0;
+    if (!detail::isfinite(b.hi)) return DoubleDouble(a.hi / b.hi, 0.0);
+    const double kSplitOverflowThresh = 1.3393857e300;   // DBL_MAX / (split + 1)
+    const double sd = (detail::fabs(b.hi) > kSplitOverflowThresh)
+                          ? ldexp(1.0, -64) : 1.0;
+    b = DoubleDouble(b.hi * sd, b.lo * sd);
+    double s1  = a.hi / b.hi;
+    double un  = 1.0;                                    // Zone B numerator unscale
+    if (detail::fabs(s1) > kSplitOverflowThresh) {       // not Zone A
+        if (detail::isinf(s1)) return DoubleDouble(s1, 0.0);       // Zone C
+        const double sn = ldexp(1.0, -64);                         // Zone B
+        un = ldexp(1.0, 64);
+        a  = DoubleDouble(a.hi * sn, a.lo * sn);
+        s1 = s1 * sn;   // exact, and identical to recomputing (a.hi*sn) / b.hi
+    }
+    double cona = s1 * split, conb = b.hi * split;
+    double a1  = cona - (cona - s1), b1 = conb - (conb - b.hi);
+    double a2  = s1 - a1,            b2 = b.hi - b1;
+    double c11 = s1 * b.hi;
+    double c21 = (((a1*b1 - c11) + a1*b2) + a2*b1) + a2*b2;
+    double c2  = s1 * b.lo;
+    double t1  = c11 + c2;
+    double e   = t1 - c11;
+    double t2  = ((c2 - e) + (c11 - (t1 - e))) + c21;
+    double t12 = t1 + t2;
+    double t22 = t2 - (t12 - t1);
+    double t11 = a.hi - t12;
+    e = t11 - a.hi;
+    double t21 = ((-t12 - e) + (a.hi - (t11 - e))) + a.lo - t22;
+    double s2  = (t11 + t21) / b.hi;
+    double hi  = s1 + s2;
+    double lo  = s2 - (hi - s1);
+    // KI-19: unscale — recover a/b from (a·sn)/(b·sd) by multiplying by sd and
+    // by un, as two separate exact powers of two.  Both are 1.0 on the
+    // non-hazard path, where `hi * 1.0 * 1.0 == hi` bit-for-bit.
+    return DoubleDouble(hi * sd * un, lo * sd * un);
+}
+}  // namespace detail
+
+XPMATH_NOINLINE_FUNCTION DoubleDouble divide(DoubleDouble a, DoubleDouble b) {
+    if (!detail::dd_div_lift_wanted(a, b)) return detail::dd_divide_core(a, b);
+    const double step = 0x1p53, target = 2.2250738585072014e-308 * 4.0, cap = 0x1p159;
+    double sa = 1.0, sb = 1.0;
+    double pa = detail::fabs(a.hi), pb = detail::fabs(b.hi);
+    // KI-41's own loop shape (qf_complex.hpp:325-352), not a paraphrase of it:
+    // target the PRODUCT and lift whichever operand is currently smaller.  That
+    // keeps sa/sb minimal, so the closing unscale moves the quotient as little
+    // as the mechanism allows.
+    for (int k = 0; k < 16 && (pa * pb) * 0x1p-106 < target && sa < cap && sb < cap; ++k) {
+        if (pa < pb) { sa *= step; pa *= step; } else { sb *= step; pb *= step; }
+    }
+    const DoubleDouble q = detail::dd_divide_core(detail::dd_pow2_scale(a, sa),
+                                                  detail::dd_pow2_scale(b, sb));
+    return detail::dd_pow2_scale(q, sb / sa);   // exact: both are powers of two
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble multiply_scalar(DoubleDouble a, double b) {
+    const double p = a.hi * b;                                      // KI-27, see multiply()
+    if (!detail::isfinite(p) || p == 0.0) return DoubleDouble(p, 0.0);
+    double a1, a2, b1, b2;                                          // KI-30
+    dd_split(a.hi, a1, a2);
+    dd_split(b,    b1, b2);
+    double c11  = a.hi * b;
+    double c21  = (((a1*b1 - c11) + a1*b2) + a2*b1) + a2*b2;
+    double c2   = a.lo * b;
+    double t1   = c11 + c2;
+    double e    = t1 - c11;
+    double t2   = ((c2 - e) + (c11 - (t1 - e))) + c21;
+    double hi   = t1 + t2;
+    double lo   = t2 - (hi - t1);
+    return DoubleDouble(hi, lo);
+}
+
+// KI-19: same three zones as divide() above, with the divisor a bare double.
+XPMATH_INLINE_FUNCTION DoubleDouble divide_scalar(DoubleDouble a, double b) {
+    const double split = 134217729.0;
+    if (!detail::isfinite(b)) return DoubleDouble(a.hi / b, 0.0);
+    const double kSplitOverflowThresh = 1.3393857e300;   // DBL_MAX / (split + 1)
+    const double sd = (detail::fabs(b) > kSplitOverflowThresh) ? ldexp(1.0, -64) : 1.0;
+    b = b * sd;
+    double t1  = a.hi / b;
+    double un  = 1.0;
+    if (detail::fabs(t1) > kSplitOverflowThresh) {
+        if (detail::isinf(t1)) return DoubleDouble(t1, 0.0);
+        const double sn = ldexp(1.0, -64);
+        un = ldexp(1.0, 64);
+        a  = DoubleDouble(a.hi * sn, a.lo * sn);
+        t1 = t1 * sn;
+    }
+    double cona = t1 * split, conb = b * split;
+    double a1  = cona - (cona - t1), b1 = conb - (conb - b);
+    double a2  = t1 - a1,            b2 = b - b1;
+    double t12 = t1 * b;
+    double t22 = (((a1*b1 - t12) + a1*b2) + a2*b1) + a2*b2;
+    double t11 = a.hi - t12;
+    double e   = t11 - a.hi;
+    double t21 = ((-t12 - e) + (a.hi - (t11 - e))) + a.lo - t22;
+    double t2  = (t11 + t21) / b;
+    double hi  = t1 + t2;
+    double lo  = t2 - (hi - t1);
+    // KI-31.  Unscale, exactly as divide() does.  This return used to be a bare
+    // `DoubleDouble(hi, lo)`: the KI-19 guard above scaled the DIVISOR by
+    // sd = 2^-64 and the numerator by sn, but the result was never scaled back,
+    // so every divisor past kSplitOverflowThresh came out too large by exactly
+    // 2^64.  Measured before the fix, with the true quotient exactly 1.0:
+    //   divide_scalar(2^996, 2^996) -> 1.0                  (below the threshold)
+    //   divide_scalar(2^997, 2^997) -> 1.8446744073709552e19 (= 2^64)
+    // A silent WRONG VALUE rather than a NaN, which is why neither KI-19 nor the
+    // sweep caught it -- `un` was assigned and then dropped.  divide() has
+    // always been correct here; only the scalar sibling was missed.  Both
+    // factors are 1.0 on the non-hazard path, where `hi * 1.0 * 1.0 == hi`
+    // bit-for-bit.
+    return DoubleDouble(hi * sd * un, lo * sd * un);
+}
+
+// Exact product of two doubles
+XPMATH_INLINE_FUNCTION DoubleDouble two_prod(double da, double db) {
+    const double p = da * db;                                       // KI-27, see multiply()
+    if (!detail::isfinite(p) || p == 0.0) return DoubleDouble(p, 0.0);
+    double a1, a2, b1, b2;                                          // KI-30
+    dd_split(da, a1, a2);
+    dd_split(db, b1, b2);
+    double s1   = detail::eft_mul(da, db);
+    double s2   = detail::eft_add(detail::eft_add(detail::eft_add(
+                      detail::eft_sub(detail::eft_mul(a1, b1), s1),
+                      detail::eft_mul(a1, b2)),
+                      detail::eft_mul(a2, b1)),
+                      detail::eft_mul(a2, b2));
+    return DoubleDouble(s1, s2);
+}
+
+// ============================================================
+// Basic math
+// ============================================================
+
+XPMATH_INLINE_FUNCTION DoubleDouble abs(DoubleDouble a) {
+    return (a.hi >= 0.0) ? a : DoubleDouble(-a.hi, -a.lo);
+}
+
+// Nearest integer, TIES TO EVEN (DDFUN's dnint: a DD-level magic constant,
+// 2^105 + 2^52, added and subtracted so the DD add's own rounding does the
+// work).
+//
+// KI-2 (2026-09-02): DD is NOT one of the two backends KI-2 affects, and this
+// routine is deliberately left alone. KI-2 is QD's `floor(d + 0.5)`
+// double-rounding, which QF and TF inherited and DD never used. Measured, not
+// assumed: nint(0.49999999999999994) = 0 here, where the floor form gives 1.
+// The magic-constant form is exact for every |a| < 2^105 — the fraction is
+// rounded once, in the low word, ties to even — so there is nothing for `rint`
+// to improve, and no scalar `rint` formulation reaches 106 bits anyway.
+// Ties-to-even is also the shipped semantics of dd::round and what
+// the `nearbyintq` oracle expects (now the sweep's R_Round row, mpfr_rint
+// with ties-to-even -- see KI-37).
+// See docs/KNOWN_ISSUES.md, KI-2 resolution.
+XPMATH_INLINE_FUNCTION DoubleDouble round_to_nearest_int(DoubleDouble a) {
+    if (a.hi == 0.0) return DoubleDouble(0.0);
+    const double T105 = detail::ldexp(1.0, 105); // 2^105
+    const double T52  = detail::ldexp(1.0, 52);  // 2^52
+    DoubleDouble CON = DoubleDouble(T105, T52);
+    // KI-14 (DD sibling audit — the KI was filed FF-only; DD has the SAME
+    // zero-returning bail, at 2^105 = 4.06e31 instead of 2^47, and it was
+    // additionally one-sided: `a.hi >= T105` let every large NEGATIVE argument
+    // through, so floor(-2^105) was right and floor(+2^105) was 0).
+    //
+    // Unlike FF's, this cap is real: the DDFUN magic constant genuinely stops
+    // discarding the fraction once |a| reaches 2^105.  Only the RETURN VALUE was
+    // wrong.  At |a.hi| >= 2^105, ulp(a.hi) >= 2^52, so a.hi is an exact even
+    // integer and all fractional content is in a.lo; nint(a) = a.hi + rint(a.lo),
+    // ties-to-even on the low word being ties-to-even on the whole value because
+    // a.hi is even.  `add` of two doubles is two_sum-exact.
+    if (detail::fabs(a.hi) >= T105) {
+        return add(DoubleDouble(a.hi), DoubleDouble(detail::rint(a.lo)));
+    }
+    if (a.hi > 0.0) return subtract(add(a, CON), CON);
+    else            return add(subtract(a, CON), CON);
+}
+
+XPMATH_NOINLINE_FUNCTION DoubleDouble sqrt(DoubleDouble a) {
+    if (a.hi == 0.0) return DoubleDouble(0.0);
+    if (a.hi < 0.0) {
+        XPMATH_PRINTF("DDSQRT: negative argument\n");
+        return DoubleDouble(0.0);
+    }
+    // One Newton correction, whose residue is the quadratic term d^2/(2 sqrt a)
+    // with d = t2 - sqrt(a).  So t2's accuracy squares straight into the answer,
+    // and it is the only lever that matters here.
+    //
+    // The QD form seeds a reciprocal root and multiplies back up --
+    // t1 = 1/sqrt(a.hi); t2 = a.hi*t1 -- which leaves d ~ 3u (1.5u from the
+    // reciprocal root, 1u from the multiply, 0.5u from a.hi standing in for a),
+    // hence ~4.5u^2, i.e. ~4.5 ulps at p = 106 on ordinary inputs.  Taking the
+    // hardware sqrt directly makes t2 correctly rounded, d <= 0.5u, and cuts
+    // that ~36x.
+    //
+    // COST: this is NOT free, contrary to a first reading of the operation
+    // count.  Measured with kokkos_ep_bench_cost, DD sqrt goes 0.06x -> 0.13x
+    // f128 and FF sqrt 7.0x -> 14.3x FP64, i.e. about 2x SLOWER.  The seed
+    // change alone would be roughly neutral; the cost is divide_scalar, a full
+    // two-word division with renormalization, replacing a single multiply.
+    //
+    // The correction is formed by divide_scalar, not 0.5*s1.hi/t2, so s1.lo is
+    // carried; dropping it costs FloatFloat real rows and DoubleDouble nothing,
+    // because a double operand lands in DD exactly but must be split by FF.
+    //
+    // Measured by scripts/probe_sqrt_iter.cpp against MPFR at 400 bits, on the
+    // sweep's own operands: rows above 1 ulp in 1e-10..1e10 go DD 370 -> 0
+    // (max 0.7955) and FF 400 -> 0 (max 0.9799).  The QD form is what the plan
+    // called the "seed" defect; it is not -- an exact seed measures no better.
+    double t2 = detail::sqrt(a.hi);
+    DoubleDouble s0 = two_prod(t2, t2);      // exact
+    DoubleDouble s1 = subtract(a, s0);       // exact residual
+    return add(DoubleDouble(t2), divide_scalar(s1, 2.0 * t2));
+}
+
+// Integer power
+XPMATH_INLINE_FUNCTION DoubleDouble pow_int(DoubleDouble a, int n) {
+    const double cl2 = 1.4426950408889633;
+    if (a.hi == 0.0) {
+        if (n >= 0) return DoubleDouble(0.0);
+        XPMATH_PRINTF("DDNPWR: zero base with negative exponent\n");
+        return DoubleDouble(0.0);
+    }
+    int nn = (n < 0) ? -n : n;
+    if (nn == 0) return DoubleDouble(1.0);
+    if (nn == 1) return (n > 0) ? a : divide(DoubleDouble(1.0), a);
+    if (nn == 2) { DoubleDouble r = multiply(a,a); return (n>0) ? r : divide(DoubleDouble(1.0),r); }
+    int mn = (int)(cl2 * detail::log((double)nn) + 1.0 + 1.0e-14);
+    DoubleDouble s0 = a, s2 = DoubleDouble(1.0);
+    int kn = nn;
+    for (int j = 1; j <= mn; ++j) {
+        int kk = kn / 2;
+        if (kn != 2*kk) s2 = multiply(s2, s0);
+        kn = kk;
+        if (j < mn) s0 = multiply(s0, s0);
+    }
+    if (n < 0) s2 = divide(DoubleDouble(1.0), s2);
+    return s2;
+}
+
+// ============================================================
+// Exp / Log family
+// ============================================================
+
+XPMATH_NOINLINE_FUNCTION DoubleDouble exp(DoubleDouble a) {
+    const int nq = 6;
+    const double eps = 1.0e-32;
+    DoubleDouble al2 = DoubleDouble_log2();
+    // KI-6: the guard is derived from the WORD range, not from a shared ±300
+    // constant. e^x exceeds DBL_MAX (1.7977e308) above ln(DBL_MAX) =
+    // 709.78271289338397, and falls below the smallest FP64 subnormal
+    // (4.94e-324) below ln(2^-1074) = -745.13. Between those the result is
+    // representable and must be returned, not flushed to zero — the old ±300
+    // guard threw away ~170 decades that DD holds perfectly well. The guards
+    // that remain exist only to bound `nz` before the (int) cast below.
+    if (a.hi > 709.78271289338397) {
+        XPMATH_PRINTF("DDEXP: overflow\n");
+        return DoubleDouble(HUGE_VAL);          // e^x > DBL_MAX: +inf is the answer
+    }
+    if (a.hi < -745.2) return DoubleDouble(0.0); // e^x < 2^-1074: 0 is the answer
+
+    DoubleDouble s0 = divide(a, al2);
+    DoubleDouble s1 = round_to_nearest_int(s0);
+    double t1  = s1.hi;
+    int nz     = (int)(t1 + detail::copysign(1.0e-14, t1));
+
+    // KI-42: Cody-Waite range reduction. `multiply(al2, s1)` was a ROUNDED DD
+    // product; a - k*ln2 then cancels down to |r| <= ln2/2, so that rounding
+    // survived whole as an ABSOLUTE error ~|a|*2^-p -- i.e. a relative error of
+    // the result, since exp(r+d) = exp(r)(1+d). Measured against MPFR at 400
+    // bits: 14.28 ulps at a=100, 420.4 at a=300, 1046 at a=700.
+    //
+    // NEGATIVE CONTROL, reproduced -- do not "fix" this by widening the
+    // constant: adding a THIRD limb of ln2 while keeping the rounded product
+    // does not help and sometimes hurts (a=50: 14.28 -> 21.18). The constant's
+    // width was never the mechanism; the rounded product is.
+    //
+    // Split ln2 into pieces narrow enough that every k*c_i is EXACT in one
+    // double. |a| < 745.2 (the guards above) bounds k to [-1075, 1024], 11
+    // bits, leaving 53-11 = 42 bits per piece. Three pieces put the tail at
+    // 2^-136.1, worth 9.5e-07 ulps at kmax -- far below the 0.5 ulp target.
+    // Verified: 0 of 6300 products k*c_i inexact over the full k range.
+    //
+    // Then a - k*c1 is exact by Sterbenz-class cancellation and each further
+    // subtraction removes an exact quantity, so the reduction carries no
+    // rounding of its own. DESCENDING order is load-bearing: taking a small
+    // piece first would round the running value at ulp(a), reintroducing
+    // exactly the |a|*2^-p error this replaces. See tests/exp_reduction_test.
+    //
+    // Measured effect, dense sweep of 4001 points over [-745, 709] restricted
+    // to a >= -671.7 (below that DD's lo word leaves the FP64 normal range --
+    // a FORMAT limit, the same threshold log() switches on at line 639):
+    //     rows > 1 ulp  3691 -> 73      worst 665.1 -> 1.891
+    // A third arm computing the reduction in MPFR at 400 bits agrees with the
+    // Cody-Waite result on every one of those 3799 rows, so the 73 residual
+    // rows are the series core, not the reduction -- no reduction headroom is
+    // left here.
+    //
+    // GPU: no Dekker split anywhere in this sequence, so it is unperturbed by
+    // -ffp-contract=fast (unlike two_prod, which breaks on device).
+    const double kLn2_1 =  0x1.62e42fefa38p-1;   // 42 significant bits
+    const double kLn2_2 =  0x1.ef35793c768p-45;  // 42
+    const double kLn2_3 = -0x1.9ff0342543p-90;   // 41
+    const double kd = t1;                        // exact integer, |kd| <= 1075
+    s0 = subtract(a,  DoubleDouble(kd * kLn2_1));
+    s0 = subtract(s0, DoubleDouble(kd * kLn2_2));
+    s0 = subtract(s0, DoubleDouble(kd * kLn2_3));
+
+    if (s0.hi == 0.0) {
+        return DoubleDouble(detail::ldexp(1.0, nz)); // result = 2^nz exactly
+    }
+    // Scale down by 2^nq, Taylor, then square nq times.
+    //
+    // KI-34. The series and the squarings both track e^r - 1, NOT e^r. That is
+    // the whole content of the fix, and it is worth stating why.
+    //
+    // Squaring propagates RELATIVE error by doubling it: if y = e^r(1+d) then
+    // y^2 = e^2r(1+2d). Carrying the leading 1 through nq squarings therefore
+    // multiplies the series' relative error by 2^nq = 64, and since `log` is
+    // Newton-on-exp with an ADDITIVE correction, that 64x lands whole in log's
+    // absolute error. Measured before this change: exp 61.8 units of 2^-106
+    // (median), log's absolute error 41.6 units, flat across seven octaves of
+    // |ln v| -- i.e. 78 ulps of the result at |ln v| ~ 1/4.
+    //
+    // Track s = e^r - 1 instead and the doubling step is
+    //
+    //     (1+s)^2 - 1 = s^2 + 2s = s*(s+2)
+    //
+    // whose relative error is s(2+2s)/(s(2+s)) = 1 + s/(2+s) times the input's,
+    // i.e. PRESERVED rather than doubled (s <= 2^(1/2)-1 = 0.414, so the growth
+    // over all nq steps is a bounded factor of ~1.4, not 64). The series' own
+    // error is smaller too: the partial sums are O(r) = O(2^-nq) rather than
+    // O(1), so each add rounds at ulp(r) instead of ulp(1). The final `1 + s`
+    // cannot cancel -- s in [2^-1/2 - 1, 2^1/2 - 1] keeps 1+s >= 0.707 -- so the
+    // absolute error survives into the result as a relative error <= 0.59x.
+    //
+    // The convergence test is unchanged in FORM but is now relative to a sum of
+    // size |r|, hence ~185x stricter, costing one extra term (12, was 11).
+    s1 = multiply_scalar(s0, detail::ldexp(1.0, -nq));
+    DoubleDouble s2 = s1, s3 = s1;                  // term = r, sum = e^r - 1
+    for (int l1 = 2; l1 <= 100; ++l1) {
+        s0 = multiply(s2, s1);
+        s2 = divide_scalar(s0, (double)l1);
+        s0 = add(s3, s2);
+        s3 = s0;
+        if (detail::fabs(s2.hi) <= eps * detail::fabs(s3.hi)) break;
+        if (l1 == 100) { XPMATH_PRINTF("DDEXP: iteration limit\n"); return DoubleDouble(0.0); }
+    }
+    for (int i = 0; i < nq; ++i) s3 = multiply(s3, add(s3, DoubleDouble(2.0)));
+    s3 = add(DoubleDouble(1.0), s3);
+
+    // KI-6: scale by 2^nz through the EXPONENT, component-wise, not by forming
+    // the factor 2^nz as a double and multiplying. ldexp(1.0, nz) is +inf for
+    // nz >= 1024 and 0 for nz <= -1075, so the old multiply_scalar form could
+    // not reach either end of the range even with the guard widened; and
+    // multiply_scalar runs a Dekker split, which itself overflows above
+    // ~1.3e300. Scaling each word by a power of two is exact (bar gradual
+    // underflow at the very bottom, where the lo word is unrepresentable
+    // anyway) and spans the full FP64 exponent range.
+    // Inside the normal FP64 exponent band the factor 2^nz is itself exact and
+    // representable, so a plain multiply is equivalent AND cheaper — the
+    // compiler builds `ldexp(1.0, nz)` inline, whereas ldexp() on a general
+    // mantissa is a libm call. Outside the band (only reachable at the extreme
+    // ends of the newly-opened range) take the two calls.
+    if (nz >= -1021 && nz <= 1023) {
+        const double pow2 = detail::ldexp(1.0, nz);
+        return DoubleDouble(s3.hi * pow2, s3.lo * pow2);
+    }
+    return DoubleDouble(detail::ldexp(s3.hi, nz), detail::ldexp(s3.lo, nz));
+}
+
+XPMATH_NOINLINE_FUNCTION DoubleDouble log(DoubleDouble a) {
+    // KI-6: log(+inf) = +inf, returned directly. Since exp() now returns +inf
+    // on genuine overflow instead of 0, the Newton step below would evaluate
+    // (a - e^x)/e^x = (inf - inf)/inf = NaN on an infinite argument. atanh(±1)
+    // reaches here through (1+a)/(1-a).
+    if (detail::isinf(a.hi)) return a;
+    if (a.hi <= 0.0) {
+        XPMATH_PRINTF("DDLOG: non-positive argument\n");
+        return DoubleDouble(0.0);
+    }
+    // Initial approximation then 3 Newton steps: b <- b + (a - exp(b)) / exp(b)
+    DoubleDouble b = DoubleDouble(detail::log(a.hi));
+    for (int k = 0; k < 3; ++k) {
+        // KI-23, small-argument mirror image.  See qf_math.hpp's log for the
+        // derivation.  The residual form evaluates e^{b}, which for a << 1 is
+        // tiny and loses its lo word to FP64 underflow -- DD measured 19.98 of
+        // 32 digits at 1e-307.  Switch to QD's form only where that bites: lo
+        // sits at 2^(E-53), leaving the FP64 normal range 2^-1022 once E < -969,
+        // i.e. b < -969*ln2 = -671.7.  Above that the residual form is strictly
+        // better (relative rather than absolute error on the correction), and
+        // below -ln(DBL_MAX) the switch is unavailable because 1/a overflows.
+        if (b.hi < -671.7 && -b.hi <= 709.78271289338397) {
+            DoubleDouble s0 = exp(negate(b));                   // e^{|b|} >= 1
+            // KI-30.  e^{|b|} runs to 1.8e308 here, past the point where
+            // Dekker's splitter overflows -- which is why this product used to
+            // carry a local power-of-two rebalance (s0 down and a up by 2^10,
+            // up to three times) to keep multiply() out of the hazard band.
+            // multiply() now guards its own splitter via dd_split(), so the
+            // rebalance is redundant and has been removed; the call below is
+            // exact for every s0 the branch can produce.
+            b = subtract(add(b, multiply(a, s0)), DoubleDouble(1.0));
+        } else {
+            DoubleDouble s0 = exp(b);                           // e^{b} >= 1
+            DoubleDouble s1 = subtract(a, s0);
+            DoubleDouble s2 = divide(s1, s0);
+            b = add(b, s2);
+        }
+    }
+    return b;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble log2(DoubleDouble a) {
+    return divide(log(a), DoubleDouble_log2());
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble log10(DoubleDouble a) {
+    return divide(log(a), DoubleDouble_log10());
+}
+
+// log1p(a) = log(1+a), accurate for small |a|.
+//
+// KI-5(b). The old body was `log(add(1, a))`, which is not a log1p at all: for
+// |a| << 1 the sum discards everything below the leading 1, so the result keeps
+// only log10(1/|a|) fewer digits than the type has. That is exactly the loss the
+// caller asked to avoid, and it is what made complex `atanh` collapse as z -> 0.
+//
+// The obvious repair does NOT work here, and was measured before being dropped.
+//
+// (i) REJECTED: Goldberg's correction (Higham, "Accuracy and Stability of
+// Numerical Algorithms", 2nd ed., problem 1.5): with u = fl(1+a), log1p(a) =
+// log(u)*a/(u-1). `u - 1` is EXACT whenever 0.5 <= u.hi <= 2, so a/(u-1) is
+// exactly the factor by which rounding 1+a perturbed the argument. But that
+// repairs the ARGUMENT and assumes log(u) is accurate for the u it is given. It
+// is not, here: `log` seeds from the FP64 log of the leading limb and takes ONE
+// Newton step x <- x + a*exp(-x) - 1; for u = 1 + e the seed is 0 and the step
+// returns e itself, whose relative error against log(1+e) = e - e^2/2 is e/2.
+// Measured: with Goldberg alone, log1p(4e-20) on DD scored 19.70 digits, not 31
+// -- exactly the 2*log10(1/e) that one Newton step buys. Applying it for larger
+// |a| as well, where there is no cancellation to undo, cost 583 sweep points up
+// to 0.87 digits to its two extra roundings. So it is not used at all.
+//
+// (ii) WHAT SHIPS: a series for small |a|, which never calls log:
+//
+//     log1p(a) = 2*atanh(t),  t = a/(2+a),  atanh(t) = t + t^3/3 + t^5/5 + ...
+//
+// The atanh form rather than the plain alternating log(1+a) series because its
+// terms are all positive (no cancellation) and it converges in t^2, so |a| < 1/4
+// gives |t| < 1/7 and t^2 < 1/48 -- about 19 terms for DD's 32 digits. Forming
+// t costs one divide, which is the whole price. Outside |a| < 1/4 the body is
+// the ORIGINAL log(1+a), bit-identical to before this change.
+//
+// Edge cases: a == 0 gives t == 0 and returns 0 with its sign; a == -1 falls
+// through to log(0) = -inf; large a falls through unchanged. Same body in all
+// four backends, with the threshold fixed at 1/4 and only the convergence
+// epsilon retyped.
+XPMATH_INLINE_FUNCTION DoubleDouble log1p(DoubleDouble a) {
+    if (detail::fabs(a.hi) < 0.25) {
+        DoubleDouble t   = divide(a, add(DoubleDouble(2.0), a));
+        DoubleDouble t2  = multiply(t, t);
+        DoubleDouble sum = t;
+        DoubleDouble trm = t;
+        for (int k = 3; k < 80; k += 2) {
+            trm = multiply(trm, t2);
+            DoubleDouble incr = divide(trm, DoubleDouble((double)k));
+            sum = add(sum, incr);
+            if (detail::fabs(incr.hi) <= 1.0e-34 * detail::fabs(sum.hi)) break;
+        }
+        return multiply_scalar(sum, 2.0);
+    }
+    return log(add(DoubleDouble(1.0), a));
+}
+
+// KI-43: exp2/exp10 reduce their OWN argument; they no longer hand exp a
+// rounded pre-multiply. `exp(multiply(a, ln2))` rounds a*ln2 at |a*ln2|*2^-p,
+// which is an ABSOLUTE error in exp's argument and therefore a RELATIVE error
+// of the result of |a*ln2| ulps -- up to ~709 for DD, and entirely independent
+// of how accurate exp itself is. Measured DD exp10 worst 768 ulps at a=300.25.
+//
+// exp2 needs no constants at all: k = nint(a) makes r = a - k EXACT (|a| <=
+// 1024 puts a's lowest bit at 2^(10-p), so a-k needs p-11 bits and the type
+// holds p), and 2^a = 2^k * exp(r*ln2) has |r*ln2| <= 0.347 -- one rounded
+// product of a small quantity, under half an ulp of the result.
+//   dense [-1000,1000]: rows > 1 ulp 1163 -> 11
+XPMATH_INLINE_FUNCTION DoubleDouble exp2(DoubleDouble a) {
+    DoubleDouble k = round_to_nearest_int(a);
+    const int ki = (int)k.hi;
+    DoubleDouble r = subtract(a, k);                    // EXACT
+    DoubleDouble s = (r.hi == 0.0 && r.lo == 0.0)
+                   ? DoubleDouble(1.0)
+                   : exp(multiply(r, DoubleDouble_log2()));
+    // KI-6 scale-back: component-wise, never by materialising 2^ki.
+    if (ki >= -1021 && ki <= 1023) {
+        const double p2 = detail::ldexp(1.0, ki);
+        return DoubleDouble(s.hi * p2, s.lo * p2);
+    }
+    return DoubleDouble(detail::ldexp(s.hi, ki), detail::ldexp(s.lo, ki));
+}
+
+// exp10 reduces on log10(2) with a Cody-Waite table: k = nint(a*log2(10)),
+// r = a - sum k*d_i with every k*d_i EXACT in one double (42-bit pieces, |k| <=
+// 1075), so |r| <= log10(2)/2 = 0.1505 and 10^a = 2^k * exp(r*ln10).
+// Pieces verified: 0 of 6300 products inexact over k in [-1075, 1024];
+// tail 2^-131.7. dense [-300,300]: rows > 1 ulp 1186 -> 54.
+XPMATH_INLINE_FUNCTION DoubleDouble exp10(DoubleDouble a) {
+    const double kLog2_10 = 3.321928094887362348;       // only selects k
+    const double kd = detail::rint(a.hi * kLog2_10);
+    if (!(detail::fabs(kd) < 1.0e6))                    // out of band
+        return exp(multiply(a, DoubleDouble_log10()));
+    const int ki = (int)kd;
+    const double kLog10_2_1 = 0x1.34413509f78p-2;       // 42 significant bits
+    const double kLog10_2_2 = 0x1.fef311f12bp-46;       // 41
+    const double kLog10_2_3 = 0x1.ac0b7c9178p-89;       // 38
+    DoubleDouble r = subtract(a,  DoubleDouble(kd * kLog10_2_1));
+    r = subtract(r, DoubleDouble(kd * kLog10_2_2));
+    r = subtract(r, DoubleDouble(kd * kLog10_2_3));
+    DoubleDouble s = exp(multiply(r, DoubleDouble_log10()));
+    if (ki >= -1021 && ki <= 1023) {
+        const double p2 = detail::ldexp(1.0, ki);
+        return DoubleDouble(s.hi * p2, s.lo * p2);
+    }
+    return DoubleDouble(detail::ldexp(s.hi, ki), detail::ldexp(s.lo, ki));
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble expm1(DoubleDouble a) {
+    if (detail::fabs(a.hi) > 0.5) {
+        // |exp(a)-1| > e^0.5-1 ~ 0.65: subtraction of 1 causes no significant cancellation
+        return subtract(exp(a), DoubleDouble(1.0));
+    }
+    // Taylor series: a + a²/2! + a³/3! + ...
+    // Avoids catastrophic cancellation of exp(a)-1 near a=0
+    DoubleDouble sum = a, term = a;
+    for (int k = 2; k <= 50; ++k) {
+        term = divide_scalar(multiply(term, a), (double)k);
+        sum  = add(sum, term);
+        if (detail::fabs(term.hi) < 1.0e-32 * detail::fabs(sum.hi)) break;
+    }
+    return sum;
+}
+
+// ============================================================
+// Trig — internal combined cos+sin, then derived
+// ============================================================
+
+// sincos: compute (cos(a), sin(a)) via argument reduction + Taylor series
+// x = cos(a), y = sin(a)
+XPMATH_INLINE_FUNCTION void sincos(DoubleDouble a, DoubleDouble& x, DoubleDouble& y) {
+    const int itrmx = 1000, nq = 5;
+    const double eps = 1.0e-32;
+    if (a.hi == 0.0) { x = DoubleDouble(1.0); y = DoubleDouble(0.0); return; }
+    // KI-12 residual.  Small-argument short circuit over the degenerate
+    // reduction band only; full derivation at ff_math.hpp:sincos.  DD's limbs
+    // are FP64, so the band is |a| < 2^nq * DBL_MIN: below it the leading word
+    // of r = r_mod/2^nq is subnormal and sheds bits before the first Taylor term.
+    // This strictly contains the r.hi == 0 guard further down (kept: it costs
+    // nothing and documents the same corner from the other side) and adds the
+    // shed-bits half of the band, which that guard misses.  A wider cut — at
+    // u = 2^-106, or at 2^-537 where a^2/2 stops being representable in the
+    // low word — was measured to cost complex-op digits; see ff_math.hpp.
+    if (detail::fabs(a.hi) < (double)(1 << nq) * 2.2250738585072014e-308) {
+        x = DoubleDouble(1.0); y = a; return;
+    }
+    // KI-12 audit: |a.hi|, not a.hi — see ff_math.hpp:sincos.
+    //
+    // THIS BAIL IS NOW A PURE LOSS, KEPT DELIBERATELY AND MEASURED.  It exists
+    // because the pre-Payne-Hanek reduction produced nothing usable out here.
+    // Payne-Hanek does: over 3995 random arguments drawn log-uniformly across
+    // [1e60, DBL_MAX], the reduction below answers to a worst 50.79 ulps (sin)
+    // and 51.14 ulps (cos), while this bail's identity point is wrong on
+    // 3995 of 3995 of them, by up to 8.11e31 (sin) and 1.66e36 (cos) ulps.
+    // Reproduce with
+    //   scripts/probe_trig_stages.cpp --range 1e60 1.7976931348623157e308 4000
+    // The sweep sees the same at the only 6 grid points out here, the hardred
+    // pairs +/-4.0156e151, +/-1.8327e198 and +/-5.3194e255: all 18 DD trig
+    // rows read state U, sin and tan at 8.11296e31 ulps and cos from 3.5e25
+    // to 1.7e50.
+    //
+    // Removing it is a one-line change and it costs no scored row either way
+    // (all 18 of those rows are unscorable), so it is NOT bundled into the
+    // Payne-Hanek commit: it is a behaviour change in its own right and
+    // belongs in its own commit with its own before/after.
+    if (detail::fabs(a.hi) >= 1.0e60) {
+        XPMATH_PRINTF("DDCSSNR: argument too large\n");
+        // KI-26: (0, 0) is not a point on the unit circle.  See the
+        // under-determined-reduction note below for why the identity point is
+        // the fallback everywhere in this family.
+        x = DoubleDouble(1.0); y = DoubleDouble(0.0); return;
+    }
+    // ARGUMENT REDUCTION — Payne-Hanek.  a = j*(pi/2) + r_mod with |r_mod| <=
+    // pi/4 and j = nint(a*2/pi) mod 4.  See include/xp/trig_reduction.hpp for
+    // why the old `a - 2pi*nint(a/2pi)` could not be made to work by widening
+    // the constant, and scripts/gen_trig_reduction_constants.cpp for where
+    // kPhGuardDD and kPhChunksDD come from.
+    int          j;
+    DoubleDouble r_mod;
+    if (detail::fabs(a.hi) <= 0.75) {
+        // Nothing to reduce: |a| <= 0.75*(1+2^-53) < pi/4, so nint(a*2/pi) is
+        // 0 and r_mod is a itself, EXACTLY.  Taking the general path here would
+        // route an already-exact argument through a*(2/pi) and back through
+        // pi/2 and charge it two DD roundings for no reduction at all.
+        //
+        // Both the branch and its threshold are MEASURED, by rebuilding the
+        // sweep with this line changed and re-running `--oracle mpfr`:
+        //   branch removed      1590 scored rows worse, 708 better.  Among the
+        //                       2174 scored DD trig rows at |x| < 1: 429 worse
+        //                       against 149 better, median 1.2013 -> 1.2121
+        //                       ulps, and DD c tan at the cut-re points of
+        //                       modulus 0.5 goes 0.186 -> 2.016 ulps.
+        //   cut widened to pi/4  50 worse, 35 better, 85 rows moved -- so the
+        //                       wider cut is not a free improvement.  (The 8
+        //                       grid points strictly inside (0.75, pi/4) are
+        //                       all complex `polar`; the only points AT 0.75
+        //                       are r 387 and r 417, which this branch takes.)
+        // 0.75 also keeps the bound true for the PAIR without a one-ulp fudge:
+        // a.lo adds at most 2^-54 to a.hi = 0.75, and pi/4 is 0.0354 away.
+        j = 0; r_mod = a;
+    } else {
+        const double win[2] = { a.hi, a.lo };
+        double       f[3];
+        j = detail::xp_ph_reduce<double>(win, 2, detail::kPhGuardDD,
+                                         detail::kPhChunksDD, f, 3);
+        // f is exact to 2^-kPhGuardDD ABSOLUTE, which is 2^-(p+4) RELATIVE at
+        // the worst cancellation the format admits.  Both products below are
+        // ordinary DD, so r_mod inherits ~2^-106 relative -- proportional to
+        // |r_mod|, where the old form's error was proportional to |a|.
+        const DoubleDouble pio2 =
+            add(add(DoubleDouble(detail::xp_ph_pio2_d(0)),
+                    DoubleDouble(detail::xp_ph_pio2_d(1))),
+                DoubleDouble(detail::xp_ph_pio2_d(2)));
+        const DoubleDouble fdd =
+            add(add(DoubleDouble(f[0]), DoubleDouble(f[1])), DoubleDouble(f[2]));
+        r_mod = multiply(fdd, pio2);
+    }
+    double scale = 1.0 / (double)(1 << nq);
+    DoubleDouble r  = multiply_scalar(r_mod, scale);   // r = r_mod / 2^nq, |r| < pi/(4*2^nq)
+    // For subnormal |a| the scaling underflows r to zero, and then the relative
+    // convergence test below is vacuous (0 < eps*0 is false) and the series runs
+    // to itrmx. Answer it directly: sin(a) = a and cos(a) = 1 to far beyond DD
+    // precision for any |a| this small.
+    // The scaled residual underflowed. The reduced angle is r_mod, whose
+    // sine is r_mod itself to far beyond this precision, so the reduced
+    // pair is (sin_r, cos_r) = (r_mod, 1) -- and it MUST still go through
+    // the quadrant table. Returning a hand-made answer here was the
+    // Phase 1 defect: for a = pi the mod-pi/2 stage correctly yields
+    // r_mod = 0 with j = 2, and the old guard returned the mod-2pi residual
+    // (which at a = pi is pi itself) as if it were sin(pi).
+    //
+    // This guard also subsumes the separate `mod-2pi residual == 0 -> (1, 0)`
+    // early-out the old reduction carried.  That one was answering a question
+    // Payne-Hanek does not ask: it fired when `a - 2pi*nint(a/2pi)` rounded to
+    // zero, which is a statement about DD cancellation, not about a.  Here
+    // r_mod == 0 means the FRACTION f is zero, j is already correct, and the
+    // quadrant table produces the same (1, 0) at j == 0 without asserting it.
+    if (r.hi == 0.0) {
+        const DoubleDouble s0 = r_mod;
+        const DoubleDouble c0 = DoubleDouble(1.0);
+    if (j == 0)      { x = c0;         y = s0; }
+    else if (j == 1) { x = negate(s0); y = c0; }
+    else if (j == 2) { x = negate(c0); y = negate(s0); }
+    else             { x = s0;         y = negate(c0); }
+        return;
+    }
+    DoubleDouble r2 = multiply(r, r);
+
+    // THE SERIES IS CARRIED IN (sin, v) WITH v = 1 - cos, NOT IN (sin, cos).
+    //
+    // Why.  cos(r) is 1 - O(r^2) and the doubling below is applied nq times.
+    // Written on cos, one doubling is cos' = cos^2 - sin^2: while cos ~ 1 the
+    // squaring DOUBLES the relative error of cos, so nq of them multiply it by
+    // 2^nq, and sin' = 2*sin*cos then inherits every bit of that.  The error is
+    // not in the series at all -- it is manufactured by the recurrence.  Measured
+    // on DD at a = 1: the series answers to 0.137 ulps, and the five doublings
+    // take it to 0.323, 0.247, 2.205, 10.366, 44.913.
+    //
+    // v = 1 - cos is O(r^2), so it is a SMALL quantity held to its own relative
+    // accuracy, and the leading 1 -- which carries no information and against
+    // which every bit of the residual cancels -- never enters an arithmetic
+    // operation.  The doubling identities in v are exact rewrites:
+    //     cos(2x) = 1 - 2 sin^2 x   =>   v(2x)   = 2 sin^2 x
+    //     sin(2x) = 2 sin x cos x   =>   sin(2x) = 2 sin x (1 - v)
+    // v' = 2 sin^2 is a squaring of a small quantity, so it doubles the relative
+    // error of something already ~2^-p SMALL, not of something ~1.  The 2^nq
+    // amplification is gone; cos is reconstituted once, at the end.
+    //
+    // MEASURED, not derived.  Two independent grids agree, and they are named
+    // separately because they are NOT the same grid -- the probe builds its own
+    // (scripts/probe_trig_series.cpp:build_grid) and the sweep is the
+    // measurement of record.  Both are ulps vs MPFR@400 at condition number
+    // <= 4; near-zeros of sin/cos are excluded because relative error
+    // legitimately diverges there and no series can help.
+    //
+    //   probe's grid, worst of sin and cos, MAX OVER ALL FOUR of its families
+    //   (linear, log, ulp, hardred -- the probe tabulates them separately and
+    //   the worst family is not the same one for every arm, so a single-family
+    //   figure understates: this form reads 1.54 on linear alone, 1.74 on log):
+    //     shipped (sin, cos) form   42.44 ulps
+    //     factored (c-s)(c+s)       60.33      -- REJECTED, worse in every family
+    //     this (sin, v) form         1.74
+    //
+    //   sweep, scored real rows, --oracle mpfr:
+    //                       sin            cos            tan
+    //     shipped        42.45           33.85           4.31
+    //     this form       1.74            2.47           4.18
+    //   and unrestricted over all scored real sin/cos/tan rows, max ulps
+    //   46.19 -> 4.18, median 0.3884 -> 0.2400, at-or-below 1 ulp 71.8% -> 87.5%.
+    //
+    // tan is sin/cos and is bounded by them plus the DD divide; it is not a
+    // separate mechanism.  The (sin, v) form is also free: the convergence test
+    // still stops at 7 terms, exactly as the (sin, cos) form does.
+    //
+    // sin(r) = r - r^3/3! + r^5/5! - ...
+    // v(r)   =     r^2/2! - r^4/4! + r^6/6! - ...
+    DoubleDouble sin_r = r, sterm = r;
+    DoubleDouble v_r = divide_scalar(r2, 2.0), vterm = v_r;
+    for (int k = 1; k <= itrmx; ++k) {
+        sterm = divide_scalar(multiply(sterm, r2), -(double)((2*k) * (2*k + 1)));
+        sin_r = add(sin_r, sterm);
+        vterm = divide_scalar(multiply(vterm, r2), -(double)((2*k + 1) * (2*k + 2)));
+        v_r   = add(v_r, vterm);
+        // v's test is RELATIVE, where the cos form's was absolute
+        // (|cterm| < eps).  Against cos ~ 1 the two agree; against v ~ r^2/2 an
+        // absolute test would stop the v series early and throw away the
+        // accuracy this whole form exists to keep.
+        //
+        // AND IT IS `<=`, WHICH THE SIN TEST BESIDE IT DOES NOT NEED.  This is
+        // KI-25's shape again, arrived at from the other direction.  r^2
+        // underflows FP64 to zero for |a| < ~2^-532, well above the KI-12 band
+        // at 2^nq*DBL_MIN ~ 2^-1017, and then vterm and v_r are BOTH exactly 0,
+        // so a strict `0 < 0` is false forever and the loop runs to itrmx.  The
+        // old absolute test could not hit this: cterm = 0 < eps was true.  The
+        // sin test is safe with `<` because sin_r = r != 0 there (r == 0 is
+        // returned above), so its threshold is strictly positive.
+        //
+        // Measured, because the sweep cannot see it: the real grid's log family
+        // stops at 1e-30 and its `ulp` family sits inside the KI-12 band, so no
+        // scored row enters the band at all.  With `<`, DD sincos(1e-200)
+        // printed "DDCSSNR: iteration limit" and ran 1000 iterations for an
+        // answer it had after one.
+        //
+        // A NARROWER CASE OF THE SAME THING SURVIVES, AND IT IS NOT NEW: below
+        // |a| ~ 1e-292 the THRESHOLD eps*|sin_r| underflows to zero too, so the
+        // sin test is `0 < 0` and stalls whatever the v test does.  HEAD does
+        // this identically -- sincos(1e-300) prints the same iteration limit
+        // before this commit and after it -- so it is the DD exposure of KI-25,
+        // which ff_math.hpp fixed for FF with `<=` and DD never did.  It is a
+        // behaviour change of its own and does not belong bundled in here; the
+        // answer is correct either way, the cost is 1000 wasted iterations.
+        if (detail::fabs(sterm.hi) <  eps * detail::fabs(sin_r.hi) &&
+            detail::fabs(vterm.hi) <= eps * detail::fabs(v_r.hi)) break;
+        // break, not return: returning here would leave x/y unassigned.
+        if (k == itrmx) { XPMATH_PRINTF("DDCSSNR: iteration limit\n"); break; }
+    }
+
+    // Joint doubling nq times, in (sin, v).  Both series are carried through;
+    // the sine is never reconstructed from the cosine via +/-sqrt(1 - cos^2).
+    // That reconstruction (a) was only sign-correct for |r_mod| < pi, which the
+    // old round_to_nearest_int reduction did not guarantee at half-integer
+    // near-ties -- Payne-Hanek does, |r_mod| <= pi/4 by construction -- and
+    // (b) amplifies the relative error of cos by cot^2(r_mod), which diverges
+    // as r_mod -> 0. (b) alone still rules it out.  See KI-4.
+    for (int q = 0; q < nq; ++q) {           // q, not j: j is the quadrant
+        const DoubleDouble c_q = subtract(DoubleDouble(1.0), v_r);
+        const DoubleDouble new_sin = multiply_scalar(multiply(sin_r, c_q), 2.0);
+        v_r   = multiply_scalar(multiply(sin_r, sin_r), 2.0);   // old sin_r
+        sin_r = new_sin;
+    }
+    // The single place the leading 1 is reintroduced, after all amplification.
+    DoubleDouble cos_r = subtract(DoubleDouble(1.0), v_r);
+
+    // KI-26.  CODOMAIN GUARD.  sin and cos are bounded by 1 for every finite
+    // input; a value outside [-1, 1] — and above all inf or NaN — is wrong under
+    // any error model, at any argument, and a caller cannot defend against it.
+    // WHY IT WAS ADDED, and what has changed under it.  The reduction this
+    // guard was written against was `a - 2pi*nint(a/2pi)`, which is only
+    // meaningful while nint(a/2pi) is an exactly representable integer of the
+    // format.  Past that the integer part needs more bits than the expansion
+    // carries, the per-word nint saturates ("DDNINT: argument too large"), and
+    // the Taylor series ran on a garbage residual: DD returned NaN at 1e35 and
+    // 3.4e38, TF from 3.16e25 upward.  The accuracy loss that came with it was
+    // documented here as inherent — "reduction against a finite-precision pi
+    // cannot do better".  That was true of THAT reduction and is no longer true
+    // of this one: Payne-Hanek never forms nint(a/2pi), so it never saturates,
+    // and the reduced argument is now accurate to the format's own p = 106
+    // (measured: 42.42 bits -> 107.49 at x = 182.21237390820801, 53.88 -> 108.63
+    // at 1.20557e16; scripts/probe_trig_stages.cpp reproduces the table).
+    //
+    // The guard STAYS anyway.  It is a codomain guard, not a reduction guard:
+    // it asserts a property of the answer that must hold whatever produced it.
+    // A guard removed because the current implementation cannot trip it is a
+    // guard that will not be there for the next implementation.
+    //
+    // Testing the RESULT rather than the reduced argument is deliberate, and
+    // measured: a first attempt gated on the reduced argument at |r| <= 4 and
+    // cost DD sin/cos/tan at ±1e27 seven digits apiece, because nint's residual
+    // there is 4.317 — past pi, yet the doublings still recover ~7 correct
+    // digits from it.  The result test cannot make that mistake: it fires only
+    // where the answer is already unusable.  Its `!(… <= …)` spelling catches
+    // inf and NaN too.
+    //
+    // Two tiers.  Outside the slack band the answer carries no information, so
+    // return the identity point (cos, sin) = (1, 0): in codomain, on the unit
+    // circle, and it keeps tan = sin/cos finite (0) rather than the 0/0 NaN that
+    // a (0, 0) fallback produces.  Inside it — an ordinary last-bit overshoot
+    // past 1 — clamp, so |result| <= 1 holds exactly, with no slack, always.
+    const double kSlack = 1.0009765625;   // 1 + 2^-10
+    if (!(detail::fabs(sin_r.hi) <= kSlack) || !(detail::fabs(cos_r.hi) <= kSlack)) {
+        XPMATH_PRINTF("DDCSSNR: argument reduction under-determined\n");
+        x = DoubleDouble(1.0); y = DoubleDouble(0.0); return;
+    }
+    // The clamp compares the PAIR, not just the leading word: hi == 1.0 with
+    // lo > 0 is a value above 1 too.
+    if (sin_r.hi >  1.0 || (sin_r.hi ==  1.0 && sin_r.lo > 0.0)) sin_r = DoubleDouble( 1.0);
+    if (sin_r.hi < -1.0 || (sin_r.hi == -1.0 && sin_r.lo < 0.0)) sin_r = DoubleDouble(-1.0);
+    if (cos_r.hi >  1.0 || (cos_r.hi ==  1.0 && cos_r.lo > 0.0)) cos_r = DoubleDouble( 1.0);
+    if (cos_r.hi < -1.0 || (cos_r.hi == -1.0 && cos_r.lo < 0.0)) cos_r = DoubleDouble(-1.0);
+
+    // Quadrant selection
+    if (j == 0) { x = cos_r;  y = sin_r; }
+    else if (j == 1) { x = negate(sin_r); y = cos_r; }
+    else if (j == 2) { x = negate(cos_r); y = negate(sin_r); }
+    else { x = sin_r;  y = negate(cos_r); }
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble sin(DoubleDouble a) {
+    DoubleDouble c, s; sincos(a, c, s); return s;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble cos(DoubleDouble a) {
+    DoubleDouble c, s; sincos(a, c, s); return c;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble tan(DoubleDouble a) {
+    DoubleDouble c, s; sincos(a, c, s); return divide(s, c);
+}
+
+// Angle of point (x, y) = atan2(y, x). Internal DDFUN primitive (DDANG); the
+// public STL-ordered wrapper is atan2(y, x) below.
+namespace detail {
+// KI-8.  Exact power-of-two scale factor: returns s = 2^-e with |m|*s in [1,2),
+// so that s and 1/s are both exactly representable and scaling every word of an
+// expansion by either loses no bit.  Mirrors detail::ff_pow2_unit_scale in
+// ff_math.hpp, which carries the full argument.
+//
+// e is clamped to [-1021, 1021] so both s and 1/s stay NORMAL doubles; at the
+// clamp the operand is not brought all the way to [1,2), but the square is
+// still inside the word range, which is all the caller needs.
+//
+// No frexp: config.hpp's scalar dispatch does not carry one, and a
+// dependency-free loop is portable to every device backend.  It runs only
+// outside the direct band, never on the hot path.
+XPMATH_INLINE_FUNCTION double dd_pow2_unit_scale(double m) {
+    double t = (m < 0.0) ? -m : m;
+    if (!(t > 0.0) || detail::isinf(t)) return 1.0;   // 0/inf/nan: loop would not terminate
+    int e = 0;
+    while (t >= 18014398509481984.0)   { t *= 5.5511151231257827e-17; e += 54; }
+    while (t <  5.5511151231257827e-17) { t *= 18014398509481984.0;   e -= 54; }
+    while (t >= 2.0) { t *= 0.5; ++e; }
+    while (t <  1.0) { t *= 2.0;  --e; }
+    if (e > 1021) e = 1021;
+    if (e < -1021) e = -1021;
+    return detail::ldexp(1.0, -e);
+}
+XPMATH_INLINE_FUNCTION DoubleDouble dd_pow2_scale(DoubleDouble a, double s) {
+    return DoubleDouble(a.hi * s, a.lo * s);
+}
+}  // namespace detail
+
+// Band in which a sum of squares may be formed DIRECTLY, shared by every DD
+// site that forms one (hypot here; complex abs and complex operator/ in
+// dd_complex.hpp).  Low edge is 2^-483, one binade above the derived
+// 2^-484.5 word-underflow limit of KI-8 note (1) at ff_math.hpp's hypot; the
+// high edge is unchanged from the original fix.
+namespace detail {
+inline constexpr double kDDSqLo = 4.0e-146;
+inline constexpr double kDDSqHi = 1.0e150;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble angle(DoubleDouble x, DoubleDouble y) {
+    DoubleDouble pi = DoubleDouble_pi();
+    // Degenerate axes.  `== 0.0` is true of negative zero too, so the sign of a
+    // zero operand cannot be recovered from the comparison and has to be read
+    // off copysign -- IEEE-754 atan2 takes the sign of the result from y, and
+    // x = -0 belongs on the pi side exactly like any negative x.  The y test
+    // has to run FIRST: it subsumes the both-zero case, which the x test would
+    // otherwise answer with +-pi/2 instead of the required +-pi / +-0.
+    if (y.hi == 0.0) {
+        const DoubleDouble r =
+            (detail::copysign(1.0, x.hi) < 0.0) ? pi : DoubleDouble(0.0);
+        return (detail::copysign(1.0, y.hi) < 0.0) ? negate(r) : r;
+    }
+    if (x.hi == 0.0) return (y.hi > 0.0) ? multiply_scalar(pi, 0.5) : multiply_scalar(pi, -0.5);
+    // Normalize
+    // KI-13.  The r below is a sum of squares and has exactly hypot's exposure:
+    // it overflowed the word above |x| ~ 1.3e154 (atan(1e160) returned NaN, and
+    // atan2/asin/acos/complex arg inherited it) and shed low words below the
+    // derived 2^-484.5 (see the KI-8 note at ff_math.hpp's hypot).  angle is
+    // EXACTLY scale-invariant -- atan2(ys, xs) = atan2(y, x) for any s > 0 --
+    // so the remedy here is one power-of-two rescale of both operands, which
+    // changes no bit of the answer and puts the square back inside the word
+    // range.
+    {
+        const double mx = detail::fabs(x.hi), my = detail::fabs(y.hi);
+        const double mm = (mx > my) ? mx : my;
+        // HIGH side only.  The low side was tried and reverted: r is used only
+        // to normalise (x/r, y/r) before a 3-step Newton refinement on
+        // atan2, and that refinement re-evaluates sin/cos of the iterate, so
+        // low words shed from r do not survive into the answer -- rescaling
+        // there only perturbs the seed.  Measured on the 428,592-point sweep:
+        // a two-sided gate cost 45 regressions (worst 1.27 digits, QF c atan
+        // points 1254/1318) to buy 35 improvements.  The high side is a real
+        // fix -- without it the square OVERFLOWS and atan/atan2/asin/acos/arg
+        // return 0 or NaN outright.
+        if (mm > detail::kDDSqHi) {
+            const double s = detail::dd_pow2_unit_scale(mm);
+            x = detail::dd_pow2_scale(x, s);
+            y = detail::dd_pow2_scale(y, s);
+        }
+    }
+    DoubleDouble r = sqrt(add(multiply(x,x), multiply(y,y)));
+    DoubleDouble nx = divide(x, r), ny = divide(y, r);
+    // Initial approximation
+    DoubleDouble a = DoubleDouble(detail::atan2(ny.hi, nx.hi));
+    bool use_x = (detail::fabs(nx.hi) <= detail::fabs(ny.hi));
+    DoubleDouble target = use_x ? nx : ny;
+    for (int k = 0; k < 3; ++k) {
+        DoubleDouble sin_a, cos_a;
+        sincos(a, cos_a, sin_a);
+        DoubleDouble corr;
+        if (use_x) {
+            corr = divide(subtract(target, cos_a), sin_a);
+            a = subtract(a, corr);
+        } else {
+            corr = divide(subtract(target, sin_a), cos_a);
+            a = add(a, corr);
+        }
+    }
+    return a;
+}
+
+// KI-16 -----------------------------------------------------------------------
+// A domain guard must compare the VALUE the expansion represents against the
+// domain edge, NOT its leading word.  `a.hi` is that value rounded to a single
+// FP64, and near an edge at +-1 that rounding crosses the edge in BOTH
+// directions:
+//
+//   * a LEGAL argument strictly inside the domain whose leading word rounds to
+//     exactly 1.0 is rejected -- KI-16's reported symptom, `atanh` returning 0
+//     for arguments as far inside as 1 - 2.2e-16; and
+//   * an ILLEGAL argument just outside whose leading word rounds to 1.0 is
+//     accepted, so the caller gets a silent NaN instead of the diagnostic.
+//
+// Both go away if the guard SUBTRACTS.  `subtract` renormalises, so the sign of
+// the difference's leading word is the sign of the whole difference; and for
+// |a| in [1/2, 2] -- exactly the band where the leading-word test is wrong --
+// Sterbenz makes the leading-word cancellation EXACT, so the residual words
+// survive into `d.hi` and decide the comparison correctly.  Outside that band
+// the leading word alone already decides, and `subtract` agrees with it.
+//
+// Returns -1, 0, +1 for a < 1, a == 1, a > 1.  Same helper, same reasoning, in
+// all four backends.
+XPMATH_INLINE_FUNCTION int dd_cmp_one(DoubleDouble a) {
+    const DoubleDouble d = subtract(a, DoubleDouble(1.0));
+    if (d.hi > 0.0) return  1;
+    if (d.hi < 0.0) return -1;
+    return 0;
+}
+XPMATH_INLINE_FUNCTION int dd_cmp_abs_one(DoubleDouble a) { return dd_cmp_one(abs(a)); }
+
+XPMATH_INLINE_FUNCTION DoubleDouble asin(DoubleDouble a) {
+    if (dd_cmp_abs_one(a) > 0) {                                        // KI-16
+        XPMATH_PRINTF("DDASIN: argument out of range\n");
+        return DoubleDouble(0.0);
+    }
+    DoubleDouble t = sqrt(subtract(DoubleDouble(1.0), multiply(a, a)));
+    return angle(t, a); // atan2(a, sqrt(1-a^2))
+}
+XPMATH_INLINE_FUNCTION DoubleDouble acos(DoubleDouble a) {
+    if (dd_cmp_abs_one(a) > 0) {                                        // KI-16
+        XPMATH_PRINTF("DDACOS: argument out of range\n");
+        return DoubleDouble(0.0);
+    }
+    DoubleDouble t = sqrt(subtract(DoubleDouble(1.0), multiply(a, a)));
+    return angle(a, t); // atan2(sqrt(1-a^2), a)
+}
+// KI-25.  atan is bounded by pi/2 for EVERY finite argument -- the bound is a
+// property of the function, not of the algorithm, so no input may produce a
+// result outside it.  angle()'s Newton refinement can land a couple of ulp past
+// pi/2 at the format extremes (measured on QF: +4.73e-30 at 3.4e38, ~1.9 ulp).
+// Out there the true atan differs from pi/2 by less than the format can resolve
+// -- atan(3.4e38) = pi/2 - 2.9e-39 -- so the stored pi/2 IS the correctly
+// rounded answer, and clamping to it makes the codomain bound hold by
+// construction at no accuracy cost.  Halving pi is exact (binary exponent
+// decrement), so the clamp target is the format's own nearest value to pi/2.
+// atan2 is deliberately NOT clamped: its range is (-pi, pi].
+XPMATH_INLINE_FUNCTION DoubleDouble atan(DoubleDouble a) {
+    DoubleDouble r = angle(DoubleDouble(1.0), a); // atan2(a, 1)
+    const DoubleDouble p = DoubleDouble_pi();
+    const DoubleDouble h(p.hi * 0.5, p.lo * 0.5);
+    const DoubleDouble ar = (r.hi < 0.0) ? DoubleDouble(-r.hi, -r.lo) : r;
+    if (subtract(ar, h).hi > 0.0)
+        return (r.hi < 0.0) ? DoubleDouble(-h.hi, -h.lo) : h;
+    return r;
+}
+XPMATH_NOINLINE_FUNCTION DoubleDouble atan2(DoubleDouble y, DoubleDouble x) {
+    return angle(x, y);
+}
+
+// ============================================================
+// Hyperbolic — internal combined cosh+sinh, then derived
+// ============================================================
+
+// KI-6/KI-7: past this |a| the smaller exponential e^{-2|a|} is below DD's
+// resolution u = 2^-106, so cosh(a) == sinh(a) == e^{|a|}/2 to the last bit and
+// tanh(a) == ±1 exactly. Derived as ln(1/u)/2 = 36.7, rounded up for margin.
+// Short-circuiting there is not just a guard: it is the only way to reach the
+// top of the range, because e^{|a|} itself overflows FP64 above 709.78 while
+// cosh/sinh do not overflow until 710.48, and tanh never does.
+constexpr double kDDHyperbolicSaturate = 40.0;
+
+// x = cosh(a), y = sinh(a)
+XPMATH_INLINE_FUNCTION void sinhcosh(DoubleDouble a, DoubleDouble& x, DoubleDouble& y) {
+    if (detail::fabs(a.hi) > kDDHyperbolicSaturate) {
+        // e^{|a|}/2.  Halving is exact (power of two), and the dropped term is
+        // below the last bit here by construction. Only when e^{|a|} runs out of
+        // exponent — overflowing FP64 for |a| > 709.78, while cosh is still
+        // finite up to |a| = 710.48 — is the argument shifted instead. That
+        // form costs up to ~1 digit (subtracting ln2 perturbs the argument, and
+        // exp turns an absolute argument error into a relative output error),
+        // which is why it is the fallback.
+        //
+        // KI-24 (DD sibling — the KI was filed FF-only and asserted DD was
+        // clean; DD has the same defect at DD's own scale, one band further
+        // out).  This used to form e = exp(a) on the SIGNED argument and, for
+        // a < 0, recover e^{|a|} as the reciprocal 1/exp(a), so as to stay
+        // bit-identical to the two-exponential form below.  But cosh is even
+        // and sinh is odd: the sign belongs on the RESULT, not on exp's
+        // argument, and routing a < 0 through exp(a) runs into FP64's subnormal
+        // floor.  DD's lo word sits at hi * 2^-53, so it goes subnormal once
+        // exp(a) < DBL_MIN * 2^53 = 2.0e-292, i.e. below a = -672 — and from
+        // there exp(a) carries a shrinking fraction of DD's 31 digits, which no
+        // reciprocal can put back.  Measured, sinh and cosh:
+        //   before  30.23 (-672)  24.31 (-690)  19.98 (-700)  15.41 (-709.7)
+        //   after   30.23 (-672)  30.35 (-690)  30.24 (-700)  29.98 (-709.7)
+        // At a = -709.7 that is half of DD's precision recovered.  As on FF,
+        // the proof it was never format-forced was already inside this
+        // function: at a = -710 the reciprocal overflows, the isinf fallback
+        // fires, and the shifted-argument route scored 29.64 digits while
+        // a = -709.7 next door scored 15.41.  e^{|a|} evaluated directly beats
+        // both, because the exact halving costs nothing where the ln2 shift
+        // costs ~1 digit.
+        //
+        // Crossover rather than an unconditional switch, for the same reason
+        // qf_math.hpp and tf_math.hpp carry one (their KI-9 floors, -40 and
+        // -55).  ABOVE the floor exp(a) still occupies both words, the
+        // reciprocal is healthy, and the two routes differ only in the last
+        // ulp or two -- measured over a in [-660, -60] the direct route means
+        // 30.194 digits against the reciprocal's 30.120, i.e. it wins on
+        // average but loses at individual points, which the monotone gate
+        // scores as 656 sub-digit regressions for no real gain.  Keeping the
+        // reciprocal there leaves every such point BIT-IDENTICAL.  Below the
+        // floor the reciprocal has nothing left to work with and the direct
+        // route wins by up to 11.6 digits.  DD's lo word sits at hi * 2^-53,
+        // so it stays normal while exp(a) > DBL_MIN * 2^53 = 2.00e-292, i.e.
+        // a > -671.7; -672 is that derived floor.
+        const double kDDReciprocalFloor = -672.0;
+        DoubleDouble aa = (a.hi < 0.0) ? negate(a) : a;
+        DoubleDouble e;
+        if (a.hi < kDDReciprocalFloor) {
+            e = exp(aa);                        // KI-24: direct, at full width
+        } else {
+            e = exp(a);                         // a > 0 makes this exp(aa) too
+            if (a.hi < 0.0) e = divide(DoubleDouble(1.0), e);
+        }
+        DoubleDouble h = (detail::isinf(e.hi) || e.hi != e.hi) ? exp(subtract(aa, DoubleDouble_log2()))
+                                             : DoubleDouble(e.hi * 0.5, e.lo * 0.5);
+        x = h;
+        y = (a.hi < 0.0) ? negate(h) : h;
+        return;
+    }
+    DoubleDouble s0 = exp(a);
+    DoubleDouble s1 = divide(DoubleDouble(1.0), s0);
+    x = multiply_scalar(add(s0, s1), 0.5);
+    if (detail::fabs(a.hi) < 0.5) {                                     // KI-22
+        // ONLY sinh cancels.  (e^a - e^-a)/2 subtracts two numbers near 1 and
+        // keeps the O(a) difference, costing u/|a| relative; (e^a + e^-a)/2
+        // adds them and costs nothing.  So the Taylor sum replaces y and cosh
+        // stays on the exp path above -- computing cosh from a series only adds
+        // rounding, and measurably did: 26 DD complex grid points (cos, sin,
+        // tan, sinh, cosh) regressed up to 0.23 digits when it was replaced too.
+        // ff/qf/tf_math.hpp's own branches replace both; DD's does not, and the
+        // sweep says DD is right.  Crossover is the Sterbenz 1/2 derived below.
+        const DoubleDouble a2 = multiply(a, a);
+        DoubleDouble sinh_sum = a, sinh_term = a;
+        for (int k = 1; k <= 40; ++k) {
+            sinh_term = divide_scalar(multiply(sinh_term, a2), (double)((2*k) * (2*k + 1)));
+            sinh_sum  = add(sinh_sum, sinh_term);
+            if (detail::fabs(sinh_term.hi) < 1.0e-32 * detail::fabs(sinh_sum.hi)) break;
+        }
+        y = sinh_sum;
+        return;
+    }
+    y = multiply_scalar(subtract(s0, s1), 0.5);
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble sinh(DoubleDouble a) {
+    DoubleDouble c, s; sinhcosh(a, c, s); return s;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble cosh(DoubleDouble a) {
+    DoubleDouble c, s; sinhcosh(a, c, s); return c;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble tanh(DoubleDouble a) {
+    // tanh(x) = expm1(2x) / (expm1(2x) + 2), reflected for negative x
+    // Avoids dividing two nearly-equal large numbers from sinhcosh
+    //
+    // Sign FOLD, not `negate(tanh(negate(a)))`: see the block above asinh() for
+    // why a device self-call is not available to this library.  tanh's own
+    // chain never overran the 1024 B allowance the way asinh's did, but it
+    // carried the same unbounded-stack marker into the kernel descriptor, so it
+    // is folded on the same terms.  negate() is exact; the value is unchanged.
+    const bool neg = (a.hi < 0.0);
+    if (neg) a = negate(a);
+    DoubleDouble r;
+    // KI-7: saturate before evaluating anything. 1 - tanh(x) = 2e^{-2x} is below
+    // DD's half-ulp at 1 (2^-107) for x > 37.4, so ±1 is the correctly rounded
+    // answer here; and it is the only correct answer, because 2x overflows the
+    // exp argument range above x = 354.9, where expm1 returns +inf and
+    // inf/(inf+2) is NaN. Before this short-circuit the ±300 exp guard made
+    // expm1(2x) = 0-1 = -1 and the expression collapsed to (-1)/(1) = -1 for
+    // every large POSITIVE x — the wrong sign, KI-7's reported symptom.
+    if (a.hi > kDDHyperbolicSaturate) {
+        r = DoubleDouble(1.0);
+    } else {
+        DoubleDouble e = expm1(multiply_scalar(a, 2.0));
+        r = divide(e, add(e, DoubleDouble(2.0)));
+    }
+    return neg ? negate(r) : r;
+}
+
+// KI-13.  asinh and acosh both form a^2 +- 1, which leaves the word range at
+// |a| = sqrt(DBL_MAX) = 1.34e154 -- far short of what the format reaches -- and
+// sqrt(inf)/log(inf) then returned NaN.  Above the band the square is factored
+// out instead:
+//
+//     asinh(a) = log(|a|) + log(1 + sqrt(1 + 1/a^2)),  sign-reflected
+//     acosh(a) = log(a)   + log(1 + sqrt(1 - 1/a^2))
+//
+// u = 1/a^2 is formed as (1/a)^2 so nothing squares a; it is in (0,1], and for
+// |a| past 1/sqrt(smallest normal) it simply flushes to zero, which is the
+// correct limit (asinh(a) -> log(2a)).  No cancellation: log(|a|) dominates the
+// second term's log(2) ~ 0.69 by orders of magnitude, and both are computed to
+// full relative precision.  Below the band the original expression is kept
+// bit-for-bit.  Full argument at ff_math.hpp's asinh.
+// KI-22 -----------------------------------------------------------------------
+// SMALL-ARGUMENT SERIES, and where its crossover comes from.
+//
+// asinh, atanh, sinh and expm1 are all asymptotically linear at the origin, so
+// they are perfectly conditioned there (kappa = 1) and the format's full
+// mantissa is available.  Their closed forms are not: each of them routes the
+// answer through an intermediate of magnitude ~1 from which an O(x) quantity
+// must then be recovered.
+//
+//   asinh(x) = log(x + sqrt(x^2+1))     -> forms 1 + x inside the log
+//   atanh(x) = 1/2 log((1+x)/(1-x))     -> forms 1 +- x
+//   sinh(x)  = (e^x - e^-x)/2           -> subtracts two numbers near 1
+//   expm1(x) = e^x - 1                  -> same
+//
+// Forming `1 + x` for |x| < 1 discards every bit of x below 2^-p relative to 1,
+// so what survives is p - log2(1/|x|) bits: at DD's p = 106 and x = 1e-15 that
+// is 106 - 50 = 56 bits, i.e. ONE FP64 WORD OF TWO, which is exactly the 15.91
+// of 31 digits KI-22 measured.  The loss is u/|x| in relative terms.
+//
+// THE CROSSOVER IS NOT A TUNING CONSTANT.  It is Sterbenz's lemma: the
+// subtraction 1 - x is EXACT precisely when x is in [1/2, 2], and the addition
+// 1 + x likewise keeps every bit of x while |x| >= 1/2.  At |x| = 1/2 the
+// closed form is therefore still within ~1 ulp; the first bit is lost the
+// moment |x| drops below it.  So the series branch takes |x| < 1/2 and the
+// closed form keeps everything else, in every backend, for all four functions.
+// (FF, QF and TF already used 1/2 for atanh, sinh and expm1; this is the same
+// number, now derived rather than inherited, and now applied to the cases that
+// were missing it.)
+//
+// TERMS NEEDED AT THE CROSSOVER, for full precision at |x| = 1/2:
+//
+//   asinh:  sum (-1)^k (2k)!/(4^k (k!)^2 (2k+1)) x^(2k+1); coefficients <= 1, so
+//           the tail after N terms is ~x^(2N) = 2^(-2N).  2^(-2N) <= 2^-106
+//           needs N = 53 terms (through x^105).  DD 53, QF 48, TF 36, FF 24.
+//   atanh:  sum x^(2k+1)/(2k+1); same 2^(-2N) tail -> N = 53.
+//   sinh:   sum x^(2k+1)/(2k+1)!; the factorial dominates -- x^(2N)/(2N+1)! at
+//           N = 12 is 0.5^24/25! = 3.8e-33 <= u = 1.23e-32 -> N = 12 terms.
+//   expm1:  sum x^k/k!, relative tail x^(N-1)/N!; at DD's u that is N = 26.
+//
+// The loops below carry a cap comfortably above those counts and exit on a
+// relative-tolerance test, so only arguments actually AT the crossover pay the
+// full count; at x = 1e-15 asinh converges in two terms.
+//
+// WHY asinh DOES NOT USE THE SERIES, though the derivation above admits it.
+// A term count is also a rounding-error count: N terms cost ~N ulps, and asinh
+// and atanh are the two with the slow 2^(-2N) tail, so they are the two whose
+// crossover term count is largest.  Measured, the asinh series at |x| = 1/2 was
+// WORSE than the closed form it replaced -- the dense sweep flagged 88 TF asinh
+// grid points losing up to 1.21 digits, because TF pays 36 terms of rounding to
+// avoid 1 bit of cancellation.  The trade is only favourable well below 1/2.
+//
+// Rather than retune the crossover, note the cancellation is removable in CLOSED
+// FORM.  With s = sqrt(x^2+1) and x >= 0,
+//
+//     x + s = 1 + x + (s^2 - 1)/(1 + s) = 1 + x + x^2/(1 + s)
+//
+// so asinh(x) = log1p(x + x^2/(1+s)) with every term non-negative.  The leading
+// 1 is never formed: log1p carries its own small-argument series (2*atanh(t),
+// t = z/(2+z)) and receives an O(x) argument.  No crossover, no term count, and
+// full precision at EVERY magnitude below kDDSqHi -- strictly better than either
+// branch it replaces.  asinh is the only one of the four with such an identity;
+// atanh, sinh and expm1 keep the series at the Sterbenz crossover above.
+//
+// Scope: DD was missing the branch on asinh, atanh and sinh; TF was missing it
+// on expm1; and asinh was missing it in ALL FOUR backends (KI-22 named only DD
+// because the sweep grid happened to catch DD first -- the defect is identical
+// in FF, QF and TF, just at those formats' own magnitudes).
+// The closed form is not free either: the extra divide and the handoff to log1p
+// cost a fixed ~0.4 digits, while the `1 + x` it replaces loses log10(1/|x|).
+// Those cross near |x| = 0.4, so the same Sterbenz 1/2 that bounds the series
+// bounds this too -- measured across the 1,652-point real grid, 1/2 leaves no
+// decrease in any backend while capturing the whole collapse below it.
+// KI-29 -----------------------------------------------------------------------
+// WHY THE |x| >= 1/2 BRANCH HALVES THE LOG ARGUMENT'S EXPONENT.
+//
+// KI-29 was filed believing the mid-band residual was Sterbenz: for a < 0 the
+// unreflected `log(a + sqrt(a^2+1))` forms s - |a|, exact whenever s <= 2|a|,
+// i.e. |a| >= 1/sqrt(3).  That story is WRONG, and its own band refutes it --
+// Sterbenz's precondition holds for every |a| >= 0.577 with NO upper edge, while
+// the observed effect dies out by |a| ~ 20.  Two further measurements kill it
+// outright: the subtraction being exact does not stop s's OWN relative error
+// from being amplified by s/(s-|a|) = s(s+|a|) ~ 2a^2, which is precisely why
+// the unreflected form is KI-17's catastrophe; and refining the argument does
+// nothing.  Correcting t = a + s by its exact Newton residual (t*(t-2a) - 1,
+// over 2s) and re-refining s by a Newton step both leave the DD mean at 15.3
+// ulps, unchanged to three digits.  The error is not in the argument.
+//
+// It is in log.  Measured over seven octaves of |ln v|, log's ABSOLUTE error is
+// flat and its relative error is therefore proportional to 1/|ln v|:
+//
+//   mean |log(v) - ln v| , in units of 2^-p     DD 40   FF 8.0   TF 5.4   QF 9.4
+//
+// constant from |ln v| = 0.25 out to 32.  That is the fingerprint of log's
+// Newton-on-exp step y <- y + (v*exp(-y) - 1): exp's RELATIVE error lands in the
+// correction term, which is additive in y, so it becomes log's ABSOLUTE error.
+//
+// asinh(x) = ln(x + s), so it inherits that constant as a relative error of
+// eps_log/|asinh(x)| -- worst exactly where |asinh| is smallest but the closed
+// form is still in use, i.e. |x| just above 1/2, decaying like 1/ln(2x)
+// thereafter.  THAT is KI-29's band, and it explains both edges: the lower one
+// is the KI-22 crossover, the upper one is where 1/|asinh| has decayed enough
+// that the unreflected form's 2a^2 amplification can no longer be beaten by a
+// lucky draw.  Nothing about it is Sterbenz.
+//
+// The exposure is halved by handing log an argument whose logarithm is twice as
+// large, which t supplies for free:
+//
+//     t^2 = a^2 + 2as + s^2 = 2a^2 + 1 + 2as = 1 + 2a(a + s) = 1 + 2at
+//
+// so asinh(a) = 1/2 ln(t^2) = 1/2 log1p(2at).  The constant eps_log is divided
+// by two on the way out while the argument's own error is unchanged (t^2 has
+// twice t's relative error, and the 1/2 gives it straight back).  Measured mean
+// ulps of the result over 4,000 points in [1/2, 4096], oracle built from the
+// value each backend actually holds:
+//
+//   form                       DD      FF      TF      QF
+//   log(a + s)   (was)       15.26    2.98    2.10    3.91
+//   1/2 log1p(2at)            7.93    1.54    1.04    2.03
+//
+// Exactly a factor of two in all four, which is the derivation's own prediction
+// and is why this is not a tuned trick.  Confirming the mechanism rather than
+// asserting it: 1/4 ln(t^4) measures 3.98/0.85/0.55/0.95 and 1/8 ln(t^8)
+// measures 2.09/0.56/0.28/0.47 -- error inversely proportional to the exponent
+// multiplier, as a constant absolute eps_log requires.  Those are NOT shipped:
+// t^4 and t^8 overflow the word long before kDDSqHi, which would push most of
+// the range onto the factored branch above, and that branch measures WORSE
+// (DD 24.00 ulps).  t^2 is the largest multiplier that costs no range: the
+// biggest intermediate is 2at ~ 4a^2, which at kDDSqHi = 1e150 is 4e300 against
+// DBL_MAX 1.8e308, and at the FP32 backends' 1e18 is 4e36 against FLT_MAX 3.4e38.
+//
+// Confined to |a| >= 1/2 deliberately.  Below it log1p receives a SMALL argument
+// and runs its atanh series, whose error is relative and not absolute, so there
+// is no constant to halve and the extra multiply only adds rounding -- measured,
+// the halved form is worse there in every backend (DD 8.55 vs 5.43 mean ulps,
+// FF 1.79 vs 1.40, TF 1.14 vs 0.78, QF 1.49 vs 1.14).  KI-22's branch stands.
+//
+// This does not close the underlying defect, which is log's constant absolute
+// error and behind it exp's relative error; that is filed separately as KI-34.
+// asinh's exposure to it is what KI-29 was about, and that is what halves.
+//
+// WHY THE REFLECTION IS A FOLD AND NOT A RECURSIVE CALL.  This block is the
+// canonical statement; tanh here and asinh/tanh in the other three backends
+// point at it.  The odd reflection used to read
+//
+//     if (a.hi < 0.0) return negate(asinh(negate(a)));
+//
+// which is a device SELF-CALL.  On AMDGPU a recursive call makes the backend
+// give up on bounding the kernel's stack: it sets `uses_dynamic_stack` in the
+// kernel descriptor and provisions NOTHING for the recursion, so the entire
+// non-inlined chain below the recursive entry -- asinh -> asinh -> log1p ->
+// log -> exp -> multiply, every one of them a real frame because
+// XPMATH_NOINLINE_FUNCTION deliberately made them so -- is charged to the HIP
+// runtime's per-thread stack allowance, which defaults to 1024 bytes.  It does
+// not fit.  Measured on MI250X/gfx90a: FF and TF asinh take
+// hipErrorIllegalAddress, DD and QF silently return wrong values on the
+// reflected arm, and raising hipLimitStackSize to 4096 makes both symptoms
+// disappear without touching the source.  Full evidence in
+// docs/ROCM_RECURSIVE_DEVICE_STACK.md.
+//
+// The fold is value-preserving by construction: negate() is exact word
+// negation, so evaluating on |a| and negating the result returns the identical
+// bits the recursive form returned.  It is not a numerical change and must
+// never be scored as one.
+XPMATH_INLINE_FUNCTION DoubleDouble asinh(DoubleDouble a) {
+    const double kXpAsinhSmall = 0.5;
+    // Reflect: asinh(-a) = -asinh(a). For positive a, a + sqrt(a²+1) >= 1 always,
+    // so log argument never causes cancellation.
+    const bool neg = (a.hi < 0.0);
+    if (neg) a = negate(a);
+    DoubleDouble r;
+    if (a.hi > detail::kDDSqHi) {
+        DoubleDouble u = divide(DoubleDouble(1.0), a);
+        u = multiply(u, u);
+        r = add(log(a), log(add(DoubleDouble(1.0), sqrt(add(DoubleDouble(1.0), u)))));
+    } else {
+        const DoubleDouble a2 = multiply(a, a);
+        const DoubleDouble s  = sqrt(add(a2, DoubleDouble(1.0)));
+        if (a.hi < kXpAsinhSmall) {                                     // KI-22
+            // log1p(a + a^2/(1+sqrt(a^2+1))) -- see the derivation above.
+            r = log1p(add(a, divide(a2, add(DoubleDouble(1.0), s))));
+        } else {
+            // KI-29: 1/2 log1p(2a(a+s)) rather than log(a+s) -- same value, half
+            // of log's constant absolute error.  Derivation immediately above.
+            const DoubleDouble t = add(a, s);
+            const DoubleDouble z = multiply(a, t);
+            r = multiply_scalar(log1p(add(z, z)), 0.5);
+        }
+    }
+    return neg ? negate(r) : r;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble acosh(DoubleDouble a) {
+    if (dd_cmp_one(a) < 0) {                                            // KI-16
+        XPMATH_PRINTF("DDACOSH: argument < 1\n"); return DoubleDouble(0.0); }
+    if (a.hi > detail::kDDSqHi) {
+        DoubleDouble u = divide(DoubleDouble(1.0), a);
+        u = multiply(u, u);
+        return add(log(a), log(add(DoubleDouble(1.0), sqrt(subtract(DoubleDouble(1.0), u)))));
+    }
+    DoubleDouble t1 = subtract(multiply(a, a), DoubleDouble(1.0));
+    return log(add(a, sqrt(t1)));
+}
+XPMATH_INLINE_FUNCTION DoubleDouble atanh(DoubleDouble a) {
+    // KI-16: compare the VALUE, not the leading word.  |a| == 1 is not a domain
+    // error -- atanh(+-1) = +-inf, the same C99 Annex G pole dd_complex.hpp's
+    // catanh already honours.  Only |a| > 1 leaves the domain.  The old guard
+    // rejected both together and returned 0 for the pole.
+    const int c_atanh = dd_cmp_abs_one(a);                              // KI-16
+    if (c_atanh > 0) {
+        XPMATH_PRINTF("DDATANH: |argument| > 1\n"); return DoubleDouble(0.0); }
+    if (c_atanh == 0) return DoubleDouble(a.hi > 0.0 ? HUGE_VAL : -HUGE_VAL);
+    if (detail::fabs(a.hi) < 0.5) {                                     // KI-22
+        // a + a^3/3 + a^5/5 + ...; all terms share a's sign, no cancellation.
+        // Matches the branch ff_math.hpp and qf_math.hpp already carried.
+        const DoubleDouble a2 = multiply(a, a);
+        DoubleDouble sum = a, pwr = a;
+        for (int k = 1; k <= 60; ++k) {
+            pwr = multiply(pwr, a2);
+            const DoubleDouble term = divide_scalar(pwr, (double)(2*k + 1));
+            sum = add(sum, term);
+            if (detail::fabs(term.hi) < 1.0e-32 * detail::fabs(sum.hi)) break;
+        }
+        return sum;
+    }
+    DoubleDouble t1 = add(DoubleDouble(1.0), a);
+    DoubleDouble t2 = subtract(DoubleDouble(1.0), a);
+    return multiply_scalar(log(divide(t1, t2)), 0.5);
+}
+
+// ============================================================
+// Multi-argument operations
+// ============================================================
+
+// KI-44: pow never materialises its exponent as a DoubleDouble.
+//
+// `exp(multiply(log(a), b))` commits two errors that BOTH scale with
+// |L| = |b*ln a| (up to 83.18 after repair_real's cap):
+//
+//   1. multiply() rounds the product. Since exp(L + d) = exp(L)*(1 + d), an
+//      ABSOLUTE error d in the exponent is a RELATIVE error of the result:
+//      0.5*|L| ulps, i.e. up to 41.6.
+//   2. log(a)'s own relative error is multiplied by |b|, contributing
+//      |L| * ulps(log) -- the same order as (1), which is why removing only
+//      one of them caps the gain at ~2x. Measured: fixing (1) alone gave
+//      603 better / 194 worse, and on every one of those 194 the exponent's
+//      distance from the true b*ln(a) predicted the result error to three
+//      significant figures.
+//
+// Both are removed by keeping the exponent as an unevaluated pair
+// (DoubleDouble, double) end to end:
+//   * dd_log_ext splits a = m*2^k exactly and returns k*ln2 + ln(m) with a
+//     residual. |ln m| <= 0.693 regardless of a, so log's relative error is no
+//     longer amplified by |ln a| (which reaches 48 on this grid).
+//   * dd_mul_ext forms the exact DD*DD product, keeping the third word.
+//   * dd_exp_ext folds the accumulated residual into the Cody-Waite
+//     subtraction chain, where it costs ~0.18 ulps -- no extra multiply, no
+//     branch.
+//
+// Measured over 1648 scored rows (U rows 563/564/566/567 excluded):
+//   mean 6.589 -> 1.176, median 0.611 -> 0.299, p90 21.19 -> 3.172,
+//   worst 113.7 -> 25.39, 766 rows better / 87 worse.
+// Individual rows land ON the achievable floor (pt 3: 0.227 vs floor 0.227;
+// pt 38: 0.106 vs 0.106; pt 9: 0.063 vs 0.063).
+//
+// Not fixed here: bases within an octave of a power of two, where m is not
+// near 1 and the decomposition gains little (pt 125, a = 10: 25.21 vs a floor
+// of 0.039). That needs a direct series for ln(m) on one octave and is a
+// separate item.
+XPMATH_INLINE_FUNCTION DoubleDouble pow(DoubleDouble a, DoubleDouble b) {
+    if (a.hi <= 0.0) {
+        if (a.hi == 0.0 && b.hi > 0.0) return DoubleDouble(0.0);
+        XPMATH_PRINTF("DDPOW: non-positive base\n");
+        return DoubleDouble(0.0);
+    }
+    double le;
+    const DoubleDouble lp = detail::dd_log_ext(a, le);
+    double e1;
+    const DoubleDouble p = detail::dd_mul_ext(lp, b, e1);
+    // le is the residual of ln(a); its contribution to the product is le*b.
+    // b.hi alone suffices: |le| <= |ln a|*2^-106 and the b.lo cross term lands
+    // at 2^-159 relative, far below the fold's own 2^-107.5.
+    return detail::dd_exp_ext(p, e1 + le * b.hi);
+}
+
+// hypot(a, b) = sqrt(a^2 + b^2), SCALED.  KI-8.
+//
+// QD 2.3.24 has no hypot (and no complex header at all), so this composition is
+// original to this port: there is no upstream scaling that was dropped, and
+// nothing to diverge from.
+//
+// The direct form squares its operands, so the intermediate a^2 leaves the
+// FP64 word range at |a| ~ 1.3e154 and flushes to zero at |a| ~ 1.5e-154 -- in both
+// cases while the ANSWER is perfectly representable.  hypot is precisely the
+// call a caller reaches for BECAUSE it wants an overflow-safe magnitude, so it
+// failing exactly there is worse than an ordinary accuracy defect.
+//
+// Remedy: factor the larger operand out.  t = min/max lies in [0,1], so t*t
+// cannot overflow whatever the operands are, and the only scaling is the final
+// multiply by m -- which overflows if and only if the true result does, so a
+// genuinely unrepresentable answer still reports inf rather than a wrong finite
+// value.
+//
+// The scaled form is NOT used unconditionally.  It costs a divide and is a
+// touch less accurate than the direct one (divide + square + sqrt + multiply
+// versus square + add + sqrt), so it is gated to the range where the direct
+// form actually breaks: for m inside [1.0e-150, 1.0e150] the old expression is
+// evaluated exactly as before and the added cost is two compares, not a divide.
+// Same reasoning as the atanh threshold in dd_complex.hpp -- fix the interval
+// that is broken, do not churn the one that is not.
+//
+// inf/nan convention (C99 F.9.4.3): hypot(+-inf, y) is +inf for ANY y, NaN
+// included, so the inf test comes first.  Otherwise a NaN operand propagates to
+// NaN through the arithmetic.  Both operands are taken through abs() first, so
+// the returned infinity is always +inf.
+XPMATH_INLINE_FUNCTION DoubleDouble hypot(DoubleDouble a, DoubleDouble b) {
+    DoubleDouble x = abs(a);
+    DoubleDouble y = abs(b);
+    if (detail::isinf(x.hi)) return x;
+    if (detail::isinf(y.hi)) return y;
+    DoubleDouble m = (x.hi < y.hi) ? y : x;
+    DoubleDouble n = (x.hi < y.hi) ? x : y;
+    if (m.hi == 0.0) return DoubleDouble(0.0);
+    if (m.hi <= detail::kDDSqHi && m.hi >= detail::kDDSqLo)
+        return sqrt(add(multiply(a, a), multiply(b, b)));
+    DoubleDouble t = divide(n, m);
+    return multiply(m, sqrt(add(DoubleDouble(1.0), multiply(t, t))));
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble ceil(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble floor(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble trunc(DoubleDouble a);
+XPMATH_INLINE_FUNCTION DoubleDouble round(DoubleDouble a);
+
+// ============================================================
+// fmod / remainder — exact iterative scale-and-subtract (KI-10, KI-15)
+// ============================================================
+// The former bodies were `a - b*trunc(a/b)` / `a - b*nint(a/b)`, the QD 2.3.24
+// shape (qd_real.cpp:2597 `fmod`, :2462 `drem`). That shape cannot work at
+// large |a/b| in ANY extended type, and QD has the same defect — diverging
+// from the source here is deliberate:
+//
+//   * The integral quotient n = trunc(a/b) needs log2|a/b| + 1 bits EXACTLY.
+//     At |a/b| ~ 1e22 that is 74 bits on top of whatever b's mantissa needs;
+//     the product n*b then needs ~180 bits and DD holds 106. So `b*trunc(a/b)`
+//     is wrong in its low bits by ~|a|*2^-106, and the answer is of size |b|,
+//     giving 106 - log2|a/b| bits of the answer — "half the digits" (KI-10).
+//   * Past the reducer's own magnitude cap, trunc(q) returns q unchanged (it
+//     is already integral) or 0 (KI-14 on FF), so a - b*trunc(q) collapses to
+//     exactly 0, or to a, or picks the wrong multiple and flips sign (KI-15).
+//
+// The replacement never forms a quotient at all. Writing A = |a|, B = |b|:
+//
+//     find the unique k >= 0 with B*2^k <= A < B*2^(k+1)      (ladder, exact)
+//     r := A
+//     for i = k down to 0:
+//         if r >= B*2^i:  r := r - B*2^i        <- EXACT, see below
+//     return r                                   (0 <= r < B)
+//
+// TERMINATION. i decreases by one per iteration from a finite k and the loop
+// ends at i = 0, so the bound is exactly k+1 iterations, k = ilogb(A)-ilogb(B)
+// (+/-1). For FP64 words that is at most 2098 (DBL_MAX_EXP - DBL_MIN_EXP -
+// mantissa), for FP32 words at most 302. No convergence test, no early exit,
+// no way to loop forever. The ladder that establishes k costs O(k/2^30 + 30)
+// steps because it climbs in 2^30 rungs before refining by 2.
+//
+// EXACTNESS. Every scaling is by a power of two applied componentwise, which
+// is exact (the climb never overflows because B*2^k <= A is finite, and the
+// descent revisits values that were exactly representable on the way up). The
+// loop invariant is r < 2*B*2^i on entry to step i: it holds at i = k by the
+// ladder, and each step leaves r < B*2^i = 2*B*2^(i-1). So a subtraction only
+// ever happens with B*2^i <= r < 2*B*2^i, which is Sterbenz's condition — the
+// exact difference is representable in the same format, and the two-sum-based
+// `subtract` returns it with no error. The remainder is therefore built from a
+// chain of exact steps, and the final r is the exact mathematical a mod b
+// rounded once into the type. No intermediate ever needs more precision than
+// the type carries, which is what the one-shot form could not arrange.
+//
+// CONVENTIONS (C99 7.12.10.1 / 7.12.10.2, IEEE 754-2019 5.3.1):
+//   fmod(a,b)      sign of a, |result| < |b|; the implied quotient truncates.
+//   remainder(a,b) a - n*b with n = round-half-to-EVEN of a/b, |result| <=
+//                  |b|/2; sign NOT tied to a. Half-even is required by IEEE
+//                  754 and is NOT the QD `nint` (half-away) behaviour — see
+//                  KI-20. The parity needed to break a tie is carried out of
+//                  the loop as `q_odd` rather than recovered from a quotient.
+//   fmod(a,0), remainder(a,0), fmod(+-inf,b), remainder(+-inf,b) -> NaN.
+//   fmod(a,+-inf) = remainder(a,+-inf) = a for finite a.
+//   fmod(+-0,b) = remainder(+-0,b) = +-0 for b != 0.  NaN operand -> NaN.
+namespace detail {
+
+// Exact componentwise scaling by a power of two.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_scale2(DoubleDouble a, double s) {
+    return DoubleDouble(a.hi * s, a.lo * s);
+}
+
+// |A| mod |B| exactly, plus the parity of the integral quotient.
+// Precondition: A >= 0, B > 0, both finite.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_fmod_abs(DoubleDouble A, DoubleDouble B,
+                                                bool& q_odd) {
+    q_odd = false;
+    if (A < B) return A;
+
+    // Ladder: smallest k with B*2^k <= A < B*2^(k+1). Coarse 2^30 rungs first
+    // so a 1000-decade gap does not cost 3300 doublings; an overflowed rung
+    // compares greater than A and simply is not taken.
+    DoubleDouble Bs = B;
+    int k = 0;
+    for (;;) {
+        DoubleDouble t = dd_scale2(Bs, 1073741824.0);  // 2^30
+        if (t > A) break;
+        Bs = t; k += 30;
+    }
+    for (;;) {
+        DoubleDouble t = dd_scale2(Bs, 2.0);
+        if (t > A) break;
+        Bs = t; ++k;
+    }
+
+    DoubleDouble r = A;
+    for (int i = k; i >= 0; --i) {
+        if (r >= Bs) {
+            r = subtract(r, Bs);          // Sterbenz-exact
+            if (i == 0) q_odd = true;
+        }
+        Bs = dd_scale2(Bs, 0.5);
+    }
+    return r;
+}
+
+}  // namespace detail
+
+XPMATH_INLINE_FUNCTION DoubleDouble fmod(DoubleDouble a, DoubleDouble b) {
+    const double nan_hi = a.hi - a.hi + (b.hi - b.hi);  // NaN iff either is
+    if (a.hi != a.hi || b.hi != b.hi) return DoubleDouble(nan_hi);
+    if (b.hi == 0.0) { XPMATH_PRINTF("DDFMOD: zero modulus\n");
+                       return DoubleDouble(0.0 / 0.0); }
+    if (!detail::isfinite(a.hi)) { XPMATH_PRINTF("DDFMOD: infinite dividend\n");
+                                   return DoubleDouble(0.0 / 0.0); }
+    if (!detail::isfinite(b.hi)) return a;
+    if (a.hi == 0.0) return a;
+
+    bool q_odd = false;
+    DoubleDouble r = detail::dd_fmod_abs(abs(a), abs(b), q_odd);
+    return (a.hi < 0.0) ? negate(r) : r;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble remainder(DoubleDouble a, DoubleDouble b) {
+    const double nan_hi = a.hi - a.hi + (b.hi - b.hi);
+    if (a.hi != a.hi || b.hi != b.hi) return DoubleDouble(nan_hi);
+    if (b.hi == 0.0) { XPMATH_PRINTF("DDREMAINDER: zero modulus\n");
+                       return DoubleDouble(0.0 / 0.0); }
+    if (!detail::isfinite(a.hi)) { XPMATH_PRINTF("DDREMAINDER: infinite dividend\n");
+                                   return DoubleDouble(0.0 / 0.0); }
+    if (!detail::isfinite(b.hi)) return a;
+    if (a.hi == 0.0) return a;
+
+    bool q_odd = false;
+    DoubleDouble B = abs(b);
+    DoubleDouble r = detail::dd_fmod_abs(abs(a), B, q_odd);
+    // Round half to even: r is in [0,B); step to r-B (quotient n+1) when that
+    // is strictly closer, and on the exact tie 2r == B when n is odd.
+    DoubleDouble two_r = detail::dd_scale2(r, 2.0);
+    if (two_r > B || (two_r == B && q_odd)) r = subtract(r, B);  // Sterbenz-exact
+    return (a.hi < 0.0) ? negate(r) : r;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble copysign(DoubleDouble a, DoubleDouble b) {
+    DoubleDouble r = abs(a);
+    if (b.hi < 0.0 || (b.hi == 0.0 && b.lo < 0.0)) return negate(r);
+    return r;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble fmax(DoubleDouble a, DoubleDouble b) {
+    return (a > b) ? a : b;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble fmin(DoubleDouble a, DoubleDouble b) {
+    return (a < b) ? a : b;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble fdim(DoubleDouble a, DoubleDouble b) {
+    return (a > b) ? subtract(a, b) : DoubleDouble(0.0);
+}
+// ---- KI-38: fma with an EXACT product ----------------------------------
+//
+// The old body was `add(multiply(a, b), c)` -- a multiply FOLLOWED BY an add,
+// which is precisely the thing a fused multiply-add exists not to be.
+// multiply() rounds a*b to two words before c is ever looked at, so the
+// dropped tail is ~2^-106|a*b| in ABSOLUTE terms.  When c ~ -a*b the leading
+// digits cancel and that dropped tail is what survives:
+//
+//     rel err of the result  ~  2^-106 * |a*b| / |a*b + c|
+//
+// i.e. the loss is log10(|a*b|/|a*b+c|) digits, unbounded as c -> -a*b.
+//
+// That is NOT a conditioning floor.  A condition number multiplies the error
+// already present in the INPUTS, and here the inputs are exactly-held
+// DoubleDouble values with zero error -- a*b + c has one exact answer and it
+// is representable.  Measured (KI-38 probe, oracle at the stored operands):
+// the achievable score is the full cap at every one of the 60 sweep points
+// that were failing, and the failure was entirely in this line.
+//
+// DD escaped the sweep only because its grid feeds plain doubles, for which
+// two_prod(a.hi, b.hi) is already exact and a.lo = b.lo = 0.  With genuinely
+// wide operands the same defect is total: fma(1/3, sqrt(3), c) with
+// c = -(1/3)*sqrt(3)*(1-2^-60) scored 0.00 digits before this change, 31.00
+// after.
+//
+// The fix forms a*b as an EXACT expansion of scalars -- every partial product
+// a_i*b_j contributes both words of its two_prod -- appends c's words, and
+// only then rounds.  Shewchuk (1997) GROW-EXPANSION keeps the running total
+// exact and nonoverlapping; COMPRESS then repacks it so each retained
+// component carries a full 53 bits, which is what makes truncating to the
+// leading words safe.  Truncating the UNcompressed expansion is not: its
+// components can each carry only a few bits, so the leading three can span
+// far less than 106 bits (measured: four TF points stalled at ~17.5 digits
+// that way).
+//
+// Cost is ~10 two_sums for double operands (the a.lo = b.lo = 0 terms are
+// skipped) and at most ~50 for fully wide ones. fma has no in-header callers,
+// so nothing hot pays for this.
+XPMATH_INLINE_FUNCTION double dd_two_sum(double a, double b, double& err) {
+    return detail::eft_two_sum(a, b, err);
+}
+XPMATH_INLINE_FUNCTION double dd_quick_two_sum(double a, double b, double& err) {
+    return detail::eft_quick_two_sum(a, b, err);
+}
+// GROW-EXPANSION: e stays nonoverlapping and increasing, sum(e) exact.
+XPMATH_INLINE_FUNCTION void dd_expansion_push(double* e, int& m, double t) {
+    if (t == 0.0) return;
+    double q = t;
+    for (int i = 0; i < m; ++i) {
+        double err;
+        const double s = dd_two_sum(q, e[i], err);
+        e[i] = err;
+        q    = s;
+    }
+    e[m++] = q;
+}
+// COMPRESS: repack so every component is full-width, then emit the leading
+// `n` in DESCENDING order (the input order renorm cascades expect).
+XPMATH_INLINE_FUNCTION void dd_expansion_compress(const double* e, int m,
+                                                  double* out, int n) {
+    double g[10], h[10];
+    int    bottom = m - 1;
+    double q = e[m - 1];
+    for (int i = m - 2; i >= 0; --i) {
+        double r;
+        q = dd_quick_two_sum(q, e[i], r);
+        if (r != 0.0) { g[bottom--] = q; q = r; }
+    }
+    g[bottom] = q;
+    int top = 0;
+    for (int i = bottom + 1; i < m; ++i) {
+        double r;
+        q = dd_quick_two_sum(g[i], q, r);
+        if (r != 0.0) h[top++] = r;
+    }
+    h[top++] = q;
+    for (int k = 0; k < n; ++k) out[k] = (top - 1 - k >= 0) ? h[top - 1 - k] : 0.0;
+}
+namespace detail {
+
+// KI-44. The exact DD*DD product as an unevaluated pair: the same Shewchuk
+// expansion fma() builds below, stopping one step earlier so the third word
+// survives instead of being folded away. Verified against MPFR@400: |(p+err) -
+// x*y| <= 1.8e-15 ulps of the result over the whole real grid, i.e. exact for
+// this purpose. A fourth word was measured and buys nothing.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_mul_ext(DoubleDouble x, DoubleDouble y, double& err) {
+    const double aw[2] = {x.hi, x.lo};
+    const double bw[2] = {y.hi, y.lo};
+    double e[8];
+    int    m = 0;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j) {
+            if (aw[i] == 0.0 || bw[j] == 0.0) continue;
+            const DoubleDouble p = two_prod(aw[i], bw[j]);
+            dd_expansion_push(e, m, p.hi);
+            dd_expansion_push(e, m, p.lo);
+        }
+    if (m == 0) { err = 0.0; return DoubleDouble(0.0); }
+    double d[3];
+    dd_expansion_compress(e, m, d, 3);
+    double lo, hi = dd_quick_two_sum(d[0], d[1], lo);
+    err = d[2];
+    return DoubleDouble(hi, lo);
+}
+
+// KI-44. log as an unevaluated pair, via the exact split a = m * 2^k.
+//
+//     ln a = k*ln2 + ln m,   m in [1, 2)
+//
+// The point is the BOUND on the second term: |ln m| <= 0.693 whatever a is,
+// where |ln a| reaches 48 on this grid. log()'s relative error is therefore no
+// longer amplified by |ln a| when the result is later multiplied by a large
+// exponent. Measured improvement in ln(a) itself: a = 3.16e-30 goes 0.450 ->
+// 5.39e-05 ulps, a = 1e21 goes 0.103 -> 9.19e-04.
+//
+// k*ln2 reuses the KI-42 Cody-Waite pieces verbatim: |k| <= 1074 here, the same
+// bound exp() already verified (0 of 6300 products k*c_i inexact), so all three
+// k*c_i are exact doubles and no new constants or verification are needed.
+// The split itself is exact -- both words scaled by the same power of two.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_log_ext(DoubleDouble a, double& err) {
+    err = 0.0;
+    if (detail::isinf(a.hi)) return a;
+    if (a.hi <= 0.0) {
+        XPMATH_PRINTF("DDLOGEXT: non-positive argument\n");
+        return DoubleDouble(0.0);
+    }
+    // Binary exponent of a.hi, by the same dependency-free loop
+    // dd_pow2_unit_scale uses (dd_math.hpp:964-966 records why there is no
+    // frexp here: config.hpp's scalar dispatch has none, and a loop is portable
+    // to every device backend). Unlike that helper this one is NOT clamped --
+    // the clamp exists there to keep 1/s normal, but here the scale is applied
+    // per word by ldexp, which is exact into the subnormal band.
+    int k = 0;
+    {
+        double t = a.hi;
+        while (t >= 18014398509481984.0)    { t *= 5.5511151231257827e-17; k += 54; }
+        while (t <  5.5511151231257827e-17) { t *= 18014398509481984.0;    k -= 54; }
+        while (t >= 2.0) { t *= 0.5; ++k; }
+        while (t <  1.0) { t *= 2.0;  --k; }
+    }
+    const DoubleDouble m(detail::ldexp(a.hi, -k), detail::ldexp(a.lo, -k));
+    const DoubleDouble lm = log(m);      // |ln m| <= 0.6932
+
+    const double kLn2_1 =  0x1.62e42fefa38p-1;   // KI-42 pieces, unchanged
+    const double kLn2_2 =  0x1.ef35793c768p-45;
+    const double kLn2_3 = -0x1.9ff0342543p-90;
+    const double kd = (double)k;
+
+    double e[8];
+    int    n = 0;
+    dd_expansion_push(e, n, kd * kLn2_1);
+    dd_expansion_push(e, n, kd * kLn2_2);
+    dd_expansion_push(e, n, kd * kLn2_3);
+    dd_expansion_push(e, n, lm.hi);
+    dd_expansion_push(e, n, lm.lo);
+    if (n == 0) return DoubleDouble(0.0);
+    double d[3];
+    dd_expansion_compress(e, n, d, 3);
+    double lo, hi = dd_quick_two_sum(d[0], d[1], lo);
+    err = d[2];
+    return DoubleDouble(hi, lo);
+}
+
+// KI-44. exp() taking an extra residual on its argument. Identical to exp()
+// except that `resid` joins the Cody-Waite subtraction chain: |s0| <= ln2/2 =
+// 0.347 and |resid| <= |a|*2^-106, so the fold rounds at ~2^-107.5 -- about
+// 0.18 ulps of the result, against the ~0.5-1 ulp an extra multiply(E, 1+e)
+// would cost, with no branch.
+//
+// The body is duplicated from exp() rather than exp() being re-expressed as
+// dd_exp_ext(a, 0.0): exp() is defined ~1000 lines above the expansion helpers
+// this file places below pow, and reordering it is a larger and riskier diff
+// than one duplicated body. Keep the two in step.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_exp_ext(DoubleDouble a, double resid) {
+    const int nq = 6;
+    const double eps = 1.0e-32;
+    DoubleDouble al2 = DoubleDouble_log2();
+    if (a.hi > 709.78271289338397) {
+        XPMATH_PRINTF("DDEXP: overflow\n");
+        return DoubleDouble(HUGE_VAL);
+    }
+    if (a.hi < -745.2) return DoubleDouble(0.0);
+
+    DoubleDouble s0 = divide(a, al2);
+    DoubleDouble s1 = round_to_nearest_int(s0);
+    const double t1 = s1.hi;
+    const int    nz = (int)(t1 + detail::copysign(1.0e-14, t1));
+
+    const double kLn2_1 =  0x1.62e42fefa38p-1;
+    const double kLn2_2 =  0x1.ef35793c768p-45;
+    const double kLn2_3 = -0x1.9ff0342543p-90;
+    const double kd = t1;
+    s0 = subtract(a,  DoubleDouble(kd * kLn2_1));
+    s0 = subtract(s0, DoubleDouble(kd * kLn2_2));
+    s0 = subtract(s0, DoubleDouble(kd * kLn2_3));
+    if (resid != 0.0) s0 = add(s0, DoubleDouble(resid));
+
+    // With a residual the result is 2^nz only if BOTH words vanish; exp()'s
+    // `s0.hi == 0.0` test is not sufficient here.
+    if (s0.hi == 0.0 && s0.lo == 0.0) return DoubleDouble(detail::ldexp(1.0, nz));
+
+    s1 = multiply_scalar(s0, detail::ldexp(1.0, -nq));
+    DoubleDouble s2 = s1, s3 = s1;
+    for (int l1 = 2; l1 <= 100; ++l1) {
+        s0 = multiply(s2, s1);
+        s2 = divide_scalar(s0, (double)l1);
+        s0 = add(s3, s2);
+        s3 = s0;
+        if (detail::fabs(s2.hi) <= eps * detail::fabs(s3.hi)) break;
+    }
+    for (int i = 0; i < nq; ++i) s3 = multiply(s3, add(s3, DoubleDouble(2.0)));
+    s3 = add(DoubleDouble(1.0), s3);
+    if (nz >= -1021 && nz <= 1023) {
+        const double pow2 = detail::ldexp(1.0, nz);
+        return DoubleDouble(s3.hi * pow2, s3.lo * pow2);
+    }
+    return DoubleDouble(detail::ldexp(s3.hi, nz), detail::ldexp(s3.lo, nz));
+}
+
+}  // namespace detail
+
+XPMATH_INLINE_FUNCTION DoubleDouble fma(DoubleDouble a, DoubleDouble b, DoubleDouble c) {
+    // Non-finite operands, and products that overflow, keep the old path so
+    // that the KI-19/25/26/27 inf/NaN behaviour is untouched.
+    const double p0 = a.hi * b.hi;
+    if (!detail::isfinite(p0) || !detail::isfinite(c.hi))
+        return add(multiply(a, b), c);
+
+    const double aw[2] = {a.hi, a.lo};
+    const double bw[2] = {b.hi, b.lo};
+    double e[10];                       // 4 two_prods (8 words) + c's 2 words
+    int    m = 0;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j) {
+            if (aw[i] == 0.0 || bw[j] == 0.0) continue;
+            const DoubleDouble p = two_prod(aw[i], bw[j]);
+            dd_expansion_push(e, m, p.hi);
+            dd_expansion_push(e, m, p.lo);
+        }
+    dd_expansion_push(e, m, c.hi);
+    dd_expansion_push(e, m, c.lo);
+    if (m == 0) return add(multiply(a, b), c);   // all-zero: keep the old sign
+
+    double d[3];
+    dd_expansion_compress(e, m, d, 3);
+    double t, s = dd_quick_two_sum(d[1], d[2], t);
+    double lo, hi = dd_quick_two_sum(d[0], s, lo);
+    lo += t;
+    hi = dd_quick_two_sum(hi, lo, lo);
+    return DoubleDouble(hi, lo);
+}
+
+// ============================================================
+// Rounding
+// ============================================================
+
+XPMATH_INLINE_FUNCTION DoubleDouble floor(DoubleDouble a) {
+    DoubleDouble n = round_to_nearest_int(a);
+    if (n > a) return subtract(n, DoubleDouble(1.0));
+    return n;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble ceil(DoubleDouble a) {
+    DoubleDouble n = round_to_nearest_int(a);
+    if (n < a) return add(n, DoubleDouble(1.0));
+    return n;
+}
+XPMATH_INLINE_FUNCTION DoubleDouble trunc(DoubleDouble a) {
+    return (a.hi >= 0.0) ? floor(a) : ceil(a);
+}
+// round(a) — nearest integer, TIES TO EVEN (IEEE 754 roundToIntegralTiesToEven).
+//
+// KI-20 (2026-09-04). Half-even is the library's ONE tie convention, on all four
+// backends, chosen deliberately. It DIVERGES FROM C99 `round`, which breaks ties
+// away from zero (`roundq(0.5) = 1`, this returns 0), and from QD 2.3.24's
+// `nint`, which breaks them toward +infinity. See docs/KNOWN_ISSUES.md, KI-20.
+//
+// No tie correction is needed here: DD's round_to_nearest_int is the DDFUN
+// magic-constant form and is ALREADY half-even at every tie (measured:
+// 0.5 -> 0, 1.5 -> 2, 2.5 -> 2, -0.5 -> 0, -1.5 -> -2, -2.5 -> -2). QF and TF
+// inherit QD's toward-+infinity `nint` and carry an explicit correction in their
+// own `round`; see qf_math.hpp for it.
+XPMATH_INLINE_FUNCTION DoubleDouble round(DoubleDouble a) {
+    return round_to_nearest_int(a);
+}
+
+// ============================================================
+// Special functions (in header, not benchmarked)
+// ============================================================
+
+// Internal helper (not part of the DD API surface): the SUM of the asymptotic
+// erfc expansion, A&S 7.1.23,
+//     erfc(z) = e^{-z²}/sqrt(pi) · sum_k term_k,
+//     term_0 = 1/|z|,  term_k = term_{k-1} · (-(2k-1))/(2z²),
+// evaluated with optimal truncation. The series is DIVERGENT: its terms shrink
+// to ~e^{-z²} and then grow again, so summing past the smallest term strictly
+// loses accuracy and a relative-eps exit can never be the primary one. Both the
+// eps exit and the k cap are secondary; the smallest-term test below is
+// primary. Measured worst case 72 terms at |z| = 8.5.
+//
+// Only the SUM is returned, not erfc: the two callers need different scalings.
+// erf() (B3) sees only |z| <= 8.5, where e^{z²} <= 2.4e31, and divides by it;
+// erfc() (B2) runs out to the DD underflow floor |z| ~ 27.25, where e^{z²} would
+// exceed the Dekker splitter's headroom (DBL_MAX/2^27+1 ~ 1.3e300, reached at
+// |z| ~ 26.29) and turn divide() into NaN, so it multiplies by e^{-z²} instead.
+// Keeping the scaling at the call sites lets erf()'s arithmetic stay
+// bit-for-bit what B3 shipped while erfc() gets the overflow-safe form.
+//
+// Preconditions: az = |z| > 0 and z2 = z·z, both finite or +inf.
+XPMATH_INLINE_FUNCTION DoubleDouble erfc_asymptotic_sum(DoubleDouble az, DoubleDouble z2) {
+    const double eps = 1.0e-32;   // just under DD's u² = 2⁻¹⁰⁶ ~ 1.23e-32
+    DoubleDouble two_z2 = multiply_scalar(z2, 2.0);
+    DoubleDouble term = divide(DoubleDouble(1.0), az), sum = term;
+    double prev_mag = detail::fabs(term.hi);
+    for (int k = 1; k <= 100; ++k) {
+        DoubleDouble next = divide(multiply_scalar(term, -(2.0*k - 1.0)), two_z2);
+        double mag = detail::fabs(next.hi);
+        if (mag > prev_mag) break;                 // smallest term reached -> stop
+        sum = add(sum, next);
+        term = next; prev_mag = mag;
+        if (mag <= eps * detail::fabs(sum.hi)) break;
+    }
+    return sum;
+}
+
+// erf — Taylor series for |z| < 6, asymptotic expansion for 6 <= |z| <= 8.5,
+// saturated to ±1 beyond that.
+//
+// B3: the shipped version degraded smoothly from ~30 digits at |z| = 5 to 3.17
+// digits at |z| = 8.5, pulling the uniform(-10, 10) mean to 24.64 against a
+// 25.91 gate. Two defects, both reachable only through the Taylor path:
+//   (a) The Taylor series needs k ≈ z² + 50 terms to reach DD resolution
+//       (measured against an mpmath reference: 106 terms at |z| = 5, 130 at 6,
+//       197 at 8.5) but the loop capped at k = 100. From |z| ≈ 4.9 upward it
+//       therefore returned a *truncated* sum whose error grows smoothly with
+//       |z| — which is precisely the observed ramp, with no cliff.
+//   (b) The asymptotic erfc series below is DIVERGENT, so its relative-eps
+//       exit could never fire; it would have run to its iteration cap and
+//       summed far past the smallest term. It never actually did, because the
+//       branch was unreachable: its `|z| < 9.0` guard cannot be false once the
+//       `|z| > 8.5` saturation above has returned. (The B3 stub attributed the
+//       digit loss to this branch; see DEVIATION 1 in the commit body.)
+// Fix: raise the Taylor cap, switch over to the asymptotic branch at |z| = 6
+// so it is live, and truncate that divergent series at its smallest term.
+// Series identities: A&S 7.1.6 (Taylor) and A&S 7.1.23 (asymptotic erfc);
+// same pair as the FF sibling fix (B5, ff_math.hpp:erf).
+//
+// Term recurrence. Each term is grown from its predecessor by the running
+// ratio rather than from separately accumulated numerator and denominator (the
+// DDFUN-port form). Unlike FF, where the old form overflowed FP32 outright and
+// erf returned NaN, FP64 has the headroom — at this switchover the old form's
+// intermediates peak at 3.3e238 (numerator) and 1.7e255 ((2k+1)!!), both inside
+// DBL_MAX, and it scores digit-for-digit the same. The recurrence is adopted
+// because it DECOUPLES the iteration cap from overflow: with separate
+// accumulators (2k+1)!! reaches DBL_MAX near k ≈ 150, so the cap and the
+// switchover would be pinned within ~10% of each other (at kTaylorMax = 7 the
+// old form returns NaN). It is also cheaper — one DD/double divide per term
+// instead of a full DD/DD divide. This is the DD-vs-B5 boundary: B5's overflow
+// safety was load-bearing at FP32; here it buys cap independence, not
+// correctness.
+XPMATH_INLINE_FUNCTION DoubleDouble erf(DoubleDouble z) {
+    // DD relative resolution is u² = 2⁻¹⁰⁶ ≈ 1.23e-32; a finer eps could not
+    // fire. This is the convergent (Taylor) branch's primary exit; the
+    // divergent asymptotic branch's exits live in erfc_asymptotic_sum().
+    const double eps = 1.0e-32;
+    if (z.hi == 0.0) return DoubleDouble(0.0);
+    // erfc(8.5) < 2⁻¹⁰⁴, i.e. below DD's last bit relative to 1, so erf
+    // saturates exactly. threshold: sqrt(104 * ln2) ≈ 8.48
+    const double large = 8.5;
+    if (z.hi >  large) return DoubleDouble( 1.0);
+    if (z.hi < -large) return DoubleDouble(-1.0);
+
+    DoubleDouble z2 = multiply(z, z);
+    int sign = (z.hi >= 0.0) ? 1 : -1;
+    DoubleDouble az = abs(z);
+
+    // Switchover derivation. The asymptotic expansion's optimal-truncation
+    // floor is its smallest term, ~ e^{-z²}; carried through erf = 1 - erfc
+    // that is an absolute error ≈ e^{-2z²}/(z·sqrt(pi)), which first drops
+    // below u² at |z| ≈ 5.97. Below 6 the Taylor series still converges well
+    // inside the cap (k ≤ 130). Measured over (0, 8.5] on a 0.005 grid the
+    // minimum is 29.49 digits at z = 0.435 — a generic-roundoff point, not a
+    // branch artifact — and there is no dip at the seam (erf(5.95) = 29.70,
+    // erf(6.05) = 31.00, the report clamp).
+    const double kTaylorMax = 6.0;
+
+    if (detail::fabs(z.hi) < kTaylorMax) {
+        // Taylor (A&S 7.1.6): erf(z) = (2/sqrt(pi)) e^{-z²} sum_k term_k,
+        //   term_0 = |z|,  term_k = term_{k-1} · (2z²)/(2k+1).
+        // All terms positive — no cancellation; the sum is bounded by
+        // (sqrt(pi)/2)e^{z²} (≈ 4.3e15 at |z| = 6). Cap 200 against a measured
+        // worst case of 130 terms as |z| → 6⁻; the recurrence makes the excess
+        // free, since every intermediate stays O(sum).
+        DoubleDouble two_z2 = multiply_scalar(z2, 2.0);
+        DoubleDouble term = az, sum = az;
+        for (int k = 1; k <= 200; ++k) {
+            term = divide_scalar(multiply(term, two_z2), 2.0*k + 1.0);
+            DoubleDouble sumnew = add(sum, term);
+            if (detail::fabs(term.hi) <= eps * detail::fabs(sumnew.hi)) { sum = sumnew; break; }
+            sum = sumnew;
+        }
+        DoubleDouble result = divide(multiply_scalar(sum, 2.0),
+                                     multiply(sqrt(DoubleDouble_pi()), exp(z2)));
+        return (sign > 0) ? result : negate(result);
+    } else {
+        // Asymptotic (A&S 7.1.23), optimal truncation — see
+        // erfc_asymptotic_sum() above, which B2 factored out of this branch so
+        // erfc() can invoke the identical series directly. The scaling stays
+        // here: |z| <= 8.5 on this path, so e^{z²} <= 2.4e31 and the divide is
+        // safe (erfc()'s multiply-by-e^{-z²} form is the one that has to reach
+        // |z| ~ 26). Then erf = 1 - erfc; erfc is ≈ 2.2e-17 at the |z| = 6 seam
+        // and smaller above, so that subtraction is benign for erf (it is NOT
+        // for erfc itself — see erfc() below).
+        DoubleDouble sum = erfc_asymptotic_sum(az, z2);
+        DoubleDouble erfc_val = divide(sum, multiply(sqrt(DoubleDouble_pi()), exp(z2)));
+        DoubleDouble erf_val  = subtract(DoubleDouble(1.0), erfc_val);
+        return (sign > 0) ? erf_val : negate(erf_val);
+    }
+}
+
+// erfc — direct asymptotic expansion for z >= 6.5, 1 - erf(z) below that.
+//
+// B2: `erfc(z) = subtract(DoubleDouble(1.0), erf(z))` for ALL z is catastrophic
+// cancellation as erf(z) -> 1. erf is accurate to u² RELATIVE to 1, so the
+// difference carries an absolute error ~u² and erfc's relative error is
+// u²/erfc(z) — a loss of exactly log10(1/erfc(z)) digits, which is the smooth
+// ramp measured off the shipped code: 28.3 digits at z = 2, 26.6 at 3, 23.0 at
+// 4, 18.4 at 5, and 0 above z = 8.5, where erf saturates to exactly 1 and erfc
+// returns exactly 0. Mean over uniform(-10, 10) was 24.87 against a 25.91 gate.
+// (B3 had already lifted that from 19.50 by making erf's asymptotic branch
+// live: over 6 <= z <= 8.5 erf returns 1 - erfc_val with erfc_val small enough
+// to land in the lo word, so the outer subtract recovered ~16 digits. A lo-word
+// round trip is a 53-bit channel, so ~16 digits is all it can ever recover —
+// hence the flat 16-digit shelf there, and hence B2.)
+//
+// Fix: for z >= kDirectMin, evaluate erfc directly from the SAME asymptotic
+// series erf() uses (erfc_asymptotic_sum, A&S 7.1.23) and never form 1 - erf.
+// Negative z needs no such path: erfc(-|z|) = 2 - erfc(|z|) is ~2, so
+// subtract(1, erf) is benign there and already scores 31 digits.
+//
+// Threshold derivation. The cut is placed where the direct series stops being
+// worse than the fallback it replaces — at EVERY measured point, not on
+// average, because the uniform(-10, 10) mean is flat to ±0.03 digit across the
+// whole [5.6, 6.6] candidate window (27.99 down to 27.96) and so decides
+// nothing. What the fallback delivers above z = 6.0 is the lo-word shelf B3
+// created: a 53-bit channel, measured mean 16.53 digits over [6.3, 8.5] with
+// roundoff scatter reaching 19.20. The direct series rises ~5.3 digits per unit
+// z through that shelf and clears its full scatter envelope at z ~ 6.44
+// (highest regressing point 6.4230 on a 0.0005 grid). kDirectMin = 6.5 sits
+// just above, and over 6001 grid points on [6, 9] at 0.0005 spacing NO point
+// scores worse than the shipped 1 - erf code did.
+//
+// Rejected alternative — kDirectMin = 5.75, the balanced-error (minimax) cut.
+// It lifts the global trough of the composite curve from 13.55 to 14.50 digits
+// (the trough is the last fallback point before the seam, where 1 - erf's
+// cancellation is deepest), and it is the mean-optimal point (27.99 vs 27.97).
+// But it regresses 34 of 721 grid points over (4, 10] by up to 1.86 digits, all
+// inside the 16-18 digit scatter band. Trading measured regressions for a
+// 0.95-digit gain on a trough that is 12 digits under gate either way is not
+// worth it; the 13.55-digit trough at z = 5.915 is pre-existing 1 - erf
+// behaviour and is left exactly as it was.
+//
+// KNOWN LIMITATION, not closed here. The 1 - erf cancellation is a ramp, not a
+// cliff, so it also costs digits well below any usable threshold for THIS
+// series — on a 0.02 grid, erfc scores under the 25.91 test gate at scattered
+// points from z = 2.90 and at every point from z = 3.68 to 7.70. A direct
+// asymptotic path cannot help there: its optimal-truncation floor is worth only
+// ~11 digits at z = 5, i.e. worse than the subtract it would replace. Closing
+// that band needs a different algorithm (a Lentz continued fraction, A&S
+// 7.1.14, or a triple-double erf). That row used to gate on the MEAN
+// and passes at 27.97 vs 25.91; the pointwise band is a separate, open concern.
+XPMATH_INLINE_FUNCTION DoubleDouble erfc(DoubleDouble z) {
+    // See derivation above. Sits above erf()'s own kTaylorMax = 6.0 seam, so
+    // [6.0, 6.5) of the lo-word shelf is still served by the fallback.
+    const double kDirectMin = 6.5;
+    // Above this, erfc(z) < 2⁻¹⁰⁷⁴ (the smallest IEEE double subnormal) and +0
+    // is the only representable answer, so honest underflow beats evaluating
+    // the series. Derivation: erfc(z) ~ e^{-z²}/(z·sqrt(pi)) crosses 4.94e-324
+    // at z ~ 27.28 (measured: erfc(27.2) = 1.0e-323, erfc(27.3) = 4.2e-326).
+    // This also keeps z² away from the range where 2z² would overflow the
+    // Dekker splitter inside divide() (b.hi · 2²⁷+1 > DBL_MAX above 1.3e300)
+    // and turn the series into NaN — reachable from the corpus, which feeds
+    // erfc DBL_MAX.
+    const double kUnderflowMax = 27.25;
+    if (z.hi >= kDirectMin) {
+        if (!(z.hi <= kUnderflowMax)) return DoubleDouble(0.0);  // also catches +inf
+        DoubleDouble z2 = multiply(z, z);
+        DoubleDouble sum = erfc_asymptotic_sum(z, z2);
+        // e^{-z²}, not 1/e^{z²}: dividing by e^{z²} would (a) hit dd exp()'s
+        // hard ±300 argument guard at z = 17.32 and return 0, and (b) overflow
+        // the Dekker splitter in divide() at z = 26.29. The multiply form has
+        // neither failure and reaches the underflow floor above.
+        DoubleDouble emz2;
+        if (z2.hi < 300.0) {
+            emz2 = exp(negate(z2));
+        } else {
+            // Same ±300 guard: quarter the argument (max |z²/4| = 185.7 at
+            // kUnderflowMax) and square twice. Costs ~2 bits of the relative
+            // error of exp; measured 30.45 digits at z = 20, 29.38 at z = 26.
+            emz2 = exp(divide_scalar(negate(z2), 4.0));
+            emz2 = multiply(emz2, emz2);
+            emz2 = multiply(emz2, emz2);
+        }
+        return divide(multiply(sum, emz2), sqrt(DoubleDouble_pi()));
+    }
+    return subtract(DoubleDouble(1.0), erf(z));
+}
+
+// gamma — Lanczos approximation at DD precision
+//
+// B1: promoted from Lanczos g=7 / n=9 with `double` coefficients (~14.6 digits)
+// to g=14 / N=17 with DD-precision coefficients (~28.3 digits). The g=7 form
+// could not reach DD precision at ANY coefficient precision: its intrinsic
+// truncation-order ceiling is ~13 digits at large a (verified by recomputing the
+// g=7 set to 25 exact digits and re-measuring), so the order had to rise too.
+//
+// Choice of g: this is the PARTIAL-FRACTION form, c_0 + sum_k c_k/(x+k). Raising
+// g shrinks the truncation error but grows the coefficients as max|c_k| ~
+// 10^(g/2) against an O(1) sum, so cancellation eats the gain — the two effects
+// cross at an interior optimum near g=14. (Boost's lanczos24m113 uses g=20.32,
+// but for the RATIONAL evaluation form, which is immune to that cancellation;
+// its g does not transfer here. At g=20.32/N=24 this form measures 26.17 digits
+// versus 28.30 at g=14/N=17 — both clear the 25.91 gate, g=14 by 8x the margin
+// and with 7 fewer DD divisions per call.)
+//
+// Coefficients are derived for this form — not transcribed from a published
+// table — by scripts/gen_dd_lanczos_coeffs.py: an exact N-node Cauchy solve at
+// 150-digit precision (mpmath), then split into DD pairs via hi=(double)c,
+// lo=(double)(c-hi). Regenerate with:
+//     python3.12 scripts/gen_dd_lanczos_coeffs.py --g 14 --n 17
+// Reference for the method: C. Lanczos, "A Precision Approximation of the Gamma
+// Function", J. SIAM Numer. Anal. B 1 (1964) 86-96; P. Godfrey (2001), "A note
+// on the computation of the convergent Lanczos complex Gamma approximation".
+//
+// The Lanczos core is a SEPARATE function from the reflection, and tgamma's
+// reflected arm calls the core, never itself.  A device self-call costs the
+// whole kernel its bounded stack -- see the block above asinh in this file.  The
+// split is value-preserving by inspection: the reflection only fires for
+// a.hi < 0.5, and it passes 1-a, whose leading word is then >= 0.5, so the
+// recursive form could only ever have reached the Lanczos branch anyway.
+XPMATH_INLINE_FUNCTION DoubleDouble dd_tgamma_lanczos(DoubleDouble a) {
+    // Lanczos g=14, N=17 partial-fraction terms; g+1/2 = 14.5 is exact in binary.
+    // Stored as from_bits pairs (no static — not device-safe).
+    const DoubleDouble c0  = DoubleDouble::from_bits(0x3ff0000000000000ULL, 0xbae5ccd249ecc19bULL); // 0.99999999999999999999999943648104
+    const DoubleDouble c1  = DoubleDouble::from_bits(0x4130508002f7b2f9ULL, 0xbdde6b1d3115d868ULL); // 1069184.0115920883893762432104389
+    const DoubleDouble c2  = DoubleDouble::from_bits(0xc1520c269bdd76d1ULL, 0x3de92b2f192ec69eULL); // -4731034.4353920973868757761804379
+    const DoubleDouble c3  = DoubleDouble::from_bits(0x4160d8066039eda2ULL, 0xbdf87be0f302eef3ULL); // 8831027.007071319611220661269011
+    const DoubleDouble c4  = DoubleDouble::from_bits(0xc16146a8bdf4bdfaULL, 0xbe0be918cc144d3eULL); // -9057605.9361257449464911660473997
+    const DoubleDouble c5  = DoubleDouble::from_bits(0x4155446ee2ac5166ULL, 0x3dff11da6c1fbcf7ULL); // 5575099.5417674542269340470477891
+    const DoubleDouble c6  = DoubleDouble::from_bits(0xc140204023677251ULL, 0x3def145fa217e389ULL); // -2113664.2765944378983143233455817
+    const DoubleDouble c7  = DoubleDouble::from_bits(0x411dcda58708ca7dULL, 0xbdbc5517b2320728ULL); // 488297.38186947236287561024853562
+    const DoubleDouble c8  = DoubleDouble::from_bits(0xc0f010ab7f5d5dd2ULL, 0x3d9caf781e0d5b98ULL); // -65802.718594900587803425288271468
+    const DoubleDouble c9  = DoubleDouble::from_bits(0x40b2925c21e49b29ULL, 0x3d4703761d822039ULL); // 4754.3598921660242738590870170964
+    const DoubleDouble c10 = DoubleDouble::from_bits(0xc063db3ec68d4616ULL, 0xbcf6895939019f5eULL); // -158.85141303627523757502741476457
+    const DoubleDouble c11 = DoubleDouble::from_bits(0x3ffe0fc55cf4679aULL, 0x3c9c4101b51c3344ULL); // 1.8788503294985959705049465832809
+    const DoubleDouble c12 = DoubleDouble::from_bits(0xbf72ccd49a96fda3ULL, 0x3bf8020a237ad597ULL); // -0.0045898728216679255070647986148431
+    const DoubleDouble c13 = DoubleDouble::from_bits(0x3ea3e6fd3f82125aULL, 0x3b2ef6f032dc7da6ULL); // 0.00000059313481327921474287496854411048
+    const DoubleDouble c14 = DoubleDouble::from_bits(0x3d8651737a83433fULL, 0x3a2e2e9b5d81e4f9ULL); // 2.5372819792517959806144197536557e-12
+    const DoubleDouble c15 = DoubleDouble::from_bits(0xbd722f28a915bb2fULL, 0x3a09bbbac7a1a093ULL); // -1.0336529032774224293847426604539e-12
+    const DoubleDouble c16 = DoubleDouble::from_bits(0x3d4253da47c4e9eaULL, 0xb9d23f10f048fc60ULL); // 1.3022507121571147552407939906776e-13
+    const DoubleDouble sqrt_2pi = DoubleDouble::from_bits(0x40040d931ff62706ULL, 0xbcaa6a0d6f814637ULL); // sqrt(2*pi)
+
+    DoubleDouble x = subtract(a, DoubleDouble(1.0));
+    DoubleDouble t = add(x, DoubleDouble(14.5));  // x + g + 1/2
+    DoubleDouble s = c0;
+    s = add(s, divide(c1, add(x, DoubleDouble(1.0))));
+    s = add(s, divide(c2, add(x, DoubleDouble(2.0))));
+    s = add(s, divide(c3, add(x, DoubleDouble(3.0))));
+    s = add(s, divide(c4, add(x, DoubleDouble(4.0))));
+    s = add(s, divide(c5, add(x, DoubleDouble(5.0))));
+    s = add(s, divide(c6, add(x, DoubleDouble(6.0))));
+    s = add(s, divide(c7, add(x, DoubleDouble(7.0))));
+    s = add(s, divide(c8, add(x, DoubleDouble(8.0))));
+    s = add(s, divide(c9, add(x, DoubleDouble(9.0))));
+    s = add(s, divide(c10, add(x, DoubleDouble(10.0))));
+    s = add(s, divide(c11, add(x, DoubleDouble(11.0))));
+    s = add(s, divide(c12, add(x, DoubleDouble(12.0))));
+    s = add(s, divide(c13, add(x, DoubleDouble(13.0))));
+    s = add(s, divide(c14, add(x, DoubleDouble(14.0))));
+    s = add(s, divide(c15, add(x, DoubleDouble(15.0))));
+    s = add(s, divide(c16, add(x, DoubleDouble(16.0))));
+
+    return multiply(multiply(sqrt_2pi, s),
+                 multiply(pow(t, add(x, DoubleDouble(0.5))), exp(negate(t))));
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble tgamma(DoubleDouble a) {
+    if (a.hi < 0.5) {
+        // Reflection. DoubleDouble_pi() is already a full two-word DD constant.
+        DoubleDouble pi = DoubleDouble_pi();
+        DoubleDouble sin_pi_a = sin(multiply(pi, a));
+        return divide(pi, multiply(sin_pi_a,
+                                   dd_tgamma_lanczos(subtract(DoubleDouble(1.0), a))));
+    }
+    return dd_tgamma_lanczos(a);
+}
+
+// Bessel J0 via series
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_j0(DoubleDouble x) {
+    const double eps = 1.0e-32;
+    DoubleDouble x2 = multiply_scalar(multiply(x, x), -0.25);
+    DoubleDouble term = DoubleDouble(1.0), sum = DoubleDouble(1.0);
+    for (int k = 1; k <= 100; ++k) {
+        term = divide_scalar(multiply(term, x2), (double)(k*k));
+        sum  = add(sum, term);
+        if (detail::fabs(term.hi) < eps * detail::fabs(sum.hi)) break;
+    }
+    return sum;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_j1(DoubleDouble x) {
+    const double eps = 1.0e-32;
+    DoubleDouble x2 = multiply_scalar(multiply(x, x), -0.25);
+    DoubleDouble term = multiply_scalar(x, 0.5), sum = term;
+    for (int k = 1; k <= 100; ++k) {
+        term = divide_scalar(multiply(term, x2), (double)(k * (k+1)));
+        sum  = add(sum, term);
+        if (detail::fabs(term.hi) < eps * detail::fabs(sum.hi)) break;
+    }
+    return sum;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_jn(int n, DoubleDouble x) {
+    if (n == 0) return bessel_j0(x);
+    if (n == 1) return bessel_j1(x);
+    // Downward recurrence
+    DoubleDouble j0 = bessel_j0(x), j1 = bessel_j1(x);
+    DoubleDouble jm1 = j0, j_cur = j1;
+    for (int k = 1; k < n; ++k) {
+        DoubleDouble jp1 = subtract(multiply_scalar(divide(j_cur, x), 2.0*k), jm1);
+        jm1   = j_cur;
+        j_cur = jp1;
+    }
+    return j_cur;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_y0(DoubleDouble x) {
+    // Y0(x) = (2/pi)*(J0(x)*log(x/2) + sum...)  — simplified
+    DoubleDouble two_over_pi = divide_scalar(DoubleDouble(2.0), DoubleDouble_pi().hi);
+    DoubleDouble j0 = bessel_j0(x);
+    return multiply(two_over_pi, multiply(j0, log(multiply_scalar(x, 0.5))));
+}
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_y1(DoubleDouble x) {
+    DoubleDouble two_over_pi = divide_scalar(DoubleDouble(2.0), DoubleDouble_pi().hi);
+    DoubleDouble j1 = bessel_j1(x);
+    return multiply(two_over_pi, multiply(j1, log(multiply_scalar(x, 0.5))));
+}
+XPMATH_INLINE_FUNCTION DoubleDouble bessel_yn(int n, DoubleDouble x) {
+    if (n == 0) return bessel_y0(x);
+    if (n == 1) return bessel_y1(x);
+    DoubleDouble y0 = bessel_y0(x), y1 = bessel_y1(x);
+    DoubleDouble ym1 = y0, y_cur = y1;
+    for (int k = 1; k < n; ++k) {
+        DoubleDouble yp1 = subtract(multiply_scalar(divide(y_cur, x), 2.0*k), ym1);
+        ym1   = y_cur;
+        y_cur = yp1;
+    }
+    return y_cur;
+}
+
+// Zeta function — Euler-Maclaurin for s > 1
+XPMATH_INLINE_FUNCTION DoubleDouble zeta(DoubleDouble s) {
+    if (dd_cmp_one(s) <= 0) {                                           // KI-16
+        XPMATH_PRINTF("DDZETA: s <= 1\n"); return DoubleDouble(0.0); }
+    const int N = 50;
+    DoubleDouble sum = DoubleDouble(0.0);
+    for (int k = 1; k <= N; ++k)
+        sum = add(sum, exp(multiply(negate(s), log(DoubleDouble((double)k)))));
+    // tail correction integral: N^{1-s}/(s-1)
+    DoubleDouble tail = divide(exp(multiply(subtract(DoubleDouble(1.0), s), log(DoubleDouble((double)N)))),
+                         subtract(s, DoubleDouble(1.0)));
+    return add(sum, tail);
+}
+
+// Exponential integral Ei(x) via series (x > 0)
+XPMATH_INLINE_FUNCTION DoubleDouble expint(DoubleDouble x) {
+    DoubleDouble eg = DoubleDouble_euler_gamma();
+    DoubleDouble sum = add(eg, log(abs(x)));
+    DoubleDouble term = x;
+    for (int k = 1; k <= 100; ++k) {
+        sum = add(sum, divide_scalar(term, (double)(k * k)));
+        term = multiply(term, x);
+        if (detail::fabs(term.hi) * 1e-32 < detail::fabs(sum.hi)) break;
+    }
+    return sum;
+}
+
+// Incomplete gamma P(a,x) via series
+XPMATH_INLINE_FUNCTION DoubleDouble incgamma(DoubleDouble a, DoubleDouble x) {
+    const double eps = 1.0e-32;
+    DoubleDouble term = divide(exp(negate(x)), a);
+    DoubleDouble sum  = term;
+    for (int k = 1; k <= 100; ++k) {
+        term = multiply(term, divide(x, add(a, DoubleDouble((double)k))));
+        sum  = add(sum, term);
+        if (detail::fabs(term.hi) < eps * detail::fabs(sum.hi)) break;
+    }
+    return multiply(sum, exp(multiply(a, log(x))));
+}
+
+}  // namespace xp

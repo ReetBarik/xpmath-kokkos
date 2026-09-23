@@ -1,0 +1,4 @@
+repository: https://github.com/ReetBarik/xpmath.git
+tag: v0.2.0
+commit: 669aa6905f0d4900950a1308e6efa02a1d1d4257
+synced_utc: 2026-09-23T20:29:44Z

@@ -1,0 +1,1428 @@
+// SPDX-License-Identifier: LicenseRef-DHB-License
+// SPDX-FileCopyrightText: Copyright (c) 2024 David H. Bailey
+// SPDX-FileCopyrightText: Modifications Copyright (c) 2026 UChicago Argonne, LLC
+//
+// Ported from DDFUN v04:
+//   https://www.davidhbailey.com/dhbsoftware/ddfun-v04.tar.gz
+//   Original author: David H. Bailey (LBNL retired / UC Davis)
+//   Original license: DHB-License (modified BSD-3-Clause with §3
+//     grant-back clause). Full text: LICENSES/LicenseRef-DHB-License.txt
+//     or https://www.davidhbailey.com/dhbsoftware/DHB-License.txt.
+//
+// This C++/Kokkos port is a derivative work distributed under the
+// same DHB-License. See §3 of that license regarding upstream
+// contribution rights. This is the complex layer; it builds on the
+// double-double real arithmetic in dd_math.hpp (also DHB-License).
+//
+// Modifications from the original DDFUN v04 sources:
+//   * Translated the complex double-double routines from Fortran-90
+//     (ddfunc.f90 / the ddc* entry points) to header-only C++17.
+//   * Every function XPMATH_INLINE_FUNCTION for host + device
+//     portability across CUDA/HIP/SYCL/OpenMP-target.
+//   * Namespaced as xp::DoubleDoubleComplex (a bespoke struct,
+//     not yet Kokkos::complex<DoubleDouble>) with STL-style
+//     free functions and ADL-friendly re-exposure under the
+//     Kokkos-compat wrapper for potential upstreaming to Kokkos.
+//   * See docs/TEST_SUITE_PLAN.md "Upstreaming considerations" for
+//     naming and API conventions.
+
+#pragma once
+
+// Double-double complex arithmetic — xp::DoubleDoubleComplex.
+// All functions XPMATH_INLINE_FUNCTION (host + device via Kokkos/CUDA).
+// Depends on dd_math.hpp.
+//
+// Ported from DDFUN (David H. Bailey, Lawrence Berkeley National Lab).
+//
+// DEPENDENCIES: none beyond the C++17 standard library and dd_math.hpp.
+// In particular this header does NOT include or require Kokkos — see
+// xp/config.hpp for how the portability facilities are supplied. Kokkos
+// users get today's `Kokkos::Experimental::DoubleDoubleComplex` API
+// unchanged through the Kokkos::Experimental wrappers in xpmath-kokkos
+// (formerly third_party/include/dd_complex.hpp here; last at commit 158d618).
+//
+// NAMING (ratified via S2 naming memo + S3): xp:: = extended precision,
+// companion to MxP (mixed precision). See include/xp/config.hpp for rationale.
+//
+// Naming follows dd_math.hpp (T0.4): type + math live under
+// xp:: for eventual upstreaming. This remains a bespoke struct
+// rather than Kokkos::complex<DoubleDouble> — that integration is a separate
+// future task.
+
+#include <xp/dd_math.hpp>
+
+#if !defined(XPMATH_ON_DEVICE)
+#  include <ostream>
+#endif
+
+namespace xp {
+
+namespace detail {
+
+// ============================================================================
+// KI-36 — COMPENSATED 2x2 DETERMINANT.  a*b - c*d, evaluated so the SUBTRACTION
+// happens between EXACT quantities.  This block is the derivation the FF, TF and
+// QF siblings (ff_complex.hpp, tf_complex.hpp, qf_complex.hpp) cite; they carry
+// the same algorithm with their own word count and expansion length.
+//
+// THE DEFECT.  Complex division formed each quotient numerator as a difference
+// of two SEPARATELY ROUNDED products:
+//
+//     subtract(multiply(im, b.re), multiply(re, b.im))
+//
+// Each `multiply` rounds to the type before `subtract` sees it, so each carries
+// an error of eps_T*|im*b.re|.  When z1 is nearly parallel to z2 the two
+// products cancel; the true difference shrinks by the cancellation ratio
+//
+//     C = |im*b.re| / |im*b.re - re*b.im|
+//
+// but the two rounding errors do not shrink at all, so the quotient's imaginary
+// part loses log10(C) digits.  Measured at inputs that are EXACTLY STORED — so
+// there is no input error to blame — with C = 4.84e8:
+//
+//     DD 25.66 of 31 | FF 6.50 of 14 | TF 15.80 of 21.7 | QF 20.69 of 29
+//
+// and the achievable value at those points is the FULL CAP on all four
+// backends.  The shortfall tracking log10(C) identically across four different
+// word counts is the round-then-cancel signature, not conditioning.  Smith's
+// algorithm does not help: it reassociates but still differences two rounded
+// products.
+//
+// THE FIX.  Expand both products into EXACT words with the header's two_prod,
+// feed the words of a*b and -c*d into a magnitude-descending expansion
+// accumulator in INTERLEAVED order (head against head, tail against tail, so
+// each cancellation resolves the moment it arrives and resolves exactly), and
+// renormalise the expansion at the end.  This is Kahan's determinant lifted
+// from FMA-on-scalars to two_prod-on-limbs.
+//
+// WHY THE TOP TWO WORDS.  Only the part of each product that can survive the
+// cancellation has to be exact.  Split x = xhi + xlo with xhi the top TWO
+// words:
+//
+//   a*b - c*d = (ahi*bhi - chi*dhi) + (ahi*blo + alo*b - chi*dlo - clo*d)
+//                \_ exact, 8 words _/  \_ magnitude <= u^2*|a*b|, plain T _/
+//
+// with u the WORD roundoff (2^-53 here, 2^-24 on the FP32 backends).  The right
+// bracket is computed in ordinary type arithmetic and so carries an absolute
+// error eps_T*u^2*|a*b| = eps_T*u^2*C*|det|; at the measured C = 9.55e8 that is
+// 2^-18 of one eps_T, i.e. the correctly rounded determinant with 18 bits to
+// spare.  ONE word of peel would leave u*C = 2^5.8 — six bits SHORT — which is
+// why the split is two words and not one.  DoubleDouble and FloatFloat have
+// exactly two words, so xlo is identically zero for them and the determinant is
+// exact outright; only TF and QF carry the correction term.
+//
+// EXPANSION LENGTH.  The accumulator keeps L words and the residue that falls
+// off the bottom is u^L of the leading word.  DD needs eps_T/C = 2^-106-30 =
+// 2^-136 and L = 5 gives 2^-265.
+//
+// SCOPE.  Only the DIRECT branch of operator/ is rewritten.  Past the KI-8
+// gate, Smith's algorithm divides by rr = b.im/b.re first, and rr's OWN
+// rounding — not the products' — then sets the floor at eps_T*C; compensating
+// the products there buys nothing.  See KI-36's entry in docs/KNOWN_ISSUES.md
+// for the measurement.  The non-finite guard below keeps KI-19/KI-27/KI-28
+// signalling bit-identical: if either leading product is not finite, the old
+// expression runs unchanged and produces the same inf/NaN it always did.
+// ============================================================================
+
+// Exact sum of two doubles (Knuth two_sum; no ordering assumption).
+XPMATH_INLINE_FUNCTION double dd_cross_two_sum(double a, double b, double& err) {
+    return detail::eft_two_sum(a, b, err);
+}
+
+// Shewchuk grow-expansion into a fixed-length, magnitude-descending expansion.
+// The exact sum of e[] is preserved at every step; only the residue that falls
+// out of the bottom slot is rounded in.
+XPMATH_INLINE_FUNCTION void dd_cross_accum(double* e, double w) {
+    for (int i = 0; i < 5; ++i) {
+        double err;
+        e[i] = dd_cross_two_sum(e[i], w, err);
+        w = err;
+        if (w == 0.0) return;
+    }
+    e[4] += w;
+}
+
+XPMATH_INLINE_FUNCTION DoubleDouble dd_cross(DoubleDouble a, DoubleDouble b,
+                                             DoubleDouble c, DoubleDouble d) {
+    const double ga = a.hi * b.hi, gc = c.hi * d.hi;
+    if (!detail::isfinite(ga) || !detail::isfinite(gc))
+        return subtract(multiply(a, b), multiply(c, d));   // KI-19/27/28 path
+
+    double e[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    const double aw[2] = {a.hi, a.lo}, bw[2] = {b.hi, b.lo};
+    const double cw[2] = {c.hi, c.lo}, dw[2] = {d.hi, d.lo};
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            const DoubleDouble p = two_prod(aw[i], bw[j]);
+            const DoubleDouble q = two_prod(cw[i], dw[j]);
+            dd_cross_accum(e,  p.hi);  dd_cross_accum(e, -q.hi);
+            dd_cross_accum(e,  p.lo);  dd_cross_accum(e, -q.lo);
+        }
+    }
+    // The forward cascade does NOT leave e[] magnitude-descending: once the
+    // leading terms cancel, |e[1]| can exceed |e[0]| by many orders (measured
+    // on QF at grid point 911: e = [-3.7e-26, 1.1e-22, 0, 0, 0]).  Every
+    // renormalisation downstream assumes descending order, so run one backward
+    // VecSum sweep first (Ogita-Rump-Oishi Alg. 4.3) -- order-agnostic, exact,
+    // and it leaves the vector S-nonoverlapping.
+    double s = e[4];
+    for (int i = 3; i >= 0; --i) {
+        double er;
+        s = dd_cross_two_sum(e[i], s, er);
+        e[i + 1] = er;
+    }
+    e[0] = s;
+    // Fold the tail ascending, then one quick_two_sum into the two stored words.
+    const double t  = ((e[4] + e[3]) + e[2]) + e[1];
+    const double hi = e[0] + t;
+    return DoubleDouble(hi, t - (hi - e[0]));
+}
+
+} // namespace detail
+
+// ============================================================
+// DoubleDoubleComplex struct
+// ============================================================
+struct DoubleDoubleComplex {
+    DoubleDouble re;
+    DoubleDouble im;
+
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex() : re(0.0), im(0.0) {}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex(double r)                     : re(r),    im(0.0) {}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex(DoubleDouble r)               : re(r),    im(0.0) {}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex(double r, double i)           : re(r),    im(i)   {}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex(DoubleDouble r, DoubleDouble i) : re(r),  im(i)   {}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex(const DoubleDoubleComplex& o) : re(o.re), im(o.im){}
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator=(const DoubleDoubleComplex& o) {
+        re = o.re; im = o.im; return *this;
+    }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator=(DoubleDouble r) {
+        re = r; im = DoubleDouble(0.0); return *this;
+    }
+
+    // Arithmetic
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator+(DoubleDoubleComplex b) const {
+        return DoubleDoubleComplex(add(re, b.re), add(im, b.im));
+    }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-(DoubleDoubleComplex b) const {
+        return DoubleDoubleComplex(subtract(re, b.re), subtract(im, b.im));
+    }
+    // Exact power-of-two rescale.  If the scaled leading word leaves the finite
+    // range the tail is meaningless, so drop it and keep the infinity clean.
+    static XPMATH_INLINE_FUNCTION DoubleDouble scale2(DoubleDouble v, double s) {
+        DoubleDouble r(v.hi * s, v.lo * s);
+        if (r.hi != r.hi || detail::isinf(r.hi)) return DoubleDouble(r.hi);
+        return r;
+    }
+
+    // KI-28.  The naive product turns an infinite true result into NaN:
+    // re = ac - bd is inf - inf once both products overflow.  Two distinct
+    // causes, handled in order.
+    //
+    // (1) An OPERAND has an infinite component.  C99 Annex G.5.1 prescribes
+    //     normalising each infinity to +/-1 and each finite part to its sign,
+    //     zeroing any NaN in the other operand, then scaling by infinity.  That
+    //     box is transcribed below.  After normalisation every value is +/-1 or
+    //     +/-0, so the scalar leading words carry the whole result exactly and
+    //     no extended arithmetic is needed.
+    //
+    // (2) All four components are FINITE but their products overflow.  Annex G
+    //     does NOT cover this: glibc's __muldc3 reaches its third clause, finds
+    //     no NaN operand to zero, and returns inf*NaN = NaN.  The true result is
+    //     nevertheless well defined -- (1e300 + 1e300i)^2 = 2e600i, i.e.
+    //     (0, +inf) -- so recompute on operands scaled down by an exact power of
+    //     two and scale the result back up in two steps, letting the overflow
+    //     happen once, at the end, on the component that genuinely overflows.
+    //     2^-513 is the largest scale that cannot overflow: |a|,|b| <= 2^1024
+    //     gives a scaled product <= 2^1022, and the sum of two of those <= 2^1023.
+    //     Components more than ~2^513 below their partner's magnitude flush to
+    //     zero, which costs at most a relative 2^-513 term -- far below DD's
+    //     2^-104 resolution, and the alternative is NaN.
+    //
+    // If an operand component is itself NaN the NaN is the correct answer and is
+    // propagated unchanged.
+    static XPMATH_INLINE_FUNCTION DoubleDoubleComplex
+    mul_recover(DoubleDoubleComplex a, DoubleDoubleComplex b,
+                DoubleDouble rr, DoubleDouble ri) {
+        const double ar = a.re.hi, ai = a.im.hi, br = b.re.hi, bi = b.im.hi;
+        if (ar != ar || ai != ai || br != br || bi != bi)
+            return DoubleDoubleComplex(rr, ri);      // NaN in, NaN out
+
+        double nar = ar, nai = ai, nbr = br, nbi = bi;
+        bool recalc = false;
+        if (detail::isinf(ar) || detail::isinf(ai)) {          // Annex G.5.1
+            nar = detail::copysign(detail::isinf(ar) ? 1.0 : 0.0, ar);
+            nai = detail::copysign(detail::isinf(ai) ? 1.0 : 0.0, ai);
+            recalc = true;
+        }
+        if (detail::isinf(br) || detail::isinf(bi)) {
+            nbr = detail::copysign(detail::isinf(br) ? 1.0 : 0.0, br);
+            nbi = detail::copysign(detail::isinf(bi) ? 1.0 : 0.0, bi);
+            recalc = true;
+        }
+        if (recalc) {
+            const double inf = HUGE_VAL;
+            return DoubleDoubleComplex(
+                DoubleDouble(inf * (nar * nbr - nai * nbi)),
+                DoubleDouble(inf * (nar * nbi + nai * nbr)));
+        }
+
+        const double S = 0x1p-513, U = 0x1p513;    // exact, and U*U is not
+        DoubleDouble sar = scale2(a.re, S), sai = scale2(a.im, S);
+        DoubleDouble sbr = scale2(b.re, S), sbi = scale2(b.im, S);
+        DoubleDouble qr = subtract(multiply(sar, sbr), multiply(sai, sbi));
+        DoubleDouble qi = add(multiply(sar, sbi), multiply(sai, sbr));
+        return DoubleDoubleComplex(scale2(scale2(qr, U), U),
+                                   scale2(scale2(qi, U), U));
+    }
+
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator*(DoubleDoubleComplex b) const {
+        // (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+        DoubleDouble rr = subtract(multiply(re, b.re), multiply(im, b.im));
+        DoubleDouble ri = add(multiply(re, b.im), multiply(im, b.re));
+        if (rr.hi != rr.hi || ri.hi != ri.hi)                  // KI-28
+            return mul_recover(*this, b, rr, ri);
+        return DoubleDoubleComplex(rr, ri);
+    }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator/(DoubleDoubleComplex b) const {
+        if (b.re.hi == 0.0 && b.im.hi == 0.0) {
+            XPMATH_PRINTF("DDCOMPLEX: division by zero\n");
+            return DoubleDoubleComplex();
+        }
+        // (a+bi)/(c+di) = [(ac+bd) + (bc-ad)i] / (c²+d²)
+        // KI-8.  The |denominator|^2 formulation squares b's components, so it
+        // overflows and underflows for denominators whose quotient is perfectly
+        // representable -- the same exposure as the unscaled hypot.  Past the
+        // gate, use Smith's algorithm (1962), which divides through by the
+        // larger component first so no intermediate exceeds the operands.
+        // Inside the gate the original expression is kept bit-for-bit: Smith
+        // costs two divides instead of one reciprocal and is slightly less
+        // accurate, and there is nothing to win where the direct form works.
+        {
+            double mre = detail::fabs(b.re.hi);
+            double mim = detail::fabs(b.im.hi);
+            double mb  = (mre > mim) ? mre : mim;
+            // KI-8 REOPENED: low edge widened from 1.0e-150 to the derived
+            // word-underflow limit kDDSqLo -- the denominator's square shed low
+            // words well above it, not just below 1.0e-150.  Smith's algorithm forms
+            // no square at all, so it is correct across the whole widened band.
+            if (!(mb <= detail::kDDSqHi && mb >= detail::kDDSqLo)) {
+                if (mre >= mim) {
+                    DoubleDouble rr = divide(b.im, b.re);
+                    DoubleDouble dd = add(b.re, multiply(b.im, rr));
+                    return DoubleDoubleComplex(divide(add(re, multiply(im, rr)), dd),
+                               divide(subtract(im, multiply(re, rr)), dd));
+                } else {
+                    DoubleDouble rr = divide(b.re, b.im);
+                    DoubleDouble dd = add(multiply(b.re, rr), b.im);
+                    return DoubleDoubleComplex(divide(add(multiply(re, rr), im), dd),
+                               divide(subtract(multiply(im, rr), re), dd));
+                }
+            }
+        }
+        DoubleDouble denom = add(multiply(b.re, b.re), multiply(b.im, b.im));
+        DoubleDouble inv   = divide(DoubleDouble(1.0), denom);
+        // KI-36: both numerators are 2x2 determinants and both can cancel, so
+        // both go through the compensated form.  ac+bd is a*b - (-c)*d.
+        return DoubleDoubleComplex(
+            multiply(detail::dd_cross(re, b.re, negate(im), b.im), inv),
+            multiply(detail::dd_cross(im, b.re, re, b.im), inv));
+    }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-() const {
+        return DoubleDoubleComplex(negate(re), negate(im));
+    }
+
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator+=(DoubleDoubleComplex b) { *this = *this + b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator-=(DoubleDoubleComplex b) { *this = *this - b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator*=(DoubleDoubleComplex b) { *this = *this * b; return *this; }
+    XPMATH_INLINE_FUNCTION DoubleDoubleComplex& operator/=(DoubleDoubleComplex b) { *this = *this / b; return *this; }
+
+    XPMATH_INLINE_FUNCTION bool operator==(DoubleDoubleComplex b) const { return re==b.re && im==b.im; }
+    XPMATH_INLINE_FUNCTION bool operator!=(DoubleDoubleComplex b) const { return !(*this == b); }
+
+    XPMATH_INLINE_FUNCTION DoubleDouble real() const { return re; }
+    XPMATH_INLINE_FUNCTION DoubleDouble imag() const { return im; }
+};
+
+#if !defined(XPMATH_ON_DEVICE)
+inline std::ostream& operator<<(std::ostream& os, const DoubleDoubleComplex& z) {
+    os << "(" << z.re << ") + (" << z.im << ")i";
+    return os;
+}
+#endif
+
+// ============================================================
+// Mixed DoubleDouble × DoubleDoubleComplex arithmetic
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator+(DoubleDoubleComplex z, DoubleDouble r) { return DoubleDoubleComplex(add(z.re, r), z.im); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator+(DoubleDouble r, DoubleDoubleComplex z) { return DoubleDoubleComplex(add(r, z.re), z.im); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-(DoubleDoubleComplex z, DoubleDouble r) { return DoubleDoubleComplex(subtract(z.re, r), z.im); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-(DoubleDouble r, DoubleDoubleComplex z) { return DoubleDoubleComplex(subtract(r, z.re), negate(z.im)); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator*(DoubleDoubleComplex z, DoubleDouble r) { return DoubleDoubleComplex(multiply(z.re, r), multiply(z.im, r)); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator*(DoubleDouble r, DoubleDoubleComplex z) { return DoubleDoubleComplex(multiply(r, z.re), multiply(r, z.im)); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator/(DoubleDoubleComplex z, DoubleDouble r) { return DoubleDoubleComplex(divide(z.re, r), divide(z.im, r)); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator/(DoubleDouble r, DoubleDoubleComplex z) { return DoubleDoubleComplex(r) / z; }
+
+// ============================================================
+// Mixed double × DoubleDoubleComplex arithmetic
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator+(DoubleDoubleComplex z, double b) { return z + DoubleDouble(b); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator+(double b, DoubleDoubleComplex z) { return DoubleDouble(b) + z; }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-(DoubleDoubleComplex z, double b) { return z - DoubleDouble(b); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator-(double b, DoubleDoubleComplex z) { return DoubleDouble(b) - z; }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator*(DoubleDoubleComplex z, double b) { return z * DoubleDouble(b); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator*(double b, DoubleDoubleComplex z) { return DoubleDouble(b) * z; }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator/(DoubleDoubleComplex z, double b) { return z / DoubleDouble(b); }
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex operator/(double b, DoubleDoubleComplex z) { return DoubleDouble(b) / z; }
+
+// ============================================================
+// Basic complex operations
+// ============================================================
+
+// KI-8.  abs(z) is a magnitude and the unscaled sqrt(re^2 + im^2) below returns
+// nan above |z| ~ 1.3e154 and 0 below |z| ~ 1.5e-154 on the FP64-word backends, in
+// both cases while the answer is representable.  Past that range, defer to the
+// scaled hypot.
+//
+// Inside the range the ORIGINAL expression is kept verbatim rather than routed
+// through hypot as well.  That is not conservatism for its own sake: hypot's
+// own fast path is written with the primitive each backend's hypot already
+// used, and on TF that is sqr() where this one is multiply().  Swapping them
+// costs up to 3.04 digits at four grid points (measured on the 428,592-point
+// sweep, TF c abs points 736/737/1528..1531), so the two call sites keep their
+// own primitives.
+//
+// KI-8 REOPENED: the band's low edge is now the derived word-underflow limit
+// (dd_math.hpp's kDDSqLo), and the out-of-band path scales by an EXACT power
+// of two and then runs THIS site's own primitive rather than deferring to
+// hypot.  Both changes are argued at ff_math.hpp's hypot; the second is what
+// lets the band widen for free, since power-of-two scaling makes the direct
+// expression exactly scale-equivariant.
+XPMATH_INLINE_FUNCTION DoubleDouble abs(DoubleDoubleComplex z) {
+    double mr = detail::fabs(z.re.hi);
+    double mi = detail::fabs(z.im.hi);
+    double m  = (mr > mi) ? mr : mi;
+    if (m == 0.0) return DoubleDouble(0.0);
+    if (m <= detail::kDDSqHi && m >= detail::kDDSqLo)
+        return sqrt(add(multiply(z.re, z.re), multiply(z.im, z.im)));
+    // Out of band -- and that includes inf/nan, whose C99 F.9.4.3 convention
+    // hypot owns -- defer to hypot's min/max tail, which forms no square at
+    // all.  KI-8 REOPENED: an earlier revision of this fix scaled by an exact
+    // power of two and squared anyway; that is exact for the SCALING but the
+    // square still round-trips through sqrt, and complex asin amplifies the
+    // resulting few ulps by |z|^2 (measured: QF c asin lost up to 14.04 digits
+    // at sweep points 1628..1650).  The min/max tail is exact when one
+    // component is zero, which is precisely those points.
+    return hypot(z.re, z.im);
+}
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex conj(DoubleDoubleComplex z) {
+    return DoubleDoubleComplex(z.re, negate(z.im));
+}
+
+// ============================================================
+// Complex square root
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex sqrt(DoubleDoubleComplex z) {
+    if (z.re.hi == 0.0 && z.im.hi == 0.0) return DoubleDoubleComplex();
+    // B = sqrt((R+A1)/2) + i*sign(A2)*sqrt((R-A1)/2)  where R = |z|
+    DoubleDouble r  = abs(z);   // KI-8: scaled magnitude, was sqrt(re^2+im^2) inline
+    DoubleDouble a1 = abs(z.re);
+    DoubleDouble s2 = multiply_scalar(add(r, a1), 0.5);
+    DoubleDouble s0 = sqrt(s2);
+    DoubleDouble s1 = multiply_scalar(s0, 2.0);
+    DoubleDoubleComplex b;
+    if (z.re.hi >= 0.0) {
+        b.re = s0;
+        b.im = divide(z.im, s1);
+    } else {
+        b.re = divide(z.im, s1);
+        if (b.re.hi < 0.0) b.re = negate(b.re);
+        b.im = s0;
+        // KI-11. `z.im.hi < 0` is FALSE for -0.0, so both zero conventions landed
+        // on the +i sheet and sqrt(-a - 0i) came back as +i*sqrt(a) -- the sign of
+        // the whole answer wrong, 0.00 digits at every negative-real-axis grid
+        // point (C99 Annex G: csqrt(-a -+ 0i) = -+ i*sqrt(a)). Reading the sign off
+        // copysign instead costs nothing on the two conventions that were already
+        // right. This also settles acosh(-a - 0i), whose imaginary part inherited
+        // the sheet, and asinh(+-0 + yi) for |y| > 1, where sqrt(1 - y^2 -+ 0i) is
+        // the term that decides which side of the cut the answer lands on.
+        if (detail::copysign(1.0, z.im.hi) < 0.0) b.im = negate(b.im);
+    }
+    return b;
+}
+
+// ============================================================
+// Complex exp / log
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex exp(DoubleDoubleComplex z) {
+    DoubleDouble er = exp(z.re);
+    DoubleDouble c, s;
+    sincos(z.im, c, s);
+    return DoubleDoubleComplex(multiply(er, c), multiply(er, s));
+}
+
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex log(DoubleDoubleComplex z) {
+    DoubleDouble modulus = abs(z);
+    DoubleDouble arg     = atan2(z.im, z.re); // atan2(im, re)
+    return DoubleDoubleComplex(log(modulus), arg);
+}
+
+// KI-5(b). Complex log1p(w) = log(1+w), accurate for small |w| -- the library
+// had no complex log1p before this. Writing log(1 + w) directly is what made
+// complex `atanh` collapse near the origin: 1 + w rounds w's information away
+// before the log ever runs.
+//
+//     |1+w|^2 = 1 + (2*Re(w) + |w|^2)
+//     Re log1p(w) = 0.5 * log1p( 2*Re(w) + |w|^2 )        <- REAL log1p
+//     Im log1p(w) = atan2( Im(w), 1 + Re(w) )
+//
+// The whole point of the real part is the argument `2*Re(w) + |w|^2`: it is the
+// small quantity by which |1+w|^2 differs from 1, formed WITHOUT ever adding 1,
+// and handed to the real log1p (dd_math.hpp), which was rebuilt on the
+// 2*atanh(a/(2+a)) series in the same change so that it can actually keep it.
+//
+// The imaginary part needs no such care. atan2(y, 1+x) for small w returns
+// ~Im(w); its sensitivity to the rounding of 1 + Re(w) is d/dx atan2 = -y/|1+w|^2
+// ~ -Im(w), so the absolute error eps in the second argument arrives as a
+// RELATIVE error of eps in the answer. Nothing is lost.
+//
+// Divergence from the sources, recorded deliberately. QD 2.3.24 (/tmp/qdsrc/QD)
+// has no complex layer at all, so it offers no complex log1p to copy. Kahan 1987
+// gives the formulation above (his `logp1`/`clogp1` discussion, and the same
+// expression underlies his catanh); the residual weakness is his too -- when
+// 2*Re(w) + |w|^2 itself cancels, i.e. on the circle |1+w| = 1, the real part
+// loses relative accuracy. That locus is measure-zero, the answer there is ~0,
+// and every hypot-based alternative loses the same digits on the same circle.
+// Accepted rather than worked around.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex log1p(DoubleDoubleComplex w) {
+    DoubleDouble t = add(multiply_scalar(w.re, 2.0),
+                         add(multiply(w.re, w.re), multiply(w.im, w.im)));
+    return DoubleDoubleComplex(multiply_scalar(log1p(t), 0.5),
+                               atan2(w.im, add(DoubleDouble(1.0), w.re)));
+}
+
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex log10(DoubleDoubleComplex z) {
+    DoubleDoubleComplex lg = log(z);
+    DoubleDouble ln10 = DoubleDouble_log10();
+    return DoubleDoubleComplex(divide(lg.re, ln10), divide(lg.im, ln10));
+}
+
+// ============================================================
+// Complex trig
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex sin(DoubleDoubleComplex z) {
+    // sin(a+bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
+    DoubleDouble ca, sa, cb, sb;
+    sincos(z.re, ca, sa);
+    sinhcosh(z.im, cb, sb);
+    return DoubleDoubleComplex(multiply(sa, cb), multiply(ca, sb));
+}
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex cos(DoubleDoubleComplex z) {
+    // cos(a+bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
+    DoubleDouble ca, sa, cb, sb;
+    sincos(z.re, ca, sa);
+    sinhcosh(z.im, cb, sb);
+    return DoubleDoubleComplex(multiply(ca, cb), negate(multiply(sa, sb)));
+}
+// KI-18 fix. ASYMPTOTIC BRANCH for large |Im z|.
+//
+// `sin(z)/cos(z)` forms cosh(Im z) and sinh(Im z) explicitly. Both overflow the
+// word type once |Im z| passes its exp ceiling (~709.8 for the FP64-word
+// backend, ~88.7 for the FP32-word ones), and the quotient then evaluates
+// inf/inf = NaN even though tan(z) -> +-i is perfectly bounded there:
+// `DD tan(9807.8528 + 1950.90322i)` returned (NaN, NaN) for a true
+// (-2.2769e-1695, 1). That is a wrong answer, not lost precision.
+//
+// Well before the overflow the REAL part is already gone. Written out, the
+// complex quotient forms Re = (sa*ca*(cosh^2 b - sinh^2 b)) / |cos z|^2, and
+// cosh^2 - sinh^2 = 1 is a difference of two quantities of size e^{2|b|}/4:
+// it sheds 0.868*|Im z| decimal digits. Measured on DD, direct form:
+// Im z = 5 -> 28.28 digits, 10 -> 24.02, 20 -> 15.64, 50 -> 0.00, then NaN.
+//
+// The remedy is the standard doubled-angle form with the exponential factored
+// out. With t = exp(-2|Im z|) and s = sign(Im z),
+//
+//     tan(x + iy) = ( 2t*sin 2x + i*s*(1 - t^2) ) / ( 1 + t^2 + 2t*cos 2x )
+//
+// which is the usual [sin 2x + i sinh 2y] / [cos 2x + cosh 2y] with numerator
+// and denominator both multiplied by 2t. Nothing overflows: t <= 1, the
+// denominator is (1 - t)^2 + 2t(1 + cos 2x) >= 0, and the real part is formed
+// as a product rather than as a difference, so it keeps full relative accuracy
+// all the way down to the point where t itself underflows -- at which point
+// 2t*sin 2x = 0 IS the correctly rounded answer, and the imaginary part is
+// exactly +-1. No NaN is reachable for finite z.
+//
+// THRESHOLD kXpTanAsymptote = 1, on |Im z| (|Re z| for tanh), leading limb.
+// Chosen from the denominator, which is the only thing the new form can lose
+// to: it cancels only when t -> 1 AND cos 2x -> -1, i.e. only near Im z = 0.
+// At |Im z| = 1, t = e^-2 = 0.1353 and the denominator is bounded below by
+// (1-t)^2 = 0.747, so at most 0.13 digits are at risk; the direct form has
+// already given up 0.87 by then. Below 1 the direct form is the better of the
+// two and is kept unchanged, which also keeps every near-pole point (the poles
+// of tan are on the real axis) bit-for-bit what it was. 1 is exactly
+// representable, so the compare is exact. The test is `>=` so that the
+// asymptotic branch owns the boundary.
+//
+// sin 2x and cos 2x are built from ONE sincos(x) as 2*sa*ca and
+// (ca-sa)(ca+sa), not from sincos(2x): doubling before the argument reduction
+// would spend a bit of x, and reusing the same reduction the direct branch
+// uses keeps the two branches consistent across the threshold.
+//
+// tanh gets the identical treatment with the roles of the components swapped
+// (tanh(z) = -i*tan(iz)), threshold on |Re z|. It also removes a second, worse
+// symptom there: the old body divided by cos^2(b) + T^2 sin^2(b), and when FF's
+// `sincos` handed back (0, 0) -- KI-12 -- that denominator was 0, so
+// `FF tanh(-100 + 1e-29i)` returned (-inf, NaN). The new denominator is
+// 1 + t^2 + 2t cos 2y, which is >= (1-t)^2 > 0 whatever sincos returns.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex tan(DoubleDoubleComplex z) {
+    const double kXpTanAsymptote = 2.0;
+    if (detail::fabs(z.im.hi) >= kXpTanAsymptote) {
+        DoubleDouble ca, sa;
+        sincos(z.re, ca, sa);
+        const DoubleDouble s2 = multiply_scalar(multiply(sa, ca), 2.0);      // sin 2x
+        const DoubleDouble c2 = multiply(subtract(ca, sa), add(ca, sa));         // cos 2x
+        // t = exp(-2|Im z|); flushes to 0 far below the format's floor, which is
+        // where +-i is the correctly rounded answer anyway.
+        const DoubleDouble t  = exp(multiply_scalar(z.im, z.im.hi < 0.0 ? 2.0 : -2.0));
+        const DoubleDouble t2 = multiply(t, t);
+        const DoubleDouble den = add(add(DoubleDouble(1.0), t2), multiply_scalar(multiply(t, c2), 2.0));
+        DoubleDouble im = divide(subtract(DoubleDouble(1.0), t2), den);
+        if (z.im.hi < 0.0) im = negate(im);
+        return DoubleDoubleComplex(divide(multiply_scalar(multiply(t, s2), 2.0), den), im);
+    }
+    return sin(z) / cos(z);
+}
+
+// ============================================================
+// Complex inverse trig
+// ============================================================
+// KI-5(d) fix. On the real cut (Im(z) == +-0 and |Re(z)| > 1) the sheet of
+// sqrt(1 - z^2) is fixed by the SIGN of Im(z)'s zero, and the subtraction that
+// forms 1 - z^2 destroys it: in round-to-nearest both 0 - (+0) and 0 - (-0)
+// give +0, so both approaches land on the same sheet and exactly one of the two
+// C99 Annex G conventions comes out wrong at every cut point. The sign is read
+// off Im(z) directly instead -- the expansion types do preserve a signed zero
+// through construction and copy, they only lose it in arithmetic -- and the
+// root is placed on the sheet it selects. Since Im(1 - z^2) = -2*Re(z)*Im(z),
+// the root is negative-imaginary exactly when Re and Im share a sign. The
+// correction is a no-op on the two conventions that were already right, so it
+// cannot move any other point. All four complex headers carry this same block.
+// KI-11. |Im asin(z)| -- the one component the log form destroys, and the piece
+// that also carries Re acosh and Re asinh (both are this same quantity under an
+// exact identity; see their bodies).
+//
+// asin(z) = -i*log(w) with w = iz + sqrt(1 - z^2), so Im asin(z) = -log|w|, and
+// |w| -> 1 for EVERY z near the real segment [-1,1] -- not just on it. Taking
+// log of a number within eps of 1 rounds the answer away before log() is
+// entered: at z = 0.5 + 1e-30i the true |w| is 1 - 1.15e-30, so forming it
+// destroys log10(1/1.15e-30) = 29.9 digits and leaves ~1.1 of a 31-digit
+// budget. Measured on this backend before the fix: 1.55 digits of 31.00.
+//
+// THAT IS NOT CONDITIONING. Probed against the binary128 oracle, the component
+// condition number |(d Im f / d in_j)*in_j / Im f| is exactly 1.000 at these
+// points (a relative eps on Im z moves Im asin by the same relative eps), and
+// |z f'(z)/f(z)| = 1.10 -- so log10(kappa) = 0.04 and the format permits
+// 31 - 0.04 digits here. The gap is entirely the formulation's.
+//
+// The cure is Hull, Fairgrove & Tang (1997), "Implementing the complex arcsine
+// and arccosine functions using exception handling", ACM TOMS 23(3):299-335.
+// With x = |Re z|, y = |Im z| and
+//     r = hypot(x+1, y),   s = hypot(x-1, y),   a = (r + s)/2
+// one has |Im asin z| = acosh(a) exactly, and a -> 1 is precisely the lossy
+// region -- so carry a-1, never a. Because r and s are exact distances,
+//     r = (x+1) + y^2/(r + (x+1)),        s = |x-1| + y^2/(s + |x-1|)
+// hold identically, and substituting gives
+//     a - 1 = (max(x,1) - 1) + (1/2)*( y^2/(r+(x+1)) + y^2/(s+|x-1|) )
+// -- a sum of NON-NEGATIVE terms at every x, so there is no cancellation left
+// to lose anything to. acosh(1+m) = log1p( m + sqrt(m*(m+2)) ) then keeps it,
+// through the same real log1p that KI-5(b) rebuilt.
+//
+// y^2 is written y*(y/d), never (y*y)/d. Both r >= y and s >= y, so each
+// quotient is <= 1 and the product cannot overflow at any |z|; the bare y*y
+// overflows a 2xFP64 word above |y| ~ 1.3e154 and would hand the whole upper
+// half of the range back as inf.
+//
+// One branch covers the whole plane: sqrt(m*(m+2)) is evaluated as the product
+// of two separate roots, so nothing overflows however large |z| is, and log1p
+// degrades gracefully into log for large arguments. An earlier revision split
+// at a >= 2 into log(a) + log1p(sqrt(1 - (1/a)^2)); it measured WORSE (FF asin
+// 14.00 -> 13.81, QF asinh 28.83 -> 27.75 at z = 2, pure rounding churn from
+// the extra log), so the split does not ship.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_asin_imag_mag(DoubleDouble x, DoubleDouble y) {
+    const DoubleDouble one(1.0);
+    const DoubleDouble xp1  = add(x, one);
+    const DoubleDouble xm1s = subtract(x, one);            // signed, for the max(x,1) term
+    DoubleDouble xm1 = xm1s;
+    if (xm1.hi < 0.0) xm1 = negate(xm1);      // |x - 1|
+    const DoubleDouble r  = hypot(xp1, y);
+    const DoubleDouble s_ = hypot(xm1, y);
+    const DoubleDouble d1 = add(r,  xp1);
+    const DoubleDouble d2 = add(s_, xm1);
+    // v = (1/d1 + 1/d2)/2, so the y-dependent half of a-1 is exactly y^2*v.
+    // Carrying v rather than the two quotients is what lets sqrt(a-1) be formed
+    // as y*sqrt(v) below, with y never squared.
+    DoubleDouble v(DoubleDouble(0.0));
+    if (d1.hi != 0.0) v = add(v, divide(one, d1));
+    if (d2.hi != 0.0) v = add(v, divide(one, d2));
+    v = multiply_scalar(v, 0.5);
+    DoubleDouble m = multiply(y, multiply(y, v));
+    // + (max(x,1) - 1), tested on the SIGNED difference rather than on x's
+    // leading word, so an x whose leading word is exactly 1 but whose tail is
+    // positive still takes the term (the KI-16 value-based-guard rule).
+    if (xm1s.hi > 0.0) m = add(m, xm1s);
+    // sqrt(a-1). Where the max(x,1) term is absent, a-1 is exactly y^2*v and
+    // the root is y*sqrt(v) -- formed WITHOUT ever squaring y. That is not a
+    // micro-optimisation: y^2 goes subnormal in an FP32 word below |y| ~ 1e-19
+    // and zero below ~1e-22, and the first cut of this fix (which did square)
+    // took QF asin at 0.5 + 1e-30i to -0.00 for exactly that reason. m itself
+    // may still underflow there, and that is harmless -- next to sqrt(2*m) it
+    // is a correction of relative size sqrt(m/2), i.e. already below the
+    // format's own resolution wherever it underflows.
+    const DoubleDouble sm = (xm1s.hi > 0.0) ? sqrt(m) : multiply(y, sqrt(v));
+    // acosh(1+m) = log1p( m + sqrt(m)*sqrt(m+2) ). Split into two roots rather
+    // than sqrt(m*(m+2)) so the product never overflows: each factor is O(|z|)
+    // at worst and their product is the ~2|z| that log1p wants anyway. The
+    // algebraically equivalent sm*(sm + sqrt(m+2)) was measured too and is
+    // very slightly worse overall (5290 sweep cells down vs 5126), so this
+    // form ships.
+    return log1p(add(m, multiply(sm, sqrt(add(m, DoubleDouble(2.0))))));
+}
+// KI-32. |Re asin(z)| -- the OTHER component of the same Hull, Fairgrove & Tang
+// (1997) parametrisation, and the one the `atan2(iz + sqrt(1-z^2))` form used to
+// destroy on the far real axis.
+//
+// The old body built w = iz + sqrt(1 - z^2) explicitly and read Re asin = arg(w).
+// At z = 1e8 + 1e-8i the root is (1e-8, -1e8) and iz is (-1e-8, +1e8), so BOTH
+// components of w are a subtraction of two equal quantities: the true w is
+// ~1e-24, twenty orders below FF's resolution at 1e-8, and both words cancel to
+// exactly zero. atan2(0, 0) is 0, so the whole component came back as 0.00 of
+// 14 digits with no NaN to warn anyone. Above |z| ~ 1e19 it is worse still --
+// z^2 overflows a 2xFP32 word, and FF, QF and TF ALL returned NaN there (the
+// entry was filed FF-only; the sibling audit found the other two).
+//
+// THAT IS NOT CONDITIONING. Re asin is pi/2 to within 1e-16 at that point and
+// |z f'/f| is 1.0; the format permits every digit it has. The gap was the
+// formulation's, exactly as it was for the imaginary half.
+//
+// The cure needs no new machinery. Writing asin(z) = u + iv, z = sin(u+iv) gives
+// x = sin(u) cosh(v) and 1 - z^2 = cos^2(u+iv), so with the SAME
+//     r = hypot(x+1, y),  s = hypot(|x-1|, y),  a = (r+s)/2 = cosh(v)
+// that xp_asin_imag_mag() already forms,
+//     Re sqrt(1 - z^2) = cos(u) cosh(v) = sqrt(a^2 - x^2)  and  u = atan2(x, that).
+// a^2 - x^2 = (a-x)(a+x) factors the cancellation into ONE difference, a - x,
+// and the same exact hypot identities that gave a - 1 give
+//     a - x = (max(1,x) - x) + (1/2) y^2 [ 1/(r+(x+1)) + 1/(s+|x-1|) ]
+//           = (max(1,x) - x) + y^2 * v,
+// a sum of NON-NEGATIVE terms at every x -- no cancellation left anywhere. (Note
+// a - 1 and a - x differ only in which of 1 and x is subtracted, so the two
+// helpers share the whole r/s/v derivation; see xp_asin_imag_mag above for it.)
+//
+// sqrt(a-x)*sqrt(a+x) rather than sqrt((a-x)(a+x)), for the same reason the
+// imaginary half splits its roots: a+x is O(|z|) and the product would overflow
+// an FP32 word above |z| ~ 1.8e19 while each factor separately cannot.
+//
+// Nothing squares z, so the 1e19 NaN goes with it. On the real cut (y = +-0,
+// |x| > 1) a - x is exactly 0, atan2(x, 0) is pi/2, and Re asin is +-pi/2 by the
+// sign of x on BOTH sides -- which is what C99 Annex G asks for, so the KI-5(d)
+// sheet-selection block the old body needed is not merely unnecessary here, it
+// has nothing left to select.
+//
+// SPLIT IN TWO. The leg sqrt(a^2 - x^2) is returned on its own because Re asin
+// and Re acos are the SAME two atan2 arguments in the opposite order:
+//     Re asin = atan2(x, sqrt(a^2 - x^2))
+//     Re acos = atan2(sqrt(a^2 - x^2), x)
+// so acos() below gets this entire cancellation-free construction for free. Both
+// callers must pass x = |Re z| and y = |Im z|: the (max(1,x) - x) term above is
+// derived for x >= 0 and is wrong for negative x. That costs acos nothing,
+// because a is EVEN in x -- x -> -x swaps r and s -- so the leg is even too and
+// the quadrant comes from the SIGNED Re z in acos's atan2 alone, with no case
+// split. xp_asin_real_mag() is left as the atan2 wrapper so asin is unchanged.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_asin_real_leg(DoubleDouble x, DoubleDouble y) {
+    const DoubleDouble one(1.0);
+    const DoubleDouble xp1  = add(x, one);
+    const DoubleDouble xm1s = subtract(x, one);            // signed, for the max(1,x) term
+    DoubleDouble xm1 = xm1s;
+    if (xm1.hi < 0.0) xm1 = negate(xm1);      // |x - 1|
+    const DoubleDouble r  = hypot(xp1, y);
+    const DoubleDouble s_ = hypot(xm1, y);
+    const DoubleDouble d1 = add(r,  xp1);
+    const DoubleDouble d2 = add(s_, xm1);
+    DoubleDouble v(DoubleDouble(0.0));
+    if (d1.hi != 0.0) v = add(v, divide(one, d1));
+    if (d2.hi != 0.0) v = add(v, divide(one, d2));
+    v = multiply_scalar(v, 0.5);
+    // a - x, both terms >= 0.  y is never squared on its own (y*(y*v)), for the
+    // subnormal reason spelled out in xp_asin_imag_mag.
+    DoubleDouble amx = multiply(y, multiply(y, v));
+    // + (max(1,x) - x) = (1 - x) when x < 1, nothing when x >= 1.  Tested on the
+    // SIGNED difference, not on x's leading word (the KI-16 value-based rule).
+    const bool xlt1 = (xm1s.hi < 0.0);
+    if (xlt1) amx = subtract(amx, xm1s);
+    // sqrt(a-x).  Where the (1-x) term is absent, a-x is exactly y^2*v and the
+    // root is y*sqrt(v) -- y is never squared, the same guard xp_asin_imag_mag
+    // uses on sqrt(a-1) and for the same reason.  MEASURED, not assumed: y^2*v
+    // is 1.9e-41 at z = 3 + 1e-20i, subnormal in an FP32 word, and taking the
+    // root of it cost QF 3.58 digits (29.00 -> 25.42) before this line existed.
+    const DoubleDouble sax = xlt1 ? sqrt(amx) : multiply(y, sqrt(v));
+    const DoubleDouble apx = add(multiply_scalar(add(r, s_), 0.5), x);   // a + x
+    return multiply(sax, sqrt(apx));
+}
+XPMATH_INLINE_FUNCTION DoubleDouble xp_asin_real_mag(DoubleDouble x, DoubleDouble y) {
+    return atan2(x, xp_asin_real_leg(x, y));
+}
+// |Re z| and |Im z|, the two arguments xp_asin_imag_mag() wants. Split out so
+// asin/acosh/asinh cannot disagree about them.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_abs_word(DoubleDouble v) {
+    return (v.hi < 0.0) ? negate(v) : v;
+}
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex asin(DoubleDoubleComplex z) {
+    // Both components from the Hull/Fairgrove/Tang r-s-a parametrisation, on the
+    // first-quadrant magnitudes, with the signs put back by copysign so a signed
+    // zero on either cut picks the C99 Annex G side. Re asin is odd in x and Im
+    // asin is odd in y, so that is the whole of the sign logic.
+    // KI-32: this used to be -i*log(iz + sqrt(1 - z^2)) for the real part; see
+    // xp_asin_real_mag above for why that sum cannot be formed.
+    const DoubleDouble x = xp_abs_word(z.re);
+    const DoubleDouble y = xp_abs_word(z.im);
+    DoubleDouble re = xp_asin_real_mag(x, y);
+    if (detail::copysign(1.0, z.re.hi) < 0.0) re = negate(re);
+    DoubleDouble im = xp_asin_imag_mag(x, y);
+    if (detail::copysign(1.0, z.im.hi) < 0.0) im = negate(im);
+    return DoubleDoubleComplex(re, im);
+}
+// KI-5(c), second cut.
+//
+//     Re(acos z) = atan2( sqrt(a^2 - x^2), Re z ),   x = |Re z|, y = |Im z|
+//     Im(acos z) = -Im(asin z)                       <- exact identity, pi/2 is real
+//
+// on the Hull/Fairgrove/Tang r-s-a parametrisation Re asin already uses, reusing
+// xp_asin_real_leg() verbatim: Re asin = atan2(x, leg) and Re acos = atan2(leg, x)
+// are the SAME two arguments in the opposite order. The leg is even in x, so
+// |Re z| goes into the leg and the SIGNED Re z into the atan2 -- that is the
+// whole of the quadrant logic, with no case split.
+//
+// HISTORY. Two earlier forms, both worth not re-trying.
+//
+// (1) `pi/2 - asin(z)` is stable nowhere near z = 1: acos(1) = 0, so as z -> 1
+// the difference cancels two quantities that both tend to pi/2 while the
+// ANSWER's magnitude tends to 0. Every digit is one the subtraction destroyed.
+// It is worse off the real axis -- acos(2 + 1e-20i) scored 11.31 on DD, 0.00 on
+// FF -- because asin there went through 1 - z^2 and the loss compounded.
+// Replaced for KI-5(c).
+//
+// (2) Kahan 1987's log form, acos(z) = -2i*log(sqrt((1+z)/2) + i*sqrt((1-z)/2)),
+// which shipped from KI-5(c) until this commit -- as the REAL PART ONLY. Taking
+// Im through the same log costs 4016 sweep points (|w| -> 1 exactly where
+// Im(acos z) -> 0, the KI-5(b) disease relocated), so pairing it with the exact
+// identity above was never a compromise: it is each form's good component and
+// neither's bad one. That pairing survives this commit unchanged.
+//
+// What does not survive is the log form's real part. It carried a KNOWN,
+// ACCEPTED loss: for |z| >> 1 with arg(z) < 0 the two roots satisfy rm ~ -i*rp,
+// so w = rp + i*rm is a difference of NEAR-EQUAL roots and arg(w) loses about
+// log10|z|/2 digits -- up to 7.85 on the |z| = 1e8 polar ring. Documenting it
+// was not the same as proving it inherent, and it was not: acosh forms rp + rm,
+// a SUM, at the same points. acos(z) = +-i*acosh(z) gives the two the same
+// modulus, and the sweep's complex metric is modulus-relative, so the sibling's
+// error transfers one for one. Measured over the sweep grid: 280 of the 1,268
+// acos rows above 1 ulp were more than 2x their acosh sibling at the same point,
+// 136 more than 10x, and 101 of the 149 rows above 8 ulps had an acosh sibling
+// BELOW 8 and more than 100x smaller (DD point 374: acos 6.62e6, acosh 0.0739).
+// A formulation defect, not conditioning and not the format. The leg form forms
+// no difference anywhere -- a - x is a sum of non-negative terms at every x.
+//
+// Reflecting the log form by acos(conj z) = conj(acos z) was tried both ways and
+// measured WORSE (1915 and 1648 decreases against 949). Moot now, but the
+// KNOWN_ISSUES entry should not be read as an open invitation.
+//
+// Still NOT routed through acosh, even though acos(z) = +-i*acosh(z) holds: that
+// sign flips with the half-plane AND with the side of each cut, so sharing the
+// body would reintroduce exactly the case analysis this form avoids. The two are
+// three lines each and stay separate. The identity is used to MEASURE, above,
+// which is a different thing from using it to compute.
+//
+// SIGNED ZEROS. The leg is a magnitude, and on the real cut (|Re z| > 1,
+// Im z = +-0) it is exactly zero. atan2's sign of zero then decides the entire
+// real part: atan2(+0, x < 0) is +pi, atan2(-0, x < 0) is -pi, and only +pi is
+// principal. xp_abs_word() tests v.hi < 0.0 and so leaves -0.0 alone, meaning a
+// -0 imaginary part does reach the leg; whether the sign then survives multiply()
+// depends on whether renormalisation absorbed it ((-0) + (+0) = +0, the KI-10
+// trap). Depend on neither outcome -- the zero is forced positive below. The old
+// body needed sqrt_signed_cut() for the same job, a local complex sqrt that put
+// the sign of a zero imaginary part on the correct sheet; with no complex sqrt
+// left on this path it has no callers left and is deleted with the form it
+// served.
+//
+// BRANCH CHECK (each verified against the __complex128 oracle, both half-planes
+// and both sides of both cuts): z=0 -> pi/2; z=1 -> 0; z=-1 -> pi;
+// z=2+0i -> -1.3170i; z=2-0i -> +1.3170i; z=-2+0i -> pi-1.3170i;
+// z=-2-0i -> pi+1.3170i. Now checked mechanically, on all four backends and
+// including the sign of every zero component, by scripts/probe_acos_branch.cpp.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex acos(DoubleDoubleComplex z) {
+    DoubleDouble leg = xp_asin_real_leg(xp_abs_word(z.re), xp_abs_word(z.im));
+    if (leg.hi == 0.0) leg = DoubleDouble(0.0);   // never -0; see SIGNED ZEROS above
+    return DoubleDoubleComplex(atan2(leg, z.re), negate(asin(z).im));
+}
+// log(a^2 + b^2), formed without ever squaring the larger operand -- used by the
+// two-log branches of atan()/atanh() below. Writing it as log(a*a + b*b) is what
+// a first cut did, and it costs everything at the branch points: at
+// z = -1 + 1e-19i the atanh numerator is (1+x)^2 + y^2 = 1e-38, which is
+// SUBNORMAL in an FP32 word, so the FP32-word backends scored ~9 digits where
+// the form they replaced scored 14 (FF) / 26 (QF) / 21 (TF). Factoring the
+// larger operand out --
+//     log(a^2 + b^2) = 2*log(s) + log1p((t/s)^2),  s = max(|a|,|b|), t = min
+// -- never forms a product that can underflow or overflow, and returns the full
+// width at those points. s == 0 (both operands zero) gives log(0) = -inf, which
+// is the right answer for the branch point itself.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_log_hypot2(DoubleDouble a, DoubleDouble b) {
+    DoubleDouble s = a, t = b;
+    if (s.hi < 0.0) s = negate(s);
+    if (t.hi < 0.0) t = negate(t);
+    if (s.hi < t.hi) { DoubleDouble tmp = s; s = t; t = tmp; }
+    // Both operands zero: the pole itself. Returning the extended log(0) here
+    // does NOT work -- feeding -inf into the caller's subtract() makes the
+    // error limb inf - inf = NaN and destroys the whole result -- so the two
+    // poles are intercepted at the top of atan()/atanh() instead.
+    if (s.hi == 0.0) return log(s);
+    const DoubleDouble r = divide(t, s);
+    return add(multiply_scalar(log(s), 2.0), log1p(multiply(r, r)));
+}
+// atan2()/angle() forms hypot(a, b) internally, so an operand pair whose
+// SQUARES overflow the word format comes back NaN. That is what turned
+// atan(1e10 + 0i) into NaN in the three FP32-word backends once the component
+// form below started handing atan2 the raw 1 - x^2 - y^2 (monotone gate sweep
+// point 1628, axis family: 14.00 -> 0.00). arg() is scale-invariant, so both
+// operands are scaled down by a common EXACT power of two until the squares
+// fit; being exact, the ratio -- and hence the answer -- is untouched. The
+// loop runs at most once for every input the callers admit.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_atan2_safe(DoubleDouble a, DoubleDouble b) {
+    const double kXpAtan2Safe = 1.0e150;
+    const double kXpAtan2Down = 7.4583407312002070e-155;   // exact power of two
+    double m = detail::fabs(a.hi) > detail::fabs(b.hi) ? detail::fabs(a.hi)
+                                                     : detail::fabs(b.hi);
+    while (m > kXpAtan2Safe) {
+        if (a.hi != 0.0) a = multiply_scalar(a, kXpAtan2Down);
+        if (b.hi != 0.0) b = multiply_scalar(b, kXpAtan2Down);
+        m *= kXpAtan2Down;
+    }
+    return atan2(a, b);
+}
+// A squared operand whose LEADING WORD has left the format's normal range --
+// zero, or subnormal, where a double word carries only a handful of bits.  Such a
+// product has lost essentially all of its information.
+XPMATH_INLINE_FUNCTION bool xp_sq_underflowed(DoubleDouble v) {
+    return detail::fabs(v.hi) < 2.2250738585072014e-308;
+}
+
+// Is the operand handed to sqrt() by Kahan's acosh chain too short to hold the
+// format's width?  The chain forms rp, rm = sqrt((x-+1)/2 + iy/2), so what
+// matters is the SCALE OF THE WHOLE OPERAND, not of y/2 alone.  A narrow y/2 is
+// harmless when the real half dominates -- at z = (2, 1e-30) the operand is
+// (0.5, 5e-31), sqrt() sees a well-scaled number and the tiny imaginary part
+// rides along -- and testing y/2 by itself fired there and made Im WORSE by up
+// to 0.9 digits, invisibly to the modulus-relative sweep metric because Im is
+// dwarfed by Re.  It is fatal only where the real half is gone as well, as at
+// the branch point z = (1, y) where (x-1)/2 is exactly zero and y/2 IS the
+// operand.  Either square root losing its operand is enough, so both are tested.
+XPMATH_INLINE_FUNCTION bool xp_acosh_chain_short(DoubleDouble x, DoubleDouble y) {
+    const DoubleDouble one(1.0);
+    const double hy = detail::fabs(multiply_scalar(y, 0.5).hi);
+    const double am = detail::fabs(multiply_scalar(subtract(x, one), 0.5).hi);
+    const double ap = detail::fabs(multiply_scalar(add(x, one), 0.5).hi);
+    // NARROW: too small for the format to carry the width it advertises.  An
+    // expansion of 106 bits at magnitude a keeps its trailing word down at
+    // a * 2^-53; once that is below the smallest subnormal 2^-1074 the word does
+    // not exist and the value silently holds fewer bits than the type claims.
+    // Bits available are ilogb(a) + 1 - (-1074), so a is narrow below 2^-969 =
+    // 4.2e-292.  Zero is narrow by the same reading: it carries nothing.  KI-33's
+    // representational floor as a predicate -- fixed by the format, not tuned.
+    const double narrow = 0x1p-969;
+    return (am > hy ? am : hy) < narrow || (ap > hy ? ap : hy) < narrow;
+}
+
+// Re atan(x+iy) as 0.5*(atan2(x, 1-y) + atan2(x, 1+y)), from
+// atan(z) = (i/2)[log(1-iz) - log(1+iz)] with the imaginary parts of the two
+// logs taken separately.  Algebraically identical to the primary
+// 0.5*atan2(2x, (1-y)(1+y) - x^2) form, but it never squares x, so nothing
+// underflows; and both terms carry the sign of x, so the sum never cancels.
+// Used ONLY where the primary form has provably lost its x^2 -- see the call
+// sites in atan() and atanh(), which explain when that is.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_atan_re_split(DoubleDouble x, DoubleDouble y) {
+    const DoubleDouble one_(1.0);
+    return multiply_scalar(add(xp_atan2_safe(x, subtract(one_, y)),
+                               xp_atan2_safe(x, add(one_, y))),
+                           0.5);
+}
+
+// KI-11 + KI-18 fix. The old body was
+//     atan(z) = (i/2) * log( (1 - iz) / (1 + iz) )
+// and it has two independent defects, both repaired here by moving to the
+// component form -- which is nothing more than atan(z) = -i*atanh(iz) with the
+// atanh block below (the KI-5(b) form) written out and the i folded in:
+//
+//     Re atan(z) = 0.5  * atan2( 2x, 1 - x^2 - y^2 )
+//     Im atan(z) = 0.25 * log1p( 4y / (x^2 + (1-y)^2) )
+//
+// (1) KI-11 -- THE SMALL COMPONENT WAS BEING LOST. When |y| << |x| the ratio
+// (1-iz)/(1+iz) has modulus 1 to within |y|/|x|, so log() is handed a number
+// whose entire imaginary information sits below its own leading digit and the
+// complex divide has already rounded it away. Measured, DD, direct form:
+//     atan(-100 + 1e-29i)  0.00 digits -- returned Im = -1.6235e-33 for a true
+//                          +9.9990e-34: WRONG SIGN, and bit-identical to what
+//                          it returned at 1e-30i, i.e. a noise floor, not a
+//                          function of the input any more
+//     atan(0.5 + 1e-25i)   7.65      atan(2 + 1e-20i)   11.80
+//     atan(100 + 1e-20i)   8.55      atan(1e8 + 1e-8i)  8.52
+// In the component form the small component is never added to the large one:
+// 4y/(x^2 + (1-y)^2) is ~4y/|1-iz|^2, small, formed without cancellation, and
+// the real log1p keeps it. All five points above go to the type's cap.
+//
+// (2) KI-18 -- NaN AT THE BRANCH POINTS. As z -> +-i the divisor 1 + iz -> 0,
+// so the complex divide overflowed or divided by a computed zero and BOTH
+// components came back NaN even though only the imaginary one is genuinely
+// infinite: `QF atan(1e-19 + 1i)` returned (NaN, 22.221132) for a true
+// (0.785398163, 22.221132). In the component form the real part is an atan2,
+// which is bounded everywhere, so the divergence stays in the component that
+// actually diverges.
+//
+// THE log1p ARGUMENT CAN STILL OVERFLOW, and that is what the second branch is
+// for. At z = 1e-19 + 1i the denominator is x^2 = 1e-38 while the numerator is
+// 4, so 4y/D = 4e38 -- finite in an FP64 word, but past FLT_MAX in an FP32 one,
+// where it would become inf and hand log1p an infinity. Since
+//     0.25*log1p(4y/D) = 0.25*( log(x^2 + (1+y)^2) - log(x^2 + (1-y)^2) )
+// identically, the two-log form is used once the ratio gets large. It is the
+// wrong form for SMALL ratios -- that is the cancellation log1p exists to avoid
+// -- and the right one for large, where the two logs differ by a wide margin.
+// kXpAtanBigRatio is 1e30 for the FP32-word backends (well inside FLT_MAX =
+// 3.4e38, with room for the 4y numerator) and 1e150 for the FP64-word one.
+//
+// kXpAtanBigL, L-infinity on the leading limbs, guards the OTHER end: x^2 and
+// y^2 overflow the word type above sqrt of its range (~1.3e154 FP64-word,
+// ~1.8e19 FP32-word), and there the old ratio form is finite and accurate --
+// (1-iz)/(1+iz) -> -1 with no cancellation once |z| is huge -- so it is kept
+// for that regime rather than replaced by something that overflows. The
+// constants are set one decade inside the true limit.
+//
+// SIGNED ZERO ON THE CUTS. atan's cuts are on the imaginary axis, |Im z| > 1,
+// where the sign of a zero REAL part picks the sheet: atan(+0 + 2i) = +pi/2 +
+// 0.5493i and atan(-0 + 2i) = -pi/2 + 0.5493i. atan2 delivers that for free,
+// but multiply_scalar renormalizes and does not carry a signed zero through, so
+// the doubling of x is skipped when x is a zero (2*+-0 = +-0 exactly, so this
+// is not an approximation) and the original limb is handed to atan2 instead.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex atan(DoubleDoubleComplex z) {
+    // C99 Annex G poles: catan(+-0 +- 1i) = +-0 +- inf*i. No formulation
+    // built out of the extended log() can produce the infinity, because that
+    // log() reports "non-positive argument" and returns 0 -- at HEAD these two
+    // points came back (0, 0), a finite wrong answer. Intercept them.
+    {
+        const DoubleDouble ay_ = z.im.hi < 0.0 ? negate(z.im) : z.im;
+        if (z.re.hi == 0.0 && subtract(DoubleDouble(1.0), ay_).hi == 0.0) {
+            double inf_ = -detail::log(double(0));
+            if (z.im.hi < 0.0) inf_ = -inf_;
+            return DoubleDoubleComplex(z.re, DoubleDouble(inf_));
+        }
+    }
+    const double kXpAtanBigL     = 1.0e150;
+    const double kXpAtanBigRatio = 1.0e4;
+    const DoubleDouble one = DoubleDouble(1.0);
+    if (detail::fabs(z.re.hi) < kXpAtanBigL && detail::fabs(z.im.hi) < kXpAtanBigL) {
+        const DoubleDouble x2 = multiply(z.re, z.re);
+        const DoubleDouble y2 = multiply(z.im, z.im);
+        DoubleDouble twox = multiply_scalar(z.re, 2.0);
+        if (z.re.hi == 0.0) twox = z.re;          // keep the signed zero
+        // 1 - x^2 - y^2 as (1-y)(1+y) - x^2. Forming `1 - (x^2 + y^2)` instead
+        // rounds x^2 + y^2 to ONE word before the cancellation, so at |y| ~ 1
+        // -- exactly the atan branch cut -- the tiny x^2 that survives is left
+        // with only word-0 precision. The factored form is exact there
+        // (Sterbenz on both factors) and costs one extra multiply.
+        const DoubleDouble omy2 = multiply(subtract(one, z.im), add(one, z.im));
+        const DoubleDouble d2 = subtract(omy2, x2);
+        // WHEN THE x^2 IS GONE.  On the cut |y| = 1 the factored product above
+        // is exactly zero, so d2 IS the -x^2 and nothing else.  For |x| below
+        // sqrt of the format's smallest normal -- 1.1e-19 on the FP32 backends
+        // -- that square underflows to zero or to a two-bit subnormal, d2
+        // collapses to 0, and atan2(2x, 0) returns pi/2 whatever x was.  At
+        // z = (1e-23, -1) that puts QF's real part on pi/4 instead of
+        // pi/4 + 2.5e-24: measured 2.522e5 component ulps, against a
+        // representational floor for pi/4 of 1.4e-16 ulps, so the answer is
+        // representable and only the intermediate is not.  The split form does
+        // not square x at all.  BOTH conditions are required: an underflowed
+        // x^2 is harmless wherever (1-y)(1+y) is O(1), because there the term
+        // really is negligible and dropping it is correct -- gating on the
+        // square alone made z = (6.1e-25, 1e-08) 6x worse for nothing.
+        // Measured over the whole complex grid, this leaves DD and FF
+        // bit-identical, moves 48 QF rows (80.04 -> 0.019, 11064 -> 0.0088,
+        // 252191 -> 0.035) and 4 TF rows (0.136 -> 0.182, both far below 1).
+        DoubleDouble re;
+        if (z.re.hi != 0.0 && xp_sq_underflowed(x2) && xp_sq_underflowed(omy2))
+            re = xp_atan_re_split(z.re, z.im);
+        else
+            re = multiply_scalar(xp_atan2_safe(twox, d2), 0.5);
+        // ON THE CUT (Re(z) a zero, |Im z| > 1) the sheet is chosen by the SIGN
+        // of that zero -- atan(+0 + 2i) = +pi/2 + 0.5493i, atan(-0 + 2i) =
+        // -pi/2 + 0.5493i. atan2() is handed the zero verbatim above but does
+        // not carry its sign through, so +-pi/2 is installed directly, which is
+        // the same correction atanh() below already makes on its own cut. The
+        // monotone gate is what caught this: 30.74 -> 0.00 on DD at z = -0 + 2i.
+        if (z.re.hi == 0.0 && d2.hi < 0.0) {
+            re = multiply_scalar(DoubleDouble_pi(), 0.5);
+            if (detail::copysign(1.0, z.re.hi) < 0.0) re = negate(re);
+        }
+        const DoubleDouble omy = subtract(one, z.im);
+        const DoubleDouble den = add(x2, multiply(omy, omy));
+        const DoubleDouble num = multiply_scalar(z.im, 4.0);
+        DoubleDouble im;
+        if (num.hi < den.hi * kXpAtanBigRatio &&
+            num.hi > -0.875 * den.hi) {
+            im = multiply_scalar(log1p(divide(num, den)), 0.25);
+        } else {
+            im = multiply_scalar(
+                subtract(xp_log_hypot2(z.re, add(one, z.im)),
+                         xp_log_hypot2(z.re, omy)), 0.25);
+        }
+        return DoubleDoubleComplex(re, im);
+    }
+    // |z| past sqrt(word range): squaring would overflow. The ratio form is
+    // well behaved out here and is kept.
+    DoubleDoubleComplex iz    = DoubleDoubleComplex(negate(z.im), z.re);
+    DoubleDoubleComplex num   = DoubleDoubleComplex(one) - iz;
+    DoubleDoubleComplex den   = DoubleDoubleComplex(one) + iz;
+    DoubleDoubleComplex ratio = num / den;
+    DoubleDoubleComplex lg    = log(ratio);
+    // multiply by i/2: (a+bi)*(i/2) = (-b/2) + (a/2)*i
+    return DoubleDoubleComplex(multiply_scalar(negate(lg.im), 0.5), multiply_scalar(lg.re, 0.5));
+}
+
+// ============================================================
+// Complex hyperbolic
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex sinh(DoubleDoubleComplex z) {
+    // sinh(a+bi) = sinh(a)*cos(b) + i*cosh(a)*sin(b)
+    DoubleDouble ca, sa, cb, sb;
+    sinhcosh(z.re, ca, sa);
+    sincos(z.im, cb, sb);
+    return DoubleDoubleComplex(multiply(sa, cb), multiply(ca, sb));
+}
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex cosh(DoubleDoubleComplex z) {
+    // cosh(a+bi) = cosh(a)*cos(b) + i*sinh(a)*sin(b)
+    DoubleDouble ca, sa, cb, sb;
+    sinhcosh(z.re, ca, sa);
+    sincos(z.im, cb, sb);
+    return DoubleDoubleComplex(multiply(ca, cb), multiply(sa, sb));
+}
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex tanh(DoubleDoubleComplex z) {
+    // KI-18: asymptotic branch, the tan() block above documents it in full.
+    const double kXpTanAsymptote = 2.0;
+    if (detail::fabs(z.re.hi) >= kXpTanAsymptote) {
+        DoubleDouble cb, sb;
+        sincos(z.im, cb, sb);
+        const DoubleDouble s2 = multiply_scalar(multiply(sb, cb), 2.0);      // sin 2y
+        const DoubleDouble c2 = multiply(subtract(cb, sb), add(cb, sb));         // cos 2y
+        const DoubleDouble t  = exp(multiply_scalar(z.re, z.re.hi < 0.0 ? 2.0 : -2.0));
+        const DoubleDouble t2 = multiply(t, t);
+        const DoubleDouble den = add(add(DoubleDouble(1.0), t2), multiply_scalar(multiply(t, c2), 2.0));
+        DoubleDouble re = divide(subtract(DoubleDouble(1.0), t2), den);
+        if (z.re.hi < 0.0) re = negate(re);
+        return DoubleDoubleComplex(re, divide(multiply_scalar(multiply(t, s2), 2.0), den));
+    }
+    // |Re z| < 1: the direct form is the more accurate of the two here and is
+    // kept verbatim.
+    // tanh(a+bi): re = tanh(a) / (cos^2(b) + tanh^2(a)*sin^2(b))
+    //             im = sin(b)*cos(b)*(1 - tanh^2(a)) / (same denominator)
+    DoubleDouble T_ = tanh(z.re);
+    DoubleDouble cb, sb;
+    sincos(z.im, cb, sb);
+    DoubleDouble T2    = multiply(T_, T_);
+    DoubleDouble denom = add(multiply(cb, cb), multiply(T2, multiply(sb, sb)));
+    return DoubleDoubleComplex(divide(T_, denom),
+               divide(multiply(multiply(sb, cb), subtract(DoubleDouble(1.0), T2)), denom));
+}
+
+// ============================================================
+// Complex inverse hyperbolic
+// ============================================================
+// asinh(z) = log(z + sqrt(z^2 + 1)), reflected into the right half-plane when
+// the direct form would cancel.
+//
+// KI-5(a) (fixed 2026-09-02, see docs/KNOWN_ISSUES.md). For Re(z) < 0 the
+// identity is ill-conditioned: sqrt(z^2 + 1) -> -z, so the sum is a difference
+// of near-equal quantities. sqrt carries absolute error ~eps*|z|, which the sum
+// (magnitude ~1/(2|z|)) inflates to a RELATIVE error of ~2|z|^2 * eps — two
+// digits lost per decade of |z|, reaching total loss once the cancellation
+// consumes the whole word. asinh is an ODD function, so -asinh(-z) moves the
+// evaluation into the well-conditioned half-plane at the cost of two sign
+// flips, which are exact. No new series and no new constants.
+//
+// THRESHOLD (kXpAsinhReflect = 4). The reflection is gated on magnitude as well
+// as sign, which is a deliberate departure from the plain `Re(z) < 0` rule.
+// The loss the reflection removes is log10(2|z|^2) digits; the reflection
+// substitutes a different rounding path, worth a few tenths of a digit in
+// either direction. Below |z| ~ 4 the loss it removes is smaller than the churn
+// it introduces, so applying it there is a net harm — measured, not assumed. On
+// the 1780-point complex sweep grid, reflecting unconditionally moved 535
+// points DOWN and 396 up in the |z| <= 1 bin (worst -6.77 digits, QF at
+// z = -1e-16, where asinh(z) ~ z and there was never any cancellation to fix),
+// while |z| > 4 was 859 up against 25 down (best +28.22, DD at z = -1e15).
+// Gating at 4 keeps every one of those 859 improvements and removes 944 of the
+// 969 regressions. 4 also sits comfortably inside the region where the
+// asymptotic argument holds (log10(2*16) = 1.5 digits already at stake) and is
+// exactly representable, so the comparison itself is exact.
+//
+// The test is L-infinity on the LEADING limbs — max(-Re, |Im|) > 4 — not
+// hypot(). That is deliberate: it cannot overflow for any finite z (hypot on
+// z ~ 1e200 would), it costs two compares instead of two multiplies and a
+// sqrt, and the leading limb settles the comparison outright unless |z| is
+// within one ulp of the threshold, where either branch is equally good. It
+// selects the L-inf ball of radius 4 rather than the L2 ball, i.e. it also
+// reflects part of the annulus 4 < |z| <= 4*sqrt(2); the binning above shows
+// that band behaves like the |z| > 4 side.
+//
+// BOUNDARY: the sign predicate is `Re(z) < 0`, so Re(z) == +0 AND Re(z) == -0
+// both take the direct branch, exactly as before this change. Two reasons.
+// (1) There is no cancellation to avoid on the imaginary axis — for z = iy the
+// sum is i*(y + sqrt(y^2 - 1)), like signs — so the reflection would buy
+// nothing. (2) asinh's branch cuts LIVE on the imaginary axis (|Im| > 1), where
+// the sign of a zero real part selects the sheet; routing -0 through a negation
+// would rewrite that selection. Leaving Re == -0 on the direct branch keeps the
+// on-cut behaviour bit-for-bit what it was. (The headers' on-cut handling for
+// Re(z) == -0 is separately wrong — it is the asinh analogue of KI-5(d) and is
+// NOT addressed here.) All four complex headers use this same predicate and the
+// same threshold.
+// Re asinh(z), the KI-11 form. Kept as its own function so the reflected and
+// unreflected branches below cannot drift apart.
+XPMATH_INLINE_FUNCTION DoubleDouble xp_ki11_asinh_re(DoubleDoubleComplex z) {
+    DoubleDouble v = xp_asin_imag_mag(xp_abs_word(z.im), xp_abs_word(z.re));
+    if (detail::copysign(1.0, z.re.hi) < 0.0) v = negate(v);
+    return v;
+}
+// KI-11. Re asinh(z) = sign(Re z) * |Im asin(iz)| -- exact, from
+// asinh(z) = -i*asin(iz): the real part of asinh is the imaginary part of asin
+// with the arguments transposed, since Re(iz) = -Im z and Im(iz) = Re z. So the
+// same xp_asin_imag_mag() serves, called as (|Im z|, |Re z|) rather than
+// (|Re z|, |Im z|). log(z + sqrt(z^2+1)) loses it for the same reason asin's
+// log did -- |z + sqrt(z^2+1)| -> 1 all along the imaginary segment [-i,i] --
+// measured 6.54 of 31.00 at z = 1e-25 + 0.5i. The imaginary part keeps the
+// existing body, reflection branch and all; it was never the losing one.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex asinh(DoubleDoubleComplex z) {
+    const double t = 4.0;   // kXpAsinhReflect
+    if (z.re.hi < 0.0 && (-z.re.hi > t || detail::fabs(z.im.hi) > t)) {
+        DoubleDoubleComplex w = -z;
+        return DoubleDoubleComplex(xp_ki11_asinh_re(z), negate(log(w + sqrt(w*w + DoubleDoubleComplex(DoubleDouble(1.0)))).im));
+    }
+    return DoubleDoubleComplex(xp_ki11_asinh_re(z), log(z + sqrt(z*z + DoubleDoubleComplex(DoubleDouble(1.0)))).im);
+}
+// KI-1 fix. acosh(z) = 2*log( sqrt((z+1)/2) + sqrt((z-1)/2) ) -- Kahan 1987,
+// "Branch Cuts for Complex Elementary Functions". The older form
+// log(z + sqrt(z*z - 1)) takes the WRONG sqrt sheet throughout Re(z) < 0 and
+// returns essentially -acosh(z) there, an O(1) wrong value rather than lost
+// digits. Kahan's form is branch-correct with no case analysis: for Re(z) < 0
+// both roots are near-purely-imaginary with the same sign, for Re(z) > 0 both
+// are near-real positive, so the addition never subtracts. It also never forms
+// z*z, which is what made the old form overflow to Inf/NaN above sqrt of the
+// word type's range (~1.3e154 for the FP64-word backend, ~1.8e19 for the
+// FP32-word ones). Halving is per component via multiply_scalar, exact because
+// 0.5 is a power of two; a complex multiply by (0.5, 0) would round.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex acosh(DoubleDoubleComplex z) {
+    // acosh IS acos, rotated.  acosh(z) = +-i acos(z), and i(A + iB) = -B + iA,
+    // so Re acosh = -Im acos = |Im asin| and Im acosh = Re acos.  Both halves
+    // are taken from the acos reformulation; nothing here is a formula of its
+    // own.
+    //
+    // KI-11, the real part.  Re acosh(z) = |Im asin(z)| is that identity, and
+    // 2*log|rp+rm| -- what Kahan's chain computes -- has exactly the disease
+    // xp_asin_imag_mag() exists to cure: |rp+rm| -> 1 all along the real segment
+    // [-1,1], so at z = 0.5 + 1e-30i it scored 1.19 of 31.00.
+    //
+    // THE IMAGINARY PART is 2*Im log(rp + rm) with rp, rm = sqrt((x+-1)/2 + iy/2)
+    // -- the other half of Kahan's chain -- EXCEPT where that chain's own sqrt
+    // operand is too short to hold 106 bits, which xp_acosh_chain_short() decides.
+    //
+    // WHAT GOES WRONG, and it is not the halving.  Traced step by step against
+    // MPC at the worst point on the grid, QF at z = (1, 1e-30) (point 894):
+    // y/2 is EXACT, 0 ulps, and so is (x-1)/2.  The 2.56e14 ulps appear two
+    // steps later, inside sqrt(rm), and arg() then faithfully reports an operand
+    // that is already destroyed -- arg of the COMPUTED sum is right to 0.249
+    // ulps.  The reason is magnitude, not arithmetic: a QuadFloat at 5e-31 wants
+    // its fourth word at 5e-31 * 2^-72 = 1.1e-52, far under 2^-149 = 1.4e-45, so
+    // the operand handed to sqrt() holds about 49 bits, not 96.  The ANSWER
+    // there is ~sqrt(y)(1+i), both components ~1e-15 and comfortably normal,
+    // with a representational floor of 0.079 ulps -- the formula loses the
+    // answer in an intermediate it never had to form.  scripts/probe_acosh_imag.cpp
+    // --trace 894 prints the step table.
+    //
+    // atan2(leg, x) is Re acos, which is Im acosh by the rotation above, and it
+    // forms no such intermediate.  It is used ONLY where the predicate fires, so
+    // the substitution is confined to the points where the chain provably cannot
+    // work.  Measured over the whole complex grid against MPC, the predicate is
+    // true at 40 of the 42 points where the chain reads above 8 ulps on the
+    // sweep's modulus-relative metric (the other 2 are an FF pair at 8.408 that
+    // the rotation does not improve either), and NO row is made worse on either
+    // metric -- modulus-relative or per-component -- on any backend.  On this
+    // backend it never fires on the sweep grid, so DD is bit-identical to before.
+    //
+    // WHY NOT EVERYWHERE.  The rotation is also better ON AVERAGE off the
+    // predicate -- unguarded it would take rows above 1 ulp from 1187 to 407 --
+    // but it is not better POINTWISE: unguarded it costs 629 rows across the
+    // four backends and the monotone gate rejects it (decreased: 132, worst drop
+    // 2.03 digits, all DD).  Ablation, both poisons and the signed-zero cases
+    // are in scripts/probe_acosh_imag.cpp.
+    //
+    // THE SHEET.  acosh(conj z) = conj acosh(z) and the principal strip is
+    // Im acosh in (-pi, pi], so sign(Im acosh z) = sign(Im z) everywhere, signed
+    // zeros on the cut included (C99 Annex G).  Both branches below are checked
+    // against 12 signed-zero cases on all four backends by the probe, including
+    // z = -0.1 -+ 0i and z = -0 + 0i; both pass, so the branch taken cannot move
+    // the sheet.  atan2(leg, x) with leg a magnitude lands in [0, pi] by
+    // construction, so re-attaching the sign from copysign(Im z) is exact.
+    DoubleDouble im_;
+    if (xp_acosh_chain_short(z.re, z.im)) {
+        DoubleDouble leg = xp_asin_real_leg(xp_abs_word(z.re), xp_abs_word(z.im));
+        if (leg.hi == 0.0) leg = DoubleDouble(0.0);   // never -0; see SIGNED ZEROS above
+        im_ = atan2(leg, z.re);
+    } else {
+        const DoubleDouble one(1.0);
+        const DoubleDouble half_im = multiply_scalar(z.im, 0.5);
+        const DoubleDoubleComplex rp = sqrt(DoubleDoubleComplex(multiply_scalar(add(z.re, one), 0.5), half_im));
+        const DoubleDoubleComplex rm = sqrt(DoubleDoubleComplex(multiply_scalar(subtract(z.re, one), 0.5), half_im));
+        im_ = multiply_scalar(log(rp + rm).im, 2.0);
+    }
+    if (im_.hi < 0.0) im_ = negate(im_);
+    if (detail::copysign(1.0, z.im.hi) < 0.0) im_ = negate(im_);
+    return DoubleDoubleComplex(xp_asin_imag_mag(xp_abs_word(z.re), xp_abs_word(z.im)), im_);
+}
+// KI-5(b) fix. Two independent defects lived in the old one-line body
+// `0.5*log((1+z)/(1-z))`, and both are repaired here.
+//
+// (1) CONDITIONING AS z -> 0. The ratio (1+z)/(1-z) -> 1, so the log is taken of
+// a number whose entire information content sits below the leading 1. The
+// argument reduction throws away log10(1/|z|) digits before log() is even
+// entered, and the measured score falls off one digit per decade of |z|. The
+// remedy is the classical one: 0.5*log1p(2z/(1-z)), expanded here into its real
+// and imaginary components so no complex divide is needed either --
+//
+//     Re atanh(z) = 0.25 * log1p( 4x / ((1-x)^2 + y^2) )
+//     Im atanh(z) = 0.5  * atan2( 2y, 1 - x^2 - y^2 )
+//
+// which is 0.5*log1p(w) with w = 2z/(1-z) written out: 2*Re(w) + |w|^2 collapses
+// to 4x/|1-z|^2 and arg(1+w) to atan2(2y, 1-x^2-y^2). For small z the log1p
+// argument is ~4x, small and formed without cancellation, and the real log1p
+// (dd_math.hpp, rebuilt on the 2*atanh(a/(2+a)) series in this same change)
+// keeps it.
+//
+// THRESHOLD (kXpAtanhSmall = 0.0625, L-infinity on the leading limbs). The new form
+// is used only where the old one is actually losing. Two reasons to gate rather
+// than switch unconditionally. First, ((1-x)^2 + y^2) squares its operands, so
+// it overflows to Inf for |z| above sqrt of the word type's range (~1.3e154 for
+// the FP64-word backend, ~1.8e19 for the FP32-word ones) where the old ratio
+// form is perfectly finite -- a switch would trade a conditioning defect for an
+// overflow defect. Second, at |z| >= 0.5 the old form already scores at the
+// type's cap (measured: DD 30.74 at z = 0.5), so there is nothing to win
+// and only rounding churn to lose -- the first cut of this fix used 0.5 and the
+// gate caught 43 points across the four backends losing up to 1.09 digits to
+// exactly that churn in 0.0625 < |z| < 0.5, so the threshold is 0.0625 (2^-4,
+// exactly representable, so the compare is exact) and one atanh decrease
+// remains in the whole 428,592-point sweep. L-infinity, not hypot(), for the same reasons
+// given on asinh above: no overflow, two compares, and the leading limb settles
+// it except within an ulp of the boundary.
+//
+// (2) THE SIGNED ZERO ON THE CUTS -- the atanh analogue of KI-5(d), found by
+// measurement while fixing (1), and fixed here because it is in the same body.
+// The cuts are (-inf,-1] and [1,+inf). Approaching x > 1 from Im = +0 gives
+// Im atanh = +pi/2, and from Im = -0 gives -pi/2; by oddness the SAME +pi/2
+// holds for x < -1 with Im = +0. The old form computed (1+z)/(1-z) with a
+// complex divide, whose multiplies destroy the sign of Im(z)'s zero, and so
+// returned +pi/2 for both conventions: every `x -0i` cut point scored 0.00 on
+// the imaginary component, in all four backends. The sign is read off Im(z)
+// directly with detail::copysign -- these types do carry a signed zero through
+// construction, copy and negate, they only lose it in arithmetic -- and pi/2 is
+// installed with it. The two conventions that were already right are unchanged.
+//
+// KI-11 EXTENSION (this change). The gate above was `L-inf < 0.0625` only, so
+// everything outside a small disc still went through the ratio form and still
+// lost its small component -- the same defect KI-11 records for atan, one
+// function over. Measured, DD, ratio form: atanh(1e-20 + 100i) 8.55 digits,
+// atanh(1e8 + 1e-8i) 23.30, atanh(1e-6 - 2i) 24.36. The component form is now
+// used for L-inf >= 0.5 as well, and the two-log fallback described on atan()
+// above is used where 4x/D would overflow the word type.
+//
+// THE BAND 0.0625 <= L-inf < 0.5 IS DELIBERATELY LEFT ON THE RATIO FORM. That
+// is the band KI-5(b) measured the component form to be WORSE in -- 43 points
+// across the four backends losing up to 1.09 digits to rounding churn, which is
+// why 0.0625 rather than 0.5 was chosen then. Nothing here contradicts that
+// measurement, so nothing there moves.
+//
+// kXpAtanhBigL is the same overflow guard as atan's: above sqrt of the word
+// type's range (1e18 for FP32 words, 1e150 for FP64 words) (1-x)^2 + y^2
+// overflows and the ratio form is kept.
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex atanh(DoubleDoubleComplex z) {
+    // C99 Annex G poles: catanh(+-1 +- 0i) = +-inf +- 0i. Same reason as atan
+    // above -- at HEAD these came back (0, 0).
+    {
+        const DoubleDouble ax_ = z.re.hi < 0.0 ? negate(z.re) : z.re;
+        if (z.im.hi == 0.0 && subtract(DoubleDouble(1.0), ax_).hi == 0.0) {
+            double inf_ = -detail::log(double(0));
+            if (z.re.hi < 0.0) inf_ = -inf_;
+            return DoubleDoubleComplex(DoubleDouble(inf_), z.im);
+        }
+    }
+    const DoubleDouble one = DoubleDouble(1.0);
+    const double kXpAtanhSmall    = 0.0625;
+    const double kXpAtanhWide     = 0.5;
+    const double kXpAtanhBigL     = 1.0e150;
+    const double kXpAtanBigRatio  = 1.0e4;
+    const double ax = detail::fabs(z.re.hi), ay = detail::fabs(z.im.hi);
+    const double linf = ax > ay ? ax : ay;
+    DoubleDoubleComplex r;
+    if (linf < kXpAtanhSmall || (linf >= kXpAtanhWide && linf < kXpAtanhBigL)) {
+        const DoubleDouble omx = subtract(one, z.re);
+        const DoubleDouble y2  = multiply(z.im, z.im);
+        const DoubleDouble den = add(multiply(omx, omx), y2);
+        const DoubleDouble num = multiply_scalar(z.re, 4.0);
+        if (num.hi < den.hi * kXpAtanBigRatio &&
+            num.hi > -0.875 * den.hi) {
+            r.re = multiply_scalar(log1p(divide(num, den)), 0.25);
+        } else {
+            r.re = multiply_scalar(
+                subtract(xp_log_hypot2(add(one, z.re), z.im),
+                         xp_log_hypot2(omx, z.im)), 0.25);
+        }
+        DoubleDouble twoy = multiply_scalar(z.im, 2.0);
+        if (z.im.hi == 0.0) twoy = z.im;          // keep the signed zero
+        // Im atanh(x+iy) is Re atan(y+ix) -- atanh(z) = i atan(-iz) -- so it is
+        // the same expression with the roles of x and y exchanged, and it loses
+        // the y^2 in exactly the same way on its own cut |x| = 1.  Same guard.
+        const DoubleDouble omx2 = multiply(subtract(one, z.re), add(one, z.re));
+        if (z.im.hi != 0.0 && xp_sq_underflowed(y2) && xp_sq_underflowed(omx2))
+            r.im = xp_atan_re_split(z.im, z.re);
+        else
+            r.im = multiply_scalar(xp_atan2_safe(twoy, subtract(omx2, y2)), 0.5);
+    } else {
+        DoubleDoubleComplex lg = log((DoubleDoubleComplex(one) + z) / (DoubleDoubleComplex(one) - z));
+        r.re = multiply_scalar(lg.re, 0.5);
+        r.im = multiply_scalar(lg.im, 0.5);
+    }
+    if (z.im.hi == 0.0 && detail::fabs(z.re.hi) > 1.0) {
+        DoubleDouble half_pi = multiply_scalar(DoubleDouble_pi(), 0.5);
+        if (detail::copysign(1.0, z.im.hi) < 0.0) half_pi = negate(half_pi);
+        r.im = half_pi;
+    }
+    return r;
+}
+
+// ============================================================
+// Complex power and polar
+// ============================================================
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex pow(DoubleDoubleComplex z, DoubleDoubleComplex w) {
+    // z^w = exp(w * log(z))
+    if (z.re.hi == 0.0 && z.im.hi == 0.0) return DoubleDoubleComplex();
+    return exp(w * log(z));
+}
+
+// polar(r, theta) = r * (cos(theta) + i*sin(theta))
+XPMATH_INLINE_FUNCTION DoubleDoubleComplex polar(DoubleDouble r, DoubleDouble theta) {
+    DoubleDouble c, s;
+    sincos(theta, c, s);
+    return DoubleDoubleComplex(multiply(r, c), multiply(r, s));
+}
+
+} // namespace xp
