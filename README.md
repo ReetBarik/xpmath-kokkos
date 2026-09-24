@@ -16,9 +16,9 @@ Accuracy (MPFR/MPC oracle, ulp gates, baselines) lives in xpmath
 ## Layout
 
 ```
-include/Kokkos_xpmath/   # wrappers (K1+)
+include/Kokkos_xpmath/   # Kokkos::Experimental wrappers + umbrella
 vendor/xpmath/           # xpmath include/xp/ + LICENSES/ at a recorded tag
-tests/                   # bit-identity only
+tests/                   # compile smokes now; bit-identity later
 examples/
 scripts/sync_upstream.sh
 scripts/check_vendor_fresh.sh
@@ -35,8 +35,12 @@ export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LI
 
 cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
 cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure   # vendor_fresh + 8 compile_smoke_*
 ```
+
+After install, consumers can `find_package(xpmath_kokkos)` and link
+`xpmath_kokkos::xpmath_kokkos`. Include `<Kokkos_xpmath/Kokkos_xpmath.hpp>` or
+any single `<Kokkos_xpmath/{dd,ff,qf,tf}_{math,complex}.hpp>`.
 
 ## Vendoring
 
