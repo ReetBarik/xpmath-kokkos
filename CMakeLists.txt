@@ -12,19 +12,70 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Kokkos 5.1 REQUIRED CONFIG)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 add_library(xpmath_kokkos INTERFACE)
 add_library(xpmath_kokkos::xpmath_kokkos ALIAS xpmath_kokkos)
 target_include_directories(xpmath_kokkos INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/xpmath>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(xpmath_kokkos INTERFACE Kokkos::kokkos)
 target_compile_features(xpmath_kokkos INTERFACE cxx_std_17)
 
+# ---------------------------------------------------------------------------
+# Install + package-config (find_package(xpmath_kokkos))
+# ---------------------------------------------------------------------------
+# Consumers need both Kokkos_xpmath/ and xp/ on the include path. Install the
+# wrappers under include/Kokkos_xpmath/ and the vendored core under include/xp/
+# so #include <xp/...> matches the BUILD_INTERFACE layout.
+install(DIRECTORY include/Kokkos_xpmath
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY vendor/xpmath/xp
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES vendor/xpmath/UPSTREAM.txt
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/xpmath-kokkos
+)
+install(DIRECTORY vendor/xpmath/LICENSES
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/xpmath-kokkos
+)
+
+install(TARGETS xpmath_kokkos EXPORT xpmath_kokkosTargets)
+
+install(EXPORT xpmath_kokkosTargets
+  FILE xpmath_kokkosTargets.cmake
+  NAMESPACE xpmath_kokkos::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xpmath_kokkos
+)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/xpmath_kokkosConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/xpmath_kokkosConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xpmath_kokkos
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/xpmath_kokkosConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/xpmath_kokkosConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/xpmath_kokkosConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xpmath_kokkos
+)
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 enable_testing()
 
 # Anti-rot: vendor/xpmath must match the tag recorded in UPSTREAM.txt.
-# Mirrors xpmath's domains_fresh — no build artifacts required.
 add_test(
   NAME vendor_fresh
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_vendor_fresh.sh
@@ -35,4 +86,28 @@ set_tests_properties(vendor_fresh PROPERTIES
   TIMEOUT 120
 )
 
-# K1 fills include/Kokkos_xpmath/ and tests/. examples/ filled later.
+# Per-header compile smokes (ctest targets). Suite size is exactly 9:
+# vendor_fresh + 8 compile_smoke_*.
+set(_XPMATH_KOKKOS_SMOKES
+  dd_math
+  dd_complex
+  ff_math
+  ff_complex
+  qf_math
+  qf_complex
+  tf_math
+  tf_complex
+)
+foreach(_name IN LISTS _XPMATH_KOKKOS_SMOKES)
+  add_executable(compile_smoke_${_name} tests/compile_smoke_${_name}.cpp)
+  target_link_libraries(compile_smoke_${_name} PRIVATE xpmath_kokkos::xpmath_kokkos)
+  add_test(NAME compile_smoke_${_name} COMMAND compile_smoke_${_name})
+  set_tests_properties(compile_smoke_${_name} PROPERTIES LABELS "host;compile")
+endforeach()
+
+# Gate extras from K1: build-only TUs (not ctest — keep count at 9).
+add_executable(compile_gate_all_forwards tests/compile_gate_all_forwards.cpp)
+target_link_libraries(compile_gate_all_forwards PRIVATE xpmath_kokkos::xpmath_kokkos)
+
+add_executable(compile_gate_real_imag tests/compile_gate_real_imag.cpp)
+target_link_libraries(compile_gate_real_imag PRIVATE xpmath_kokkos::xpmath_kokkos)
