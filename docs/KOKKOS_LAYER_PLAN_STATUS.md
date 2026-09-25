@@ -246,3 +246,92 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 3. Still bit-identity only — no oracle, no ulps. Do not hand-edit `vendor/`.
 4. K3 branch: `k3-atomics`. May develop in parallel with K4; serialise merges.
 
+---
+
+## K3 — Atomics
+
+**Branch:** `k3-atomics` (from `main` @ `bab5dfa`).
+
+**Outcome.** Green. `Kokkos::atomic_add` (and companion `atomic_fetch_add`) for
+all eight wrappers via a compare-and-swap loop over a byte-equal integer view
+of the whole expansion. Complex types are componentwise on `re`/`im`. New
+ctest target `atomic_test` asserts Serial-space bit-identity against a serial
+fold through the core `xp::` type, plus bit-exact exactly-representable-integer
+sums (lost-update detector). Suite size is exactly **11** (`vendor_fresh` + 8
+smokes + `reduction_test` + `atomic_test`).
+
+**What landed**
+
+| path | change |
+|---|---|
+| `include/Kokkos_xpmath/impl/atomic_cas_add.hpp` | CAS helper + prominent determinism caveat |
+| `include/Kokkos_xpmath/{dd,ff,qf,tf}_math.hpp` | `atomic_add` / `atomic_fetch_add` overloads |
+| `include/Kokkos_xpmath/{dd,ff,qf,tf}_complex.hpp` | componentwise `atomic_add` / `atomic_fetch_add` |
+| `tests/atomic_test.cpp` | Serial bit-identity + exact-integer gate |
+| `CMakeLists.txt` | wire `atomic_test` ctest target |
+
+**CAS / strict aliasing.** Values move between `T` and an `AtomicWord<N>` POD
+(`N/4` little-endian `uint32_t` limbs, `sizeof` matched to the expansion) only
+via `std::memcpy` — never by reading a float/double glvalue as an integer.
+The CAS itself is `Kokkos::atomic_compare_exchange` on that POD overlay of the
+same storage bytes (pointer cast through `void*`). Hardware CAS when desul
+considers the width lock-free; otherwise desul's address-locked CAS. Sizes:
+DD/QF = 16 B, FF = 8 B, TF = 12 B (no native CAS width — always lock-based).
+Complex = componentwise real CAS (not one CAS over the whole complex).
+
+**Determinism documentation.** Lead comment block in
+`include/Kokkos_xpmath/impl/atomic_cas_add.hpp` (and short pointers on each
+public overload): atomic accumulation into a non-associative multi-word type
+is order-dependent; last-limb differences across runs are a property of the
+operation, not a defect.
+
+**Exactly-representable-integer coverage.** `atomic_test` accumulates `1`
+exactly `N` times for N ∈ {1, 2, 128, 1024} on every type (complex: `(1,0)`);
+expects bit-identical `N` (or `(N,0)`). Separates lost updates from rounding
+reorder. General non-integer Serial path still requires bit-identity against
+the serial left-fold (Serial order is deterministic).
+
+**Gate**
+
+```bash
+module use /soft/modulefiles && module load gcc/13.3.0 cmake/3.28.3
+export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LIBRARY_PATH
+cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
+cmake --build build -j16
+ctest --test-dir build --output-on-failure   # expect 11/11
+test -d include && test -d tests || { echo "FAIL: wrong cwd"; exit 1; }
+! grep -rn 'mpfr\|mpc_\|__float128' --include='*.cpp' --include='*.hpp' include/ tests/ \
+  || { echo "FAIL: oracle machinery present; see the governing rule"; exit 1; }
+```
+
+**Measured (2026-09-24, JLSE gcc/13.3.0, Kokkos Serial quadmath install):**
+
+```
+ 1/11 Test  #1: vendor_fresh .....................   Passed
+ 2/11 Test  #2: compile_smoke_dd_math ............   Passed
+ 3/11 Test  #3: compile_smoke_dd_complex .........   Passed
+ 4/11 Test  #4: compile_smoke_ff_math ............   Passed
+ 5/11 Test  #5: compile_smoke_ff_complex .........   Passed
+ 6/11 Test  #6: compile_smoke_qf_math ............   Passed
+ 7/11 Test  #7: compile_smoke_qf_complex .........   Passed
+ 8/11 Test  #8: compile_smoke_tf_math ............   Passed
+ 9/11 Test  #9: compile_smoke_tf_complex .........   Passed
+10/11 Test #10: reduction_test ...................   Passed
+11/11 Test #11: atomic_test ......................   Passed
+
+100% tests passed, 0 tests failed out of 11
+```
+
+Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
+
+**What K4 must know**
+
+1. Scatter-add / `Kokkos::atomic_add` works on Views of all eight types.
+   Complex is componentwise (re then im), not a single CAS over the pair.
+2. K4 decides `Kokkos::complex<T>` interop — implement conversions both ways
+   with bit-identity round-trip, or document a measured negative in
+   `docs/COMPLEX_INTEROP.md` and update the four `*_complex.hpp` notes in
+   `include/` (not `vendor/`). Branch: `k4-complex-interop`.
+3. Still bit-identity only — no oracle, no ulps. Do not hand-edit `vendor/`.
+4. K3 may merge in parallel with K4 development; serialise the merges.
+

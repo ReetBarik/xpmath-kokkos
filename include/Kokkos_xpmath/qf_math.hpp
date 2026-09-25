@@ -214,3 +214,21 @@ struct reduction_identity<Experimental::QuadFloat> {
   }
 };
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::atomic_add — QuadFloat (CAS over the 16-byte expansion)
+// ============================================================
+// See impl/atomic_cas_add.hpp for the determinism caveat and the memcpy-based
+// integer view (strict-aliasing safe). QF is 16 bytes; not a native atomic on
+// every target, so the CAS is over a byte-equal uint32 word array.
+#include <Kokkos_xpmath/impl/atomic_cas_add.hpp>
+namespace Kokkos {
+KOKKOS_INLINE_FUNCTION void atomic_add(Experimental::QuadFloat* dest,
+                                       Experimental::QuadFloat const& val) {
+  Impl::xpmath_atomic::atomic_add_cas(dest, val);
+}
+KOKKOS_INLINE_FUNCTION Experimental::QuadFloat atomic_fetch_add(
+    Experimental::QuadFloat* dest, Experimental::QuadFloat const& val) {
+  return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+}
+}  // namespace Kokkos
