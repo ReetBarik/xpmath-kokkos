@@ -119,3 +119,19 @@ KOKKOS_INLINE_FUNCTION Experimental::TripleFloat real(Experimental::TripleFloatC
 KOKKOS_INLINE_FUNCTION Experimental::TripleFloat imag(Experimental::TripleFloatComplex z) { return z.imag(); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — TripleFloatComplex
+// ============================================================
+// sum/prod only; max/min omitted (same convention as Kokkos::complex).
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::TripleFloatComplex> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloatComplex sum() {
+    return Experimental::TripleFloatComplex(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloatComplex prod() {
+    return Experimental::TripleFloatComplex(1.0f);
+  }
+};
+}  // namespace Kokkos

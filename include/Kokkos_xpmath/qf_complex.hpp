@@ -119,3 +119,19 @@ KOKKOS_INLINE_FUNCTION Experimental::QuadFloat real(Experimental::QuadFloatCompl
 KOKKOS_INLINE_FUNCTION Experimental::QuadFloat imag(Experimental::QuadFloatComplex z) { return z.imag(); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — QuadFloatComplex
+// ============================================================
+// sum/prod only; max/min omitted (same convention as Kokkos::complex).
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::QuadFloatComplex> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloatComplex sum() {
+    return Experimental::QuadFloatComplex(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloatComplex prod() {
+    return Experimental::QuadFloatComplex(1.0f);
+  }
+};
+}  // namespace Kokkos

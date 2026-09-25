@@ -189,3 +189,28 @@ KOKKOS_INLINE_FUNCTION Experimental::QuadFloat round(Experimental::QuadFloat x) 
 KOKKOS_INLINE_FUNCTION Experimental::QuadFloat trunc(Experimental::QuadFloat x) { return Experimental::trunc(x); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — QuadFloat as parallel_reduce accumulator
+// ============================================================
+// Finite extrema: four-word half-ulp cascade from FLT_MAX —
+// (FLT_MAX, 2^103, 2^79, 2^55). Not leading-limb-only.
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::QuadFloat> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloat sum() {
+    return Experimental::QuadFloat(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloat prod() {
+    return Experimental::QuadFloat(1.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloat max() {
+    return Experimental::QuadFloat::from_bits(0xFF7FFFFFu, 0xF3000000u,
+                                              0xE7000000u, 0xDB000000u);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::QuadFloat min() {
+    return Experimental::QuadFloat::from_bits(0x7F7FFFFFu, 0x73000000u,
+                                              0x67000000u, 0x5B000000u);
+  }
+};
+}  // namespace Kokkos

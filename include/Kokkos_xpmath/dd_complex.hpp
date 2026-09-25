@@ -117,3 +117,19 @@ KOKKOS_INLINE_FUNCTION Experimental::DoubleDouble real(Experimental::DoubleDoubl
 KOKKOS_INLINE_FUNCTION Experimental::DoubleDouble imag(Experimental::DoubleDoubleComplex z) { return z.imag(); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — DoubleDoubleComplex
+// ============================================================
+// sum/prod only; max/min omitted (same convention as Kokkos::complex).
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::DoubleDoubleComplex> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDoubleComplex sum() {
+    return Experimental::DoubleDoubleComplex(0.0);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDoubleComplex prod() {
+    return Experimental::DoubleDoubleComplex(1.0);
+  }
+};
+}  // namespace Kokkos
