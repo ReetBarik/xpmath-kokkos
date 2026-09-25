@@ -5,6 +5,11 @@
 // vendor/xpmath/xp/ at the recorded upstream tag and retain their upstream
 // SPDX identifiers (see NOTICE.md). This file is only aliases and one-line
 // Kokkos:: forwards — no new arithmetic.
+//
+// Kokkos::complex<TripleFloat> does not instantiate (Kokkos 5.1
+// static_assert on std::is_floating_point, and alignas(24) is not a
+// power of two). The supported spelling is the standalone struct
+// aliased below. See docs/COMPLEX_INTEROP.md.
 
 // KOKKOS COMPATIBILITY WRAPPER for the standalone triple-float complex core.
 //

@@ -335,3 +335,84 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 3. Still bit-identity only — no oracle, no ulps. Do not hand-edit `vendor/`.
 4. K3 may merge in parallel with K4 development; serialise the merges.
 
+---
+
+## K4 — Kokkos::complex interop: decide, implement or document
+
+**Branch:** `k4-complex-interop` (from `main` @ `210cb4f`).
+
+**Outcome.** Closed, negative. `Kokkos::complex<T>` does not instantiate for
+`T` in {DoubleDouble, FloatFloat, QuadFloat, TripleFloat}, including the
+`Kokkos::Experimental` aliases (they name the same `xp::` types). The
+supported spelling is the standalone struct
+(`Kokkos::Experimental::*Complex`). No conversion API. Evidence and the
+compiler diagnostic are in `docs/COMPLEX_INTEROP.md`. The four wrapper
+notes in `include/Kokkos_xpmath/{dd,ff,qf,tf}_complex.hpp` point at that
+file. Suite size stays **11** (no new ctest target: the probe TU is
+ill-formed by design and is not registered).
+
+**Decision.** Do not force `Kokkos::complex<xp::Real>`. Kokkos 5.1.0
+(`KOKKOS_VERSION 50100`) rejects the specialization at
+
+```cpp
+static_assert(std::is_floating_point_v<RealType> && ...);
+```
+
+before `real()` / `imag()`, arithmetic, or `Kokkos::abs` on that
+specialization are usable. `std::is_floating_point_v<T>` is false for all
+four class types. GCC 13.3.0 reports that note for each of them.
+`TripleFloat` also fails `alignas(24)` under `KOKKOS_ENABLE_COMPLEX_ALIGN`
+because `sizeof` is 12 and 24 is not a power of two.
+
+**What landed**
+
+| path | change |
+|---|---|
+| `docs/COMPLEX_INTEROP.md` | measured negative, diagnostic, supported spelling |
+| `include/Kokkos_xpmath/{dd,ff,qf,tf}_complex.hpp` | note pointing at that decision |
+
+**Gate**
+
+```bash
+module use /soft/modulefiles && module load gcc/13.3.0 cmake/3.28.3
+export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LIBRARY_PATH
+cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
+cmake --build build -j16
+ctest --test-dir build --output-on-failure   # expect 11/11
+test -d include && test -d tests || { echo "FAIL: wrong cwd"; exit 1; }
+! grep -rn 'mpfr\|mpc_\|__float128' --include='*.cpp' --include='*.hpp' include/ tests/ \
+  || { echo "FAIL: oracle machinery present; see the governing rule"; exit 1; }
+```
+
+**Measured (2026-09-24, JLSE gcc/13.3.0, Kokkos 5.1.0 Serial quadmath install):**
+
+```
+ 1/11 Test  #1: vendor_fresh .....................   Passed    2.46 sec
+ 2/11 Test  #2: compile_smoke_dd_math ............   Passed    0.01 sec
+ 3/11 Test  #3: compile_smoke_dd_complex .........   Passed    0.00 sec
+ 4/11 Test  #4: compile_smoke_ff_math ............   Passed    0.00 sec
+ 5/11 Test  #5: compile_smoke_ff_complex .........   Passed    0.00 sec
+ 6/11 Test  #6: compile_smoke_qf_math ............   Passed    0.00 sec
+ 7/11 Test  #7: compile_smoke_qf_complex .........   Passed    0.00 sec
+ 8/11 Test  #8: compile_smoke_tf_math ............   Passed    0.00 sec
+ 9/11 Test  #9: compile_smoke_tf_complex .........   Passed    0.00 sec
+10/11 Test #10: reduction_test ...................   Passed    0.51 sec
+11/11 Test #11: atomic_test ......................   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 11
+```
+
+Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
+
+**What K5 must know**
+
+1. Complex values in the bit-identity campaign are the standalone
+   `xp::*Complex` / `Kokkos::Experimental::*Complex` structs. Compare
+   wrapper vs core in the same execution space. There is no
+   `Kokkos::complex<T>` path to test.
+2. K5 is the bit-identity campaign (63 ops × four backends). A device
+   result is wrapper-on-device vs core-on-device, never device-wrapper
+   vs host-core.
+3. Still bit-identity only. Do not hand-edit `vendor/`.
+4. Branch: `k5-bit-identity`, after this PR is on `main`.
+
