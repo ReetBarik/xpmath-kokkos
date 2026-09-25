@@ -189,3 +189,26 @@ KOKKOS_INLINE_FUNCTION Experimental::FloatFloat erfc(Experimental::FloatFloat x)
 KOKKOS_INLINE_FUNCTION Experimental::FloatFloat tgamma(Experimental::FloatFloat x){ return Experimental::tgamma(x); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — FloatFloat as parallel_reduce accumulator
+// ============================================================
+// Finite extrema fill the two-word FP32 expansion to the non-overlapping
+// half-ulp bound: (FLT_MAX, 2^(127-24)). Not (FLT_MAX, 0).
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::FloatFloat> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloat sum() {
+    return Experimental::FloatFloat(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloat prod() {
+    return Experimental::FloatFloat(1.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloat max() {
+    return Experimental::FloatFloat::from_bits(0xFF7FFFFFu, 0xF3000000u);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloat min() {
+    return Experimental::FloatFloat::from_bits(0x7F7FFFFFu, 0x73000000u);
+  }
+};
+}  // namespace Kokkos

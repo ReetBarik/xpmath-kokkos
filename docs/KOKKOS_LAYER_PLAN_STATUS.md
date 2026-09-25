@@ -160,3 +160,89 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
    the 9/9 gate above is green. Branch: `k2-reduction-identity`.
 4. Still bit-identity only — no oracle, no ulps, no host quad-precision types
    outside `vendor/`.
+
+---
+
+## K2 — `Kokkos::reduction_identity` specializations
+
+**Branch:** `k2-reduction-identity`
+
+**Outcome.** Green. All eight wrappers specialize `Kokkos::reduction_identity`
+so they work as `parallel_reduce` accumulators. Real types expose
+`sum` / `prod` / `max` / `min`; complex types expose `sum` / `prod` only
+(Kokkos::complex convention). New ctest target `reduction_test` asserts
+Serial-space bit-identity against a serial fold through the core `xp::`
+type for every type × {sum, prod} × N ∈ {0, 1, 2, 10000}. Suite size is
+exactly **10** (`vendor_fresh` + 8 smokes + `reduction_test`).
+
+**What landed**
+
+| path | change |
+|---|---|
+| `include/Kokkos_xpmath/{dd,ff,qf,tf}_math.hpp` | `reduction_identity` with sum/prod/max/min |
+| `include/Kokkos_xpmath/{dd,ff,qf,tf}_complex.hpp` | `reduction_identity` with sum/prod only |
+| `tests/reduction_test.cpp` | Serial bit-identity gate; device envelope noted in header |
+| `CMakeLists.txt` | wire `reduction_test` ctest target |
+
+**max/min extrema (format-derived, not leading-limb-only)**
+
+Half-ulp non-overlapping cascade from the limb type's finite max:
+
+| type | most-positive finite limbs |
+|---|---|
+| DD | `(DBL_MAX, 2^970)` via `from_bits(0x7FEF…FFFF, 0x7C9000…00)` |
+| FF | `(FLT_MAX, 2^103)` via `from_bits(0x7F7FFFFF, 0x73000000)` |
+| TF | `(FLT_MAX, 2^103, 2^79)` |
+| QF | `(FLT_MAX, 2^103, 2^79, 2^55)` |
+
+`max()` returns the negation (most-negative finite); `min()` returns the
+most-positive. Constructors are not constexpr, so the methods are
+`KOKKOS_FORCEINLINE_FUNCTION static` without `constexpr`.
+
+**N=0 coverage.** Explicitly required and exercised for all eight types ×
+both sum and prod (identity must equal zero / one). Also covered by the
+direct `CHECK(reduction_identity<T>::sum() == T(0))` assertions.
+
+**Gate**
+
+```bash
+module use /soft/modulefiles && module load gcc/13.3.0 cmake/3.28.3
+export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LIBRARY_PATH
+cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
+cmake --build build -j16
+ctest --test-dir build --output-on-failure   # expect 10/10
+test -d include && test -d tests || { echo "FAIL: wrong cwd"; exit 1; }
+! grep -rn 'mpfr\|mpc_\|__float128' --include='*.cpp' --include='*.hpp' include/ tests/ \
+  || { echo "FAIL: oracle machinery present; see the governing rule"; exit 1; }
+```
+
+**Measured (2026-09-24, JLSE gcc/13.3.0, Kokkos Serial quadmath install):**
+
+```
+ 1/10 Test  #1: vendor_fresh .....................   Passed
+ 2/10 Test  #2: compile_smoke_dd_math ............   Passed
+ 3/10 Test  #3: compile_smoke_dd_complex .........   Passed
+ 4/10 Test  #4: compile_smoke_ff_math ............   Passed
+ 5/10 Test  #5: compile_smoke_ff_complex .........   Passed
+ 6/10 Test  #6: compile_smoke_qf_math ............   Passed
+ 7/10 Test  #7: compile_smoke_qf_complex .........   Passed
+ 8/10 Test  #8: compile_smoke_tf_math ............   Passed
+ 9/10 Test  #9: compile_smoke_tf_complex .........   Passed
+10/10 Test #10: reduction_test ...................   Passed
+
+100% tests passed, 0 tests failed out of 10
+```
+
+Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
+
+**What K3 must know**
+
+1. The eight types compile as `parallel_reduce` accumulators (Sum/Prod) on
+   Serial. Max/Min identities exist for the four reals; they are not yet
+   covered by a dedicated ctest (K2 gated sum/prod only).
+2. K3 needs atomics — compare-and-swap over the multi-word expansion — so
+   `Kokkos::atomic_add` (etc.) works on device Views of these types. Without
+   that, scatter/atomic update patterns will not compile or will tear.
+3. Still bit-identity only — no oracle, no ulps. Do not hand-edit `vendor/`.
+4. K3 branch: `k3-atomics`. May develop in parallel with K4; serialise merges.
+

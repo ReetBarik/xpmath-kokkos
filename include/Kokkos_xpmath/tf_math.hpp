@@ -187,3 +187,28 @@ KOKKOS_INLINE_FUNCTION Experimental::TripleFloat round(Experimental::TripleFloat
 KOKKOS_INLINE_FUNCTION Experimental::TripleFloat trunc(Experimental::TripleFloat x) { return Experimental::trunc(x); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — TripleFloat as parallel_reduce accumulator
+// ============================================================
+// Finite extrema: three-word half-ulp cascade from FLT_MAX —
+// (FLT_MAX, 2^103, 2^79). Not leading-limb-only.
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::TripleFloat> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloat sum() {
+    return Experimental::TripleFloat(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloat prod() {
+    return Experimental::TripleFloat(1.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloat max() {
+    return Experimental::TripleFloat::from_bits(0xFF7FFFFFu, 0xF3000000u,
+                                                0xE7000000u);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::TripleFloat min() {
+    return Experimental::TripleFloat::from_bits(0x7F7FFFFFu, 0x73000000u,
+                                                0x67000000u);
+  }
+};
+}  // namespace Kokkos

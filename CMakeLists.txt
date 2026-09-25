@@ -86,8 +86,7 @@ set_tests_properties(vendor_fresh PROPERTIES
   TIMEOUT 120
 )
 
-# Per-header compile smokes (ctest targets). Suite size is exactly 9:
-# vendor_fresh + 8 compile_smoke_*.
+# Per-header compile smokes (ctest targets).
 set(_XPMATH_KOKKOS_SMOKES
   dd_math
   dd_complex
@@ -105,7 +104,13 @@ foreach(_name IN LISTS _XPMATH_KOKKOS_SMOKES)
   set_tests_properties(compile_smoke_${_name} PROPERTIES LABELS "host;compile")
 endforeach()
 
-# Gate extras from K1: build-only TUs (not ctest — keep count at 9).
+# K2: reduction_identity bit-identity (Serial). Suite = vendor_fresh + 8 smokes + this.
+add_executable(reduction_test tests/reduction_test.cpp)
+target_link_libraries(reduction_test PRIVATE xpmath_kokkos::xpmath_kokkos)
+add_test(NAME reduction_test COMMAND reduction_test)
+set_tests_properties(reduction_test PROPERTIES LABELS "host;reduction")
+
+# Gate extras from K1: build-only TUs (not ctest).
 add_executable(compile_gate_all_forwards tests/compile_gate_all_forwards.cpp)
 target_link_libraries(compile_gate_all_forwards PRIVATE xpmath_kokkos::xpmath_kokkos)
 

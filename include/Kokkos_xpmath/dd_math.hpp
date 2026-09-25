@@ -196,3 +196,35 @@ KOKKOS_INLINE_FUNCTION Experimental::DoubleDouble erfc(Experimental::DoubleDoubl
 KOKKOS_INLINE_FUNCTION Experimental::DoubleDouble tgamma(Experimental::DoubleDouble x){ return Experimental::tgamma(x); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — DoubleDouble as parallel_reduce accumulator
+// ============================================================
+// sum/prod are the additive/multiplicative identities. max/min are the
+// most-negative / most-positive *finite* values of the two-word format
+// (half-ulp cascade), not std::numeric_limits<double> on the leading limb
+// alone and not ±inf. Constructors are not constexpr, so these methods are
+// not marked constexpr.
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::DoubleDouble> {
+  // Finite max: (DBL_MAX, 2^(1023-53)) = (DBL_MAX, half-ulp(DBL_MAX)).
+  // Bits: 0x7FEFFFFFFFFFFFFF, 0x7C90000000000000.
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDouble sum() {
+    return Experimental::DoubleDouble(0.0);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDouble prod() {
+    return Experimental::DoubleDouble(1.0);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDouble max() {
+    // most negative finite — identity for Max<>
+    return Experimental::DoubleDouble::from_bits(0xFFEFFFFFFFFFFFFFULL,
+                                                 0xFC90000000000000ULL);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::DoubleDouble min() {
+    // most positive finite — identity for Min<>
+    return Experimental::DoubleDouble::from_bits(0x7FEFFFFFFFFFFFFFULL,
+                                                 0x7C90000000000000ULL);
+  }
+};
+}  // namespace Kokkos

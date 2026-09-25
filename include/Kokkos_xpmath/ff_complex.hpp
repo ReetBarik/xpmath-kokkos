@@ -117,3 +117,19 @@ KOKKOS_INLINE_FUNCTION Experimental::FloatFloat real(Experimental::FloatFloatCom
 KOKKOS_INLINE_FUNCTION Experimental::FloatFloat imag(Experimental::FloatFloatComplex z) { return z.imag(); }
 // clang-format on
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::reduction_identity — FloatFloatComplex
+// ============================================================
+// sum/prod only; max/min omitted (same convention as Kokkos::complex).
+namespace Kokkos {
+template <>
+struct reduction_identity<Experimental::FloatFloatComplex> {
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloatComplex sum() {
+    return Experimental::FloatFloatComplex(0.0f);
+  }
+  KOKKOS_FORCEINLINE_FUNCTION static Experimental::FloatFloatComplex prod() {
+    return Experimental::FloatFloatComplex(1.0f);
+  }
+};
+}  // namespace Kokkos
