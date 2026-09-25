@@ -228,3 +228,21 @@ struct reduction_identity<Experimental::DoubleDouble> {
   }
 };
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::atomic_add — DoubleDouble (CAS over the 16-byte expansion)
+// ============================================================
+// See impl/atomic_cas_add.hpp for the determinism caveat and the memcpy-based
+// integer view (strict-aliasing safe). Without this overload, concurrent
+// updates tear or fail to compile on targets without a native 16-byte atomic.
+#include <Kokkos_xpmath/impl/atomic_cas_add.hpp>
+namespace Kokkos {
+KOKKOS_INLINE_FUNCTION void atomic_add(Experimental::DoubleDouble* dest,
+                                       Experimental::DoubleDouble const& val) {
+  Impl::xpmath_atomic::atomic_add_cas(dest, val);
+}
+KOKKOS_INLINE_FUNCTION Experimental::DoubleDouble atomic_fetch_add(
+    Experimental::DoubleDouble* dest, Experimental::DoubleDouble const& val) {
+  return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+}
+}  // namespace Kokkos

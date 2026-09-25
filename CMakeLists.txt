@@ -110,6 +110,12 @@ target_link_libraries(reduction_test PRIVATE xpmath_kokkos::xpmath_kokkos)
 add_test(NAME reduction_test COMMAND reduction_test)
 set_tests_properties(reduction_test PROPERTIES LABELS "host;reduction")
 
+# K3: atomic_add CAS bit-identity + exact-integer lost-update gate (Serial).
+add_executable(atomic_test tests/atomic_test.cpp)
+target_link_libraries(atomic_test PRIVATE xpmath_kokkos::xpmath_kokkos)
+add_test(NAME atomic_test COMMAND atomic_test)
+set_tests_properties(atomic_test PROPERTIES LABELS "host;atomics")
+
 # Gate extras from K1: build-only TUs (not ctest).
 add_executable(compile_gate_all_forwards tests/compile_gate_all_forwards.cpp)
 target_link_libraries(compile_gate_all_forwards PRIVATE xpmath_kokkos::xpmath_kokkos)

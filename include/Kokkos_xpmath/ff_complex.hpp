@@ -133,3 +133,26 @@ struct reduction_identity<Experimental::FloatFloatComplex> {
   }
 };
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::atomic_add — FloatFloatComplex (componentwise on re/im)
+// ============================================================
+// Each component uses the real-type CAS over its full expansion (see
+// ff_math.hpp / impl/atomic_cas_add.hpp). Determinism caveat applies per
+// component: order-dependent last-limb differences are not a defect.
+namespace Kokkos {
+KOKKOS_INLINE_FUNCTION void atomic_add(
+    Experimental::FloatFloatComplex* dest,
+    Experimental::FloatFloatComplex const& val) {
+  Kokkos::atomic_add(&dest->re, val.re);
+  Kokkos::atomic_add(&dest->im, val.im);
+}
+KOKKOS_INLINE_FUNCTION Experimental::FloatFloatComplex atomic_fetch_add(
+    Experimental::FloatFloatComplex* dest,
+    Experimental::FloatFloatComplex const& val) {
+  Experimental::FloatFloatComplex old;
+  old.re = Kokkos::atomic_fetch_add(&dest->re, val.re);
+  old.im = Kokkos::atomic_fetch_add(&dest->im, val.im);
+  return old;
+}
+}  // namespace Kokkos

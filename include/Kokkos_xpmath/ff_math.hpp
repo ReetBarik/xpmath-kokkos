@@ -212,3 +212,20 @@ struct reduction_identity<Experimental::FloatFloat> {
   }
 };
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::atomic_add — FloatFloat (CAS over the 8-byte expansion)
+// ============================================================
+// See impl/atomic_cas_add.hpp for the determinism caveat and the memcpy-based
+// integer view (strict-aliasing safe).
+#include <Kokkos_xpmath/impl/atomic_cas_add.hpp>
+namespace Kokkos {
+KOKKOS_INLINE_FUNCTION void atomic_add(Experimental::FloatFloat* dest,
+                                       Experimental::FloatFloat const& val) {
+  Impl::xpmath_atomic::atomic_add_cas(dest, val);
+}
+KOKKOS_INLINE_FUNCTION Experimental::FloatFloat atomic_fetch_add(
+    Experimental::FloatFloat* dest, Experimental::FloatFloat const& val) {
+  return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+}
+}  // namespace Kokkos

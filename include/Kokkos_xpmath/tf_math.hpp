@@ -212,3 +212,22 @@ struct reduction_identity<Experimental::TripleFloat> {
   }
 };
 }  // namespace Kokkos
+
+// ============================================================
+// Kokkos::atomic_add — TripleFloat (CAS over the 12-byte expansion)
+// ============================================================
+// See impl/atomic_cas_add.hpp for the determinism caveat and the memcpy-based
+// integer view (strict-aliasing safe). TF is 12 bytes — no native CAS width —
+// so Kokkos/desul performs an address-locked compare-exchange on the 3×uint32
+// word view.
+#include <Kokkos_xpmath/impl/atomic_cas_add.hpp>
+namespace Kokkos {
+KOKKOS_INLINE_FUNCTION void atomic_add(Experimental::TripleFloat* dest,
+                                       Experimental::TripleFloat const& val) {
+  Impl::xpmath_atomic::atomic_add_cas(dest, val);
+}
+KOKKOS_INLINE_FUNCTION Experimental::TripleFloat atomic_fetch_add(
+    Experimental::TripleFloat* dest, Experimental::TripleFloat const& val) {
+  return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+}
+}  // namespace Kokkos
