@@ -1,0 +1,115 @@
+===========================================================
+ MI250 bit-identity (K5)
+ date      : 2026-09-26T21:25:35+00:00
+ host      : amdgpu04
+ repo      : /home/rbarik/xpmath-kokkos
+ commit    : 0272dbe99af685706e5e2ce5b0dd0e05b6f64646
+ cobalt id : 1004486
+ build dir : /home/rbarik/xpmath-kokkos/build-mi250-bit-identity
+ kokkos    : /home/rbarik/xpm_device/kokkos-hip-gfx90a
+ log       : /home/rbarik/xpmath-kokkos/validation/mi250/logs/mi250_bit_identity_20260926_212535.log
+===========================================================
+  module load gcc/13.3.0
+  module load cmake/3.28.3
+  module load rocm/7.0.2
+
+--- provenance ---
+      Marketing Name:          AMD EPYC 7713 64-Core Processor    
+      Marketing Name:          AMD EPYC 7713 64-Core Processor    
+      Name:                    gfx90a                             
+      Marketing Name:          AMD Instinct MI250X / MI250        
+      Name:                    gfx90a                             
+      Marketing Name:          AMD Instinct MI250X / MI250        
+      Name:                    gfx90a                             
+      Marketing Name:          AMD Instinct MI250X / MI250        
+    HIP version: 7.0.51831-7c9236b16
+    AMD clang version 20.0.0git (https://github.com/RadeonOpenCompute/llvm-project roc-7.0.2 25385 0dda3adf56766e0aac0d03173ced3759e1ffecbc)
+    Target: x86_64-unknown-linux-gnu
+    Thread model: posix
+    InstalledDir: /soft/compilers/rocm/rocm-7.0.2/lib/llvm/bin
+    g++ (GCC) 13.3.0
+
+--- configure + build ---
+-- The CXX compiler identification is Clang 20.0.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /soft/compilers/rocm/rocm-7.0.2/bin/hipcc - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Performing Test HIP_CLANG_SUPPORTS_PARALLEL_JOBS
+-- Performing Test HIP_CLANG_SUPPORTS_PARALLEL_JOBS - Success
+-- Enabled Kokkos devices: SERIAL;HIP
+-- Configuring done (4.8s)
+-- Generating done (0.2s)
+-- Build files have been written to: /home/rbarik/xpmath-kokkos/build-mi250-bit-identity
+[ 50%] Building CXX object CMakeFiles/bit_identity_test.dir/tests/bit_identity_test.cpp.o
+In file included from /home/rbarik/xpmath-kokkos/tests/bit_identity_test.cpp:29:
+In file included from /home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/Kokkos_xpmath.hpp:11:
+In file included from /home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/dd_math.hpp:238:
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: warning: first argument in call to 'memcpy' is a pointer to non-trivially copyable type 'xp::DoubleDouble' [-Wnontrivial-memcall]
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:97:19: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::from_bits<xp::DoubleDouble>' requested here
+   97 |     T const cur = from_bits<T>(assumed);
+      |                   ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/dd_math.hpp:246:31: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::atomic_fetch_add_cas<xp::DoubleDouble>' requested here
+  246 |   return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+      |                               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: note: explicitly cast the pointer to silence this warning
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+      |               (void*)
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: warning: first argument in call to 'memcpy' is a pointer to non-trivially copyable type 'xp::FloatFloat' [-Wnontrivial-memcall]
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:97:19: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::from_bits<xp::FloatFloat>' requested here
+   97 |     T const cur = from_bits<T>(assumed);
+      |                   ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/ff_math.hpp:229:31: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::atomic_fetch_add_cas<xp::FloatFloat>' requested here
+  229 |   return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+      |                               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: note: explicitly cast the pointer to silence this warning
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+      |               (void*)
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: warning: first argument in call to 'memcpy' is a pointer to non-trivially copyable type 'xp::QuadFloat' [-Wnontrivial-memcall]
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:97:19: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::from_bits<xp::QuadFloat>' requested here
+   97 |     T const cur = from_bits<T>(assumed);
+      |                   ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/qf_math.hpp:232:31: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::atomic_fetch_add_cas<xp::QuadFloat>' requested here
+  232 |   return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+      |                               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: note: explicitly cast the pointer to silence this warning
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+      |               (void*)
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: warning: first argument in call to 'memcpy' is a pointer to non-trivially copyable type 'xp::TripleFloat' [-Wnontrivial-memcall]
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:97:19: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::from_bits<xp::TripleFloat>' requested here
+   97 |     T const cur = from_bits<T>(assumed);
+      |                   ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/tf_math.hpp:231:31: note: in instantiation of function template specialization 'Kokkos::Impl::xpmath_atomic::atomic_fetch_add_cas<xp::TripleFloat>' requested here
+  231 |   return Impl::xpmath_atomic::atomic_fetch_add_cas(dest, val);
+      |                               ^
+/home/rbarik/xpmath-kokkos/include/Kokkos_xpmath/impl/atomic_cas_add.hpp:72:15: note: explicitly cast the pointer to silence this warning
+   72 |   std::memcpy(&v, &bits, sizeof(T));
+      |               ^
+      |               (void*)
+4 warnings generated when compiling for host.
+[100%] Linking CXX executable bit_identity_test
+[100%] Built target bit_identity_test
+
+--- run bit_identity_test ---
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+grid: 1700 real, 1780 complex points
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+bit_identity_test exit: 0
+log: /home/rbarik/xpmath-kokkos/validation/mi250/logs/mi250_bit_identity_20260926_212535.log
+COBALT_JOBID=1004486

@@ -116,6 +116,20 @@ target_link_libraries(atomic_test PRIVATE xpmath_kokkos::xpmath_kokkos)
 add_test(NAME atomic_test COMMAND atomic_test)
 set_tests_properties(atomic_test PROPERTIES LABELS "host;atomics")
 
+# K5: bit-identity over the v0.2.0 sweep grid (Serial on login-node ctest;
+# Cuda/HIP via Cobalt jobs that rebuild against those Kokkos installs).
+add_executable(bit_identity_test tests/bit_identity_test.cpp)
+target_include_directories(bit_identity_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/bit_identity)
+target_compile_definitions(bit_identity_test PRIVATE
+  XPMATH_KOKKOS_SWEEP_GRID="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/sweep_grid.csv"
+  XPMATH_ENABLE_DIAGNOSTICS=0)
+target_link_libraries(bit_identity_test PRIVATE xpmath_kokkos::xpmath_kokkos)
+add_test(NAME bit_identity_test COMMAND bit_identity_test)
+set_tests_properties(bit_identity_test PROPERTIES
+  LABELS "host;bit_identity"
+  TIMEOUT 7200)
+
 # Gate extras from K1: build-only TUs (not ctest).
 add_executable(compile_gate_all_forwards tests/compile_gate_all_forwards.cpp)
 target_link_libraries(compile_gate_all_forwards PRIVATE xpmath_kokkos::xpmath_kokkos)
