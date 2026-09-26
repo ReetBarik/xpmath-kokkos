@@ -515,3 +515,90 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 3. Still bit-identity only. Do not hand-edit `vendor/`. Do not start K6 until
    this PR is on `main`. Branch: `k6-type-swap`.
 
+
+---
+
+## K6 — Adoption example: type swap
+
+**Branch:** `k6-type-swap` (from `main` @ `ac7b30d`).
+
+**Outcome.** Green. One adoption example shows the type-swap pattern: change
+two aliases, keep calling `Kokkos::exp` / `sqrt` / … the same way, and use
+the standalone complex struct (K4). New ctest target `type_swap_smoke` runs
+the example. Suite size is exactly **13** (`12` from K5 + `type_swap_smoke`).
+No timing demos, no accuracy columns, no demo suite.
+
+**What landed**
+
+| path | change |
+|---|---|
+| `examples/type_swap_kernel.cpp` | small Serial kernel; aliases + header comment |
+| `examples/README.md` | two sentences pointing at the header and COMPLEX_INTEROP |
+| `CMakeLists.txt` | wire `type_swap_smoke` ctest target (TIMEOUT 60) |
+| `examples/.gitkeep` | removed (directory now has real content) |
+
+**Aliases (supported spelling).** Precision is selected only by:
+
+```cpp
+using real_t    = Kokkos::Experimental::DoubleDouble;
+using complex_t = Kokkos::Experimental::DoubleDoubleComplex;
+```
+
+The header comment shows the `Kokkos::complex<double>` spelling this
+replaces and the analogous host-quadmath spelling side by side, and states
+the three call-site differences that do not survive the swap: (1) no
+conversion to/from `std::complex<double>`; (2) `real()` / `imag()` return a
+copy — writes go to `z.re` / `z.im`; (3) `DoubleDoubleComplex` is 32 bytes,
+not the 16 of `Kokkos::complex<double>`. The `__float128` token appears only
+in that `examples/` comment (oracle gate greps `include/` and `tests/` only).
+
+**libquadmath.** The smoke TU does not include quadmath headers and has no
+quadmath symbols. `ldd` still shows `libquadmath.so.0` because the login-node
+Kokkos install (`kokkos-install-quadmath`) was built with
+`Kokkos_ENABLE_LIBQUADMATH` and exports `Kokkos::LIBQUADMATH` — every binary
+in this tree that links `Kokkos::kokkos` inherits it. K7 CI builds Kokkos
+without that TPL.
+
+**Gate**
+
+```bash
+module use /soft/modulefiles && module load gcc/13.3.0 cmake/3.28.3
+export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LIBRARY_PATH
+cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
+cmake --build build -j16
+ctest --test-dir build --output-on-failure   # expect 13/13
+test -d include && test -d tests || { echo "FAIL: wrong cwd"; exit 1; }
+! grep -rn 'mpfr\|mpc_\|__float128' --include='*.cpp' --include='*.hpp' include/ tests/ \
+  || { echo "FAIL: oracle machinery present; see the governing rule"; exit 1; }
+```
+
+**Measured (2026-09-26, JLSE gcc/13.3.0, Kokkos Serial quadmath install):**
+
+```
+ 1/13 Test  #1: vendor_fresh .....................   Passed    1.86 sec
+ 2/13 Test  #2: compile_smoke_dd_math ............   Passed    0.01 sec
+ 3/13 Test  #3: compile_smoke_dd_complex .........   Passed    0.00 sec
+ 4/13 Test  #4: compile_smoke_ff_math ............   Passed    0.00 sec
+ 5/13 Test  #5: compile_smoke_ff_complex .........   Passed    0.00 sec
+ 6/13 Test  #6: compile_smoke_qf_math ............   Passed    0.00 sec
+ 7/13 Test  #7: compile_smoke_qf_complex .........   Passed    0.00 sec
+ 8/13 Test  #8: compile_smoke_tf_math ............   Passed    0.00 sec
+ 9/13 Test  #9: compile_smoke_tf_complex .........   Passed    0.00 sec
+10/13 Test #10: reduction_test ...................   Passed    0.52 sec
+11/13 Test #11: atomic_test ......................   Passed    0.02 sec
+12/13 Test #12: bit_identity_test ................   Passed   52.96 sec
+13/13 Test #13: type_swap_smoke ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 13
+```
+
+Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
+
+**What K7 must know**
+
+1. Suite size is exactly **13**. K7's build-and-test lane must assert that
+   count so a silently unregistered target fails CI.
+2. K7 adds GitHub Actions (`vendor-fresh`, `no-oracle-guard`,
+   `build-and-test`, `device-nvcc`, `device-hip`). Build Kokkos without
+   `Kokkos_ENABLE_LIBQUADMATH`. Do not start K7 until this PR is on `main`.
+3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k7-ci`.

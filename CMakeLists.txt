@@ -136,3 +136,12 @@ target_link_libraries(compile_gate_all_forwards PRIVATE xpmath_kokkos::xpmath_ko
 
 add_executable(compile_gate_real_imag tests/compile_gate_real_imag.cpp)
 target_link_libraries(compile_gate_real_imag PRIVATE xpmath_kokkos::xpmath_kokkos)
+
+# K6: type-swap adoption example. Fast smoke so the TU cannot silently stop
+# compiling. Suite = 12 (K5) + type_swap_smoke = 13. No demo / timing suite.
+add_executable(type_swap_smoke examples/type_swap_kernel.cpp)
+target_link_libraries(type_swap_smoke PRIVATE xpmath_kokkos::xpmath_kokkos)
+add_test(NAME type_swap_smoke COMMAND type_swap_smoke)
+set_tests_properties(type_swap_smoke PROPERTIES
+  LABELS "host;example"
+  TIMEOUT 60)
