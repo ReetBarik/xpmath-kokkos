@@ -416,3 +416,102 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 3. Still bit-identity only. Do not hand-edit `vendor/`.
 4. Branch: `k5-bit-identity`, after this PR is on `main`.
 
+---
+
+## K5 — Bit-identity: the wrapper changes nothing
+
+**Branch:** `k5-bit-identity` (from `main` @ `0272dbe`).
+
+**Outcome.** Green. Zero differing cells on all three execution spaces.
+`tests/bit_identity_test.cpp` compares raw limb bit patterns (including NaN
+payloads) for all four backends × 63 operations over the grid copied from
+xpmath `v0.2.0`. Suite size is exactly **12** (`vendor_fresh` + 8 smokes +
+`reduction_test` + `atomic_test` + `bit_identity_test`). Cuda and HIP are
+Cobalt jobs, not extra login-node ctest rows.
+
+**What landed**
+
+| path | change |
+|---|---|
+| `tests/data/sweep_grid.csv` + `PROVENANCE.txt` | byte copy of xpmath `v0.2.0` grid |
+| `tests/bit_identity/sweep_{ops_core,ops_wrap,inputs}.hpp` | op inventory + evaluators |
+| `tests/bit_identity_test.cpp` | Serial / Cuda / HIP bit-identity gate |
+| `CMakeLists.txt` | `bit_identity_test` ctest target (TIMEOUT 7200) |
+| `validation/a100/run_a100_bit_identity.sh` | Cobalt A100 job script |
+| `validation/mi250/run_mi250_bit_identity.sh` | Cobalt MI250 job script |
+| `validation/{a100,mi250}/logs/*_bit_identity_*.log` | committed device run logs |
+
+**Pairing (stated in the test header).** Serial: wrapper inside
+`Kokkos::parallel_for` versus core on the host. Cuda / HIP: both calls inside
+the same kernel (wrapper-on-device vs core-on-device). Never device-wrapper vs
+host-core. Complex values are the standalone `xp::*Complex` /
+`Kokkos::Experimental::*Complex` structs.
+
+**Device job IDs**
+
+| arch | queue | node | job ID | exit |
+|---|---|---|---|---|
+| A100 (sm_80) | `gpu_a100` | gpu07 | **1004485** | 0 |
+| MI250 (gfx90a) | `gpu_amd_mi250` | amdgpu04 | **1004486** | 0 |
+
+**Gate**
+
+```bash
+module use /soft/modulefiles && module load gcc/13.3.0 cmake/3.28.3
+export LD_LIBRARY_PATH=/soft/compilers/gcc/13.3.0/x86_64-suse-linux/lib64:$LD_LIBRARY_PATH
+cmake -B build -DCMAKE_PREFIX_PATH=$HOME/kokkos-install-quadmath
+cmake --build build -j16
+ctest --test-dir build --output-on-failure   # expect 12/12
+test -d include && test -d tests || { echo "FAIL: wrong cwd"; exit 1; }
+! grep -rn 'mpfr\|mpc_\|__float128' --include='*.cpp' --include='*.hpp' include/ tests/ \
+  || { echo "FAIL: oracle machinery present; see the governing rule"; exit 1; }
+```
+
+**Measured (2026-09-26, JLSE gcc/13.3.0)**
+
+Serial login-node ctest (`kokkos-install-quadmath`):
+
+```
+ 1/12 Test  #1: vendor_fresh .....................   Passed
+ 2/12 Test  #2: compile_smoke_dd_math ............   Passed
+ 3/12 Test  #3: compile_smoke_dd_complex .........   Passed
+ 4/12 Test  #4: compile_smoke_ff_math ............   Passed
+ 5/12 Test  #5: compile_smoke_ff_complex .........   Passed
+ 6/12 Test  #6: compile_smoke_qf_math ............   Passed
+ 7/12 Test  #7: compile_smoke_qf_complex .........   Passed
+ 8/12 Test  #8: compile_smoke_tf_math ............   Passed
+ 9/12 Test  #9: compile_smoke_tf_complex .........   Passed
+10/12 Test #10: reduction_test ...................   Passed
+11/12 Test #11: atomic_test ......................   Passed
+12/12 Test #12: bit_identity_test ................   Passed   53.18 sec
+
+100% tests passed, 0 tests failed out of 12
+```
+
+Device runs (both `both_in_kernel=yes`, zero differing cells):
+
+```
+# A100 job 1004485
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# MI250 job 1004486
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+```
+
+Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
+
+**What K6 must know**
+
+1. Bit-identity holds on Serial, A100, and MI250 for the v0.2.0 grid. The
+   wrapper is a pure forward on that evidence.
+2. K6 is the type-swap adoption example only — `examples/type_swap_kernel.cpp`
+   plus a fast `type_swap_smoke` ctest. Do **not** recover the eight xpmath
+   demos. Show the complex alias switch
+   (`Kokkos::Experimental::DoubleDoubleComplex`, not `Kokkos::complex<DoubleDouble>`),
+   including the three call-site differences recorded in the K6 plan section.
+   Suite size becomes **13**.
+3. Still bit-identity only. Do not hand-edit `vendor/`. Do not start K6 until
+   this PR is on `main`. Branch: `k6-type-swap`.
+

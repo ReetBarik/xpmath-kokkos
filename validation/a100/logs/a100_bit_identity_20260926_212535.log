@@ -1,0 +1,65 @@
+===========================================================
+ A100 bit-identity (K5)
+ date      : 2026-09-26T21:25:35+00:00
+ host      : gpu07
+ repo      : /home/rbarik/xpmath-kokkos
+ commit    : 0272dbe99af685706e5e2ce5b0dd0e05b6f64646
+ cobalt id : 1004485
+ build dir : /home/rbarik/xpmath-kokkos/build-a100-bit-identity
+ kokkos    : /home/rbarik/kokkos-install-cuda-sm80-quadmath
+ log       : /home/rbarik/xpmath-kokkos/validation/a100/logs/a100_bit_identity_20260926_212535.log
+===========================================================
+  module load gcc/13.3.0
+  module load cmake/3.28.3
+  module load cuda/12.9.1
+
+--- provenance ---
+    Sat Sep 26 21:25:35 2026       
+    +-----------------------------------------------------------------------------------------+
+    | NVIDIA-SMI 610.57.04              KMD Version: 610.57.04     CUDA UMD Version: 13.3     |
+    +-----------------------------------------+------------------------+----------------------+
+    | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+    | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+    |                                         |                        |               MIG M. |
+    |=========================================+========================+======================|
+    |   0  NVIDIA A100-PCIE-40GB          Off |   00000000:43:00.0 Off |                    0 |
+    | N/A   22C    P0             32W /  250W |       0MiB /  40960MiB |      0%      Default |
+    |                                         |                        |             Disabled |
+    +-----------------------------------------+------------------------+----------------------+
+    
+    +-----------------------------------------------------------------------------------------+
+    | Processes:                                                                              |
+    nvcc: NVIDIA (R) Cuda compiler driver
+    Copyright (c) 2005-2025 NVIDIA Corporation
+    Built on Tue_May_27_02:21:03_PDT_2025
+    Cuda compilation tools, release 12.9, V12.9.86
+    Build cuda_12.9.r12.9/compiler.36037853_0
+    g++ (GCC) 13.3.0
+
+--- configure + build ---
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /home/rbarik/kokkos-install-cuda-sm80-quadmath/bin/nvcc_wrapper - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found CUDAToolkit: /soft/compilers/cuda/cuda-12.9.1/targets/x86_64-linux/include (found version "12.9.86") 
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Enabled Kokkos devices: SERIAL;CUDA
+-- Configuring done (5.8s)
+-- Generating done (0.2s)
+-- Build files have been written to: /home/rbarik/xpmath-kokkos/build-a100-bit-identity
+[ 50%] Building CXX object CMakeFiles/bit_identity_test.dir/tests/bit_identity_test.cpp.o
+[100%] Linking CXX executable bit_identity_test
+[100%] Built target bit_identity_test
+
+--- run bit_identity_test ---
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+grid: 1700 real, 1780 complex points
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+bit_identity_test exit: 0
+log: /home/rbarik/xpmath-kokkos/validation/a100/logs/a100_bit_identity_20260926_212535.log
+COBALT_JOBID=1004485

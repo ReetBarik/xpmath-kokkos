@@ -1,0 +1,12 @@
+# Provenance for tests/data/sweep_grid.csv
+#
+# Copied byte-for-byte from xpmath at tag v0.2.0. Do not regenerate.
+# The grid is the shared input manifest whose `point` column the xpmath
+# sweep baseline indexes; regenerating it here would create a second grid.
+#
+repository: https://github.com/ReetBarik/xpmath.git
+tag: v0.2.0
+commit: 669aa6905f0d4900950a1308e6efa02a1d1d4257
+source_path: validation/sweep/sweep_grid.csv
+sha256: 941b760e2b20a438e68c1ecdc2f045ec5007864ca5a09aa9e5a5dfff14911fa6
+copied_utc: 2026-09-26T21:16:03Z
