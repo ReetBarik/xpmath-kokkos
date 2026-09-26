@@ -58,10 +58,12 @@ jobs:
     name: build-and-test
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    env:
-      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
     steps:
       - uses: actions/checkout@v4
+
+      # runner.temp is not a valid context in job-level env. Set it here.
+      - name: Set Kokkos install prefix
+        run: echo "KOKKOS_PREFIX=${RUNNER_TEMP}/kokkos-install" >> "$GITHUB_ENV"
 
       - name: Install toolchain
         run: |
@@ -138,13 +140,13 @@ jobs:
     timeout-minutes: 180
     container: nvidia/cuda:12.9.2-devel-ubuntu24.04
     env:
-      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
       DEVICE_SPACE: Cuda
     steps:
       - name: Install git and cmake
         run: |
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++
+          echo "KOKKOS_PREFIX=${RUNNER_TEMP}/kokkos-install" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - name: Cache Kokkos 5.1 CUDA
         id: kokkos-cache
@@ -186,13 +188,13 @@ jobs:
     timeout-minutes: 180
     container: rocm/dev-ubuntu-24.04:latest
     env:
-      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
       DEVICE_SPACE: HIP
     steps:
       - name: Install git and cmake
         run: |
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++
+          echo "KOKKOS_PREFIX=${RUNNER_TEMP}/kokkos-install" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - name: Cache Kokkos 5.1 HIP
         id: kokkos-cache
