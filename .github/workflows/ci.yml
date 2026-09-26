@@ -1,0 +1,228 @@
+# xpmath-kokkos CI
+#
+# Five gating lanes. None is continue-on-error. An advisory device lane is how
+# a real device build break survives unnoticed; the HIP lane stays required.
+#
+#   vendor-fresh      Does vendor/xpmath still match the recorded tag?
+#   no-oracle-guard   Does anything outside vendor/ take an oracle dependency?
+#   build-and-test    Does the C++17 tree pass the full ctest suite against
+#                     Kokkos 5.1 Serial built at C++20, with the suite count
+#                     asserted (exactly 13)?
+#   device-nvcc       Does each wrapper header compile for sm_80? No GPU.
+#   device-hip        The same for gfx90a with hipcc. No GPU. Gating.
+#
+# Kokkos is built without LIBQUADMATH. This repository stays C++17; the Kokkos
+# build stays C++20. Those two standards are deliberate and must stay different.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  vendor-fresh:
+    name: vendor-fresh
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: scripts/check_vendor_fresh.sh
+        run: bash scripts/check_vendor_fresh.sh
+
+  # Comment stripping is deliberate. A comment that explains this rule names
+  # the forbidden tokens; naming them is not a dependency, and this lane must
+  # not fail on that explanation. scripts/check_no_oracle.sh strips //, block,
+  # and full-line hash comments before matching, and it does not scan the
+  # Markdown that states the rule (no comment syntax to strip). The ulp/digits
+  # scan is test source only, not tests/data/. validation/ is not matched for
+  # the quadmath token because committed logs record a host install directory.
+  no-oracle-guard:
+    name: no-oracle-guard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: scripts/check_no_oracle.sh
+        run: bash scripts/check_no_oracle.sh
+
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/*google*.list \
+                     /etc/apt/sources.list.d/*chrome*.list \
+                     /etc/apt/sources.list.d/*microsoft*.list || true
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
+          sudo apt-get install -y g++ cmake ninja-build ca-certificates
+          g++ -dumpfullversion
+          cmake --version | head -1
+
+      - name: Cache Kokkos 5.1 Serial
+        id: kokkos-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kokkos-install
+          key: kokkos-5.1.0-serial-cxx20-no-libquad-v1
+
+      - name: Build Kokkos 5.1 Serial at C++20
+        if: steps.kokkos-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch 5.1.0 https://github.com/kokkos/kokkos.git "${RUNNER_TEMP}/kokkos-src"
+          cmake -S "${RUNNER_TEMP}/kokkos-src" -B "${RUNNER_TEMP}/kokkos-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${KOKKOS_PREFIX}" \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DKokkos_ENABLE_SERIAL=ON \
+            -DKokkos_ENABLE_OPENMP=OFF \
+            -DKokkos_ENABLE_CUDA=OFF \
+            -DKokkos_ENABLE_HIP=OFF \
+            -DKokkos_ENABLE_LIBQUADMATH=OFF \
+            -DKokkos_ENABLE_TESTS=OFF \
+            -DKokkos_ENABLE_EXAMPLES=OFF \
+            -DKokkos_ENABLE_BENCHMARKS=OFF \
+            -DBUILD_TESTING=OFF
+          cmake --build "${RUNNER_TEMP}/kokkos-build" -j"$(nproc)"
+          cmake --install "${RUNNER_TEMP}/kokkos-build"
+
+      - name: Configure this repository at C++17
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_PREFIX_PATH="${KOKKOS_PREFIX}"
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      # A suite that shrinks silently is a suite that passes silently.
+      # When a ctest target is added or removed on purpose, change this
+      # number in the same commit.
+      - name: Assert the suite is exactly 13 targets
+        run: |
+          set -euo pipefail
+          expected=13
+          actual=$(ctest --test-dir build -N | awk '/^Total Tests: /{print $3}')
+          echo "registered targets: ${actual} (expected ${expected})"
+          if [ "${actual}" != "${expected}" ]; then
+            echo "::error::ctest registered ${actual} targets, expected ${expected}."
+            ctest --test-dir build -N
+            exit 1
+          fi
+
+      - name: ctest
+        run: ctest --test-dir build --output-on-failure
+
+  device-nvcc:
+    name: device-nvcc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container: nvidia/cuda:12.9.2-devel-ubuntu24.04
+    env:
+      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
+      DEVICE_SPACE: Cuda
+    steps:
+      - name: Install git and cmake
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++
+      - uses: actions/checkout@v4
+      - name: Cache Kokkos 5.1 CUDA
+        id: kokkos-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kokkos-install
+          key: kokkos-5.1.0-cuda-sm80-cxx20-no-libquad-v1
+      - name: Build Kokkos 5.1 CUDA (sm_80) at C++20
+        if: steps.kokkos-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch 5.1.0 https://github.com/kokkos/kokkos.git "${RUNNER_TEMP}/kokkos-src"
+          export CXX=g++
+          cmake -S "${RUNNER_TEMP}/kokkos-src" -B "${RUNNER_TEMP}/kokkos-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${KOKKOS_PREFIX}" \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_CXX_COMPILER="${RUNNER_TEMP}/kokkos-src/bin/nvcc_wrapper" \
+            -DKokkos_ENABLE_SERIAL=ON \
+            -DKokkos_ENABLE_CUDA=ON \
+            -DKokkos_ARCH_AMPERE80=ON \
+            -DKokkos_ENABLE_OPENMP=OFF \
+            -DKokkos_ENABLE_LIBQUADMATH=OFF \
+            -DKokkos_ENABLE_TESTS=OFF \
+            -DKokkos_ENABLE_EXAMPLES=OFF \
+            -DKokkos_ENABLE_BENCHMARKS=OFF \
+            -DBUILD_TESTING=OFF
+          cmake --build "${RUNNER_TEMP}/kokkos-build" -j"$(nproc)"
+          cmake --install "${RUNNER_TEMP}/kokkos-build"
+      - name: Compile one device TU per wrapper header (do not run)
+        run: bash .github/workflows/compile_device_tus.sh
+
+  # Gating, not continue-on-error. xpmath's C3 dropped the advisory flag
+  # because a hipcc-only break survived for a month while the lane only
+  # reported. On failure, fix the code. Do not restore continue-on-error.
+  device-hip:
+    name: device-hip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container: rocm/dev-ubuntu-24.04:latest
+    env:
+      KOKKOS_PREFIX: ${{ runner.temp }}/kokkos-install
+      DEVICE_SPACE: HIP
+    steps:
+      - name: Install git and cmake
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++
+      - uses: actions/checkout@v4
+      - name: Cache Kokkos 5.1 HIP
+        id: kokkos-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/kokkos-install
+          key: kokkos-5.1.0-hip-gfx90a-cxx20-no-libquad-v1
+      - name: Build Kokkos 5.1 HIP (gfx90a) at C++20
+        if: steps.kokkos-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export PATH="/opt/rocm/bin:${PATH}"
+          git clone --depth 1 --branch 5.1.0 https://github.com/kokkos/kokkos.git "${RUNNER_TEMP}/kokkos-src"
+          cmake -S "${RUNNER_TEMP}/kokkos-src" -B "${RUNNER_TEMP}/kokkos-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${KOKKOS_PREFIX}" \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_CXX_COMPILER=hipcc \
+            -DKokkos_ENABLE_SERIAL=ON \
+            -DKokkos_ENABLE_HIP=ON \
+            -DKokkos_ARCH_AMD_GFX90A=ON \
+            -DKokkos_ENABLE_OPENMP=OFF \
+            -DKokkos_ENABLE_LIBQUADMATH=OFF \
+            -DKokkos_ENABLE_TESTS=OFF \
+            -DKokkos_ENABLE_EXAMPLES=OFF \
+            -DKokkos_ENABLE_BENCHMARKS=OFF \
+            -DBUILD_TESTING=OFF
+          cmake --build "${RUNNER_TEMP}/kokkos-build" -j"$(nproc)"
+          cmake --install "${RUNNER_TEMP}/kokkos-build"
+      - name: Compile one device TU per wrapper header (do not run)
+        run: |
+          export PATH="/opt/rocm/bin:${PATH}"
+          bash .github/workflows/compile_device_tus.sh
