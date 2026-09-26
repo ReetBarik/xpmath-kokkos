@@ -32,7 +32,7 @@ not FetchContent, not a submodule.
 | `include/Kokkos_xpmath/` | Kokkos wrappers (filled by K1) |
 | `vendor/xpmath/` | vendored xpmath `include/xp/` + `LICENSES/` at a tag |
 | `tests/` | bit-identity tests only |
-| `examples/` | usage examples / demos (later) |
+| `examples/` | adoption example (K6 type-swap; not the old timing demos) |
 | `scripts/sync_upstream.sh` | only legal way to refresh the vendor tree |
 | `scripts/check_vendor_fresh.sh` | ctest `vendor_fresh` anti-rot guard |
 
@@ -74,7 +74,9 @@ is a license island — see `NOTICE.md`. Do not relicense vendored headers.
 
 ## Recovery note for later work
 
-xpmath C10 deleted demos and `third_party/include/`. They last existed at
-xpmath commit `158d618` (parent of C10). When porting wrappers (K1) or demos
-(K6), recover from `git show 158d618:third_party/include/` (or equivalent),
-**not** from the `v0.2.0` tree. K0 only vendors `include/xp/` at `v0.2.0`.
+xpmath C10 deleted demos and `third_party/include/`. Wrappers last existed at
+xpmath commit `158d618` (parent of C10). When porting wrappers (K1), recover
+from `git show 158d618:third_party/include/` (or equivalent), **not** from the
+`v0.2.0` tree. K0 only vendors `include/xp/` at `v0.2.0`. K6 does **not** port
+the deleted demos; it adds only the type-swap adoption example under
+`examples/`.

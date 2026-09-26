@@ -506,10 +506,12 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 
 1. Bit-identity holds on Serial, A100, and MI250 for the v0.2.0 grid. The
    wrapper is a pure forward on that evidence.
-2. K6 recovers the eight demos from xpmath commit `158d618` into `examples/`,
-   adds `examples/type_swap_kernel.cpp` showing the complex alias switch
+2. K6 is the type-swap adoption example only — `examples/type_swap_kernel.cpp`
+   plus a fast `type_swap_smoke` ctest. Do **not** recover the eight xpmath
+   demos. Show the complex alias switch
    (`Kokkos::Experimental::DoubleDoubleComplex`, not `Kokkos::complex<DoubleDouble>`),
    including the three call-site differences recorded in the K6 plan section.
+   Suite size becomes **13**.
 3. Still bit-identity only. Do not hand-edit `vendor/`. Do not start K6 until
-   this PR is on `main`. Branch: `k6-demos`.
+   this PR is on `main`. Branch: `k6-type-swap`.
 
