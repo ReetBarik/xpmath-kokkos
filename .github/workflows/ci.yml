@@ -30,6 +30,12 @@ concurrency:
 permissions:
   contents: read
 
+# Container images default to `sh`. `set -o pipefail` is bash-only, and that
+# is what failed the first CUDA lane before Kokkos even configured.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   vendor-fresh:
     name: vendor-fresh
