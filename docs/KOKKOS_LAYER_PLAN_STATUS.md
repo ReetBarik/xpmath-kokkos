@@ -515,6 +515,55 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
 3. Still bit-identity only. Do not hand-edit `vendor/`. Do not start K6 until
    this PR is on `main`. Branch: `k6-type-swap`.
 
+---
+
+## K7 — CI
+
+**Branch:** `k7-ci` (from `main` @ `08d3948`).
+
+**Outcome.** Workflow added. Five gating lanes, none `continue-on-error`.
+Suite count asserted as exactly **13**. Kokkos in CI is 5.1.0, built at
+C++20, with `Kokkos_ENABLE_LIBQUADMATH=OFF`. This repository stays C++17.
+
+**What landed**
+
+| path | change |
+|---|---|
+| `.github/workflows/ci.yml` | the five lanes |
+| `.github/workflows/compile_device_tus.sh` | one device TU per wrapper header, not executed |
+| `scripts/check_no_oracle.sh` | governing-rule grep |
+
+**Lanes**
+
+| lane | what it gates |
+|---|---|
+| `vendor-fresh` | `scripts/check_vendor_fresh.sh` |
+| `no-oracle-guard` | `scripts/check_no_oracle.sh` |
+| `build-and-test` | Kokkos Serial + full ctest, count == 13 |
+| `device-nvcc` | eight wrapper TUs, `sm_80`, compile only |
+| `device-hip` | eight wrapper TUs, `gfx90a`, compile only |
+
+**no-oracle-guard (deliberate comment strip).** The match is
+`mpfr|mpc_|__float128|quadmath` on every tracked file outside `vendor/`,
+after `//`, block, and full-line `#` comments are removed, plus `ulp|digits`
+on test sources (`tests/**/*.{cpp,hpp,h,cc,cxx,cu,hip}`). Stripping comments
+is deliberate: a comment that explains the rule names those tokens, and that
+explanation must not fail the lane. The same reason exempts `README.md`,
+`CLAUDE.md`, and this status file (prose, no comment syntax) and this check's
+own script (it contains the pattern). `tests/data/` is not test source — the
+vendored grid has an operation named `ulp`. `validation/` is still scanned
+for the first three tokens; `quadmath` is skipped there because the A100 log
+records a host install directory.
+
+**What K8 must know**
+
+1. CI lives in `.github/workflows/ci.yml`. All five lanes are gating. Do not
+   mark `device-hip` advisory.
+2. The suite count in `build-and-test` is **13**. A new ctest target changes
+   that number in the same commit.
+3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k8-upstream`,
+   after this PR is on `main`.
+
 
 ---
 
@@ -602,3 +651,52 @@ Oracle grep on `include/` and `tests/`: clean (`GATE_OK`).
    `build-and-test`, `device-nvcc`, `device-hip`). Build Kokkos without
    `Kokkos_ENABLE_LIBQUADMATH`. Do not start K7 until this PR is on `main`.
 3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k7-ci`.
+
+---
+
+## K7 — CI
+
+**Branch:** `k7-ci` (from `main` @ `08d3948`).
+
+**Outcome.** Workflow added. Five gating lanes, none `continue-on-error`.
+Suite count asserted as exactly **13**. Kokkos in CI is 5.1.0, built at
+C++20, with `Kokkos_ENABLE_LIBQUADMATH=OFF`. This repository stays C++17.
+
+**What landed**
+
+| path | change |
+|---|---|
+| `.github/workflows/ci.yml` | the five lanes |
+| `.github/workflows/compile_device_tus.sh` | one device TU per wrapper header, not executed |
+| `scripts/check_no_oracle.sh` | governing-rule grep |
+
+**Lanes**
+
+| lane | what it gates |
+|---|---|
+| `vendor-fresh` | `scripts/check_vendor_fresh.sh` |
+| `no-oracle-guard` | `scripts/check_no_oracle.sh` |
+| `build-and-test` | Kokkos Serial + full ctest, count == 13 |
+| `device-nvcc` | eight wrapper TUs, `sm_80`, compile only |
+| `device-hip` | eight wrapper TUs, `gfx90a`, compile only |
+
+**no-oracle-guard (deliberate comment strip).** The match is
+`mpfr|mpc_|__float128|quadmath` on every tracked file outside `vendor/`,
+after `//`, block, and full-line `#` comments are removed, plus `ulp|digits`
+on test sources (`tests/**/*.{cpp,hpp,h,cc,cxx,cu,hip}`). Stripping comments
+is deliberate: a comment that explains the rule names those tokens, and that
+explanation must not fail the lane. The same reason exempts `README.md`,
+`CLAUDE.md`, and this status file (prose, no comment syntax) and this check's
+own script (it contains the pattern). `tests/data/` is not test source — the
+vendored grid has an operation named `ulp`. `validation/` is still scanned
+for the first three tokens; `quadmath` is skipped there because the A100 log
+records a host install directory.
+
+**What K8 must know**
+
+1. CI lives in `.github/workflows/ci.yml`. All five lanes are gating. Do not
+   mark `device-hip` advisory.
+2. The suite count in `build-and-test` is **13**. A new ctest target changes
+   that number in the same commit.
+3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k8-upstream`,
+   after this PR is on `main`.
