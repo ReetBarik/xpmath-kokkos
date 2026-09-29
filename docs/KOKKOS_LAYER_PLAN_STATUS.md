@@ -708,9 +708,11 @@ records a host install directory.
 **Branch:** `vendor-v0.2.1` (from `main` @ `316fde1`).
 
 **Outcome.** Vendored tree refreshed with `scripts/sync_upstream.sh v0.2.1`.
-No wrapper edits. Bit-identity is green on Serial, A100, and MI250: zero
-differing cells. Device pairing is the K5 rule (wrapper and core inside one
-kernel).
+No wrapper edits. Bit-identity is green on Serial, A100, MI250, and MI300:
+zero differing cells. Device pairing is the K5 rule (wrapper and core inside
+one kernel). B200 (sm_100) is scripted but not run yet: `gpu_b200` already
+held two jobs. K8 should cite the finished device jobs, including MI300
+**1005379**, and the B200 job once it exists.
 
 **Pin**
 
@@ -730,6 +732,7 @@ grep on `include/` and `tests/`: clean.
 |---|---|---|---|---|
 | A100 (sm_80) | `gpu_a100` | gpu07 | **1005372** | 0 |
 | MI250 (gfx90a) | `gpu_amd_mi250` | amdgpu04 | **1005373** | 0 |
+| MI300 (gfx942) | `gpu_amd_mi300x` | amdgpu00 | **1005379** | 0 |
 
 ```
 # A100 job 1005372
@@ -737,6 +740,10 @@ bit_identity_test: exec_space=Cuda both_in_kernel=yes
 bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
 
 # MI250 job 1005373
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# MI300 job 1005379
 bit_identity_test: exec_space=HIP both_in_kernel=yes
 bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
 ```
