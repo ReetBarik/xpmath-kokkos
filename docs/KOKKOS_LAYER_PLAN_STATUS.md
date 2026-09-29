@@ -708,9 +708,9 @@ records a host install directory.
 **Branch:** `vendor-v0.2.1` (from `main` @ `316fde1`).
 
 **Outcome.** Vendored tree refreshed with `scripts/sync_upstream.sh v0.2.1`.
-No wrapper edits. Serial bit-identity is green: the wrapper still matches the
-core bit for bit on the existing sweep grid. Device re-runs use the K5
-pairing (wrapper and core inside one kernel).
+No wrapper edits. Bit-identity is green on Serial, A100, and MI250: zero
+differing cells. Device pairing is the K5 rule (wrapper and core inside one
+kernel).
 
 **Pin**
 
@@ -723,3 +723,20 @@ pairing (wrapper and core inside one kernel).
 **Serial gate (2026-09-29, JLSE gcc/13.3.0, Kokkos Serial install):** 13/13
 passed, including `bit_identity_test` (70.73 s) and `vendor_fresh`. Oracle
 grep on `include/` and `tests/`: clean.
+
+**Device jobs (both `both_in_kernel=yes`, zero differing cells):**
+
+| arch | queue | node | job ID | exit |
+|---|---|---|---|---|
+| A100 (sm_80) | `gpu_a100` | gpu07 | **1005372** | 0 |
+| MI250 (gfx90a) | `gpu_amd_mi250` | amdgpu04 | **1005373** | 0 |
+
+```
+# A100 job 1005372
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# MI250 job 1005373
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+```
