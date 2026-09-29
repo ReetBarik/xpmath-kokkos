@@ -700,3 +700,26 @@ records a host install directory.
    that number in the same commit.
 3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k8-upstream`,
    after this PR is on `main`.
+
+---
+
+## Vendor refresh — xpmath v0.2.1
+
+**Branch:** `vendor-v0.2.1` (from `main` @ `316fde1`).
+
+**Outcome.** Vendored tree refreshed with `scripts/sync_upstream.sh v0.2.1`.
+No wrapper edits. Serial bit-identity is green: the wrapper still matches the
+core bit for bit on the existing sweep grid. Device re-runs use the K5
+pairing (wrapper and core inside one kernel).
+
+**Pin**
+
+- tag: `v0.2.1`
+- commit: `07540423aa56b1210d548acda943641c46516e94`
+- what changed in `include/xp/`: device rounding no longer depends on
+  `--fmad=false` or `-ffp-contract=off`. Host and AMD error-free add, sub,
+  and mul go through volatile; CUDA uses `add.rn`, `sub.rn`, and `mul.rn`.
+
+**Serial gate (2026-09-29, JLSE gcc/13.3.0, Kokkos Serial install):** 13/13
+passed, including `bit_identity_test` (70.73 s) and `vendor_fresh`. Oracle
+grep on `include/` and `tests/`: clean.

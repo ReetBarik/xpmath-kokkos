@@ -59,7 +59,7 @@ Other Kokkos installs on this host (for later device work):
 ## Vendoring
 
 ```bash
-scripts/sync_upstream.sh v0.2.0   # only way to refresh vendor/
+scripts/sync_upstream.sh v0.2.1   # only way to refresh vendor/
 # never hand-edit vendor/xpmath/
 ctest --test-dir build -R vendor_fresh
 ```

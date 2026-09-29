@@ -45,7 +45,7 @@ any single `<Kokkos_xpmath/{dd,ff,qf,tf}_{math,complex}.hpp>`.
 ## Vendoring
 
 ```bash
-scripts/sync_upstream.sh v0.2.0
+scripts/sync_upstream.sh v0.2.1
 ctest --test-dir build -R vendor_fresh
 ```
 
