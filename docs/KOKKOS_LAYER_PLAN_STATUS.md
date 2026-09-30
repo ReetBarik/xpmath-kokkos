@@ -750,3 +750,43 @@ bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
 bit_identity_test: exec_space=HIP both_in_kernel=yes
 bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
 ```
+
+---
+
+## K8 — Materialize the upstream tree
+
+**Branch:** `k8-upstream` (from `main` @ `36c672d`).
+
+**Outcome.** `scripts/materialize_kokkos_pr.sh` copies `vendor/xpmath/xp/`,
+`LICENSES/`, and `UPSTREAM.txt` into `tpls/xpmath/`, and copies
+`include/Kokkos_xpmath/` into `core/src/Kokkos_xpmath/`. After the copy,
+`diff -rq` checks those trees against this repo. Wrapper text and xp header
+text are not rewritten.
+
+**The only Kokkos-tree edit.** The script appends one marked block to
+`core/src/CMakeLists.txt`. That block puts `tpls/xpmath` on the build
+include path and installs the `xp/` headers, `LICENSES/`, and
+`UPSTREAM.txt`. `#include <xp/...>` does not resolve until that directory
+is registered. `mdspan` and `desul` already have this kind of registration
+in the same file. This is a build-system edit, not a change to the numeric
+sources.
+
+**Build (2026-09-30, JLSE gcc/13.3.0).** Kokkos 5.1.0 commit
+`3ec81abe1816109f6f62ac48cef41921f91a4d00`, Serial, C++20,
+`Kokkos_ENABLE_LIBQUADMATH=OFF`, tests, examples, and benchmarks off.
+Install prefix `~/xpm_device/kokkos-5.1.0-k8-serial` (outside this repo).
+
+**Bit-identity against that install.** The test translation unit was
+compiled with `-I` for `tests/bit_identity` and `-isystem` for the Kokkos
+install `include/` only. This repo's `include/` and `vendor/` were not on
+the command line. Host pairing, as in the Serial ctest: wrapper inside
+`Kokkos::parallel_for`, core on the host (`both_in_kernel=no`).
+
+```
+bit_identity_test: exec_space=Serial both_in_kernel=no
+grid: 1700 real, 1780 complex points
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+```
+
+**RFC.** `docs/RFC_KOKKOS_UPSTREAM.md` is a draft for Reet to paste. It has
+not been posted. No Kokkos pull request is opened from this step.
