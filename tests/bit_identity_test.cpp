@@ -13,11 +13,11 @@
 //   Serial (login-node ctest): wrapper inside Kokkos::parallel_for versus
 //   the core called directly on the host. Same machine.
 //
-//   Cuda / HIP (Cobalt A100 / MI250 jobs): BOTH calls inside the same
-//   kernel — wrapper-on-device versus core-on-device. Never compare a device
-//   wrapper result with a host core result. A device value may legitimately
-//   differ from the host; that difference is xpmath's DEVICE_PRECISION
-//   measurement and is forbidden here.
+//   Cuda / HIP (Cobalt A100, B200, MI250, MI300 jobs): BOTH calls inside
+//   the same kernel — wrapper-on-device versus core-on-device. Never
+//   compare a device wrapper result with a host core result. A device
+//   value may legitimately differ from the host; that difference is
+//   xpmath's DEVICE_PRECISION measurement and is forbidden here.
 //
 // Complex values are the standalone xp::*Complex /
 // Kokkos::Experimental::*Complex structs. There is no Kokkos::complex<T>

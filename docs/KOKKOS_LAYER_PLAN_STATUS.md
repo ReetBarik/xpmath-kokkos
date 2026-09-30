@@ -700,3 +700,53 @@ records a host install directory.
    that number in the same commit.
 3. Still bit-identity only. Do not hand-edit `vendor/`. Branch: `k8-upstream`,
    after this PR is on `main`.
+
+---
+
+## Vendor refresh — xpmath v0.2.1
+
+**Branch:** `vendor-v0.2.1` (from `main` @ `316fde1`).
+
+**Outcome.** Vendored tree refreshed with `scripts/sync_upstream.sh v0.2.1`.
+No wrapper edits. Bit-identity is green on Serial, A100, B200, MI250, and
+MI300: zero differing cells. Device pairing is the K5 rule (wrapper and core
+inside one kernel). K8 should cite these finished device jobs.
+
+**Pin**
+
+- tag: `v0.2.1`
+- commit: `07540423aa56b1210d548acda943641c46516e94`
+- what changed in `include/xp/`: device rounding no longer depends on
+  `--fmad=false` or `-ffp-contract=off`. Host and AMD error-free add, sub,
+  and mul go through volatile; CUDA uses `add.rn`, `sub.rn`, and `mul.rn`.
+
+**Serial gate (2026-09-29, JLSE gcc/13.3.0, Kokkos Serial install):** 13/13
+passed, including `bit_identity_test` (70.73 s) and `vendor_fresh`. Oracle
+grep on `include/` and `tests/`: clean.
+
+**Device jobs (both `both_in_kernel=yes`, zero differing cells):**
+
+| arch | queue | node | job ID | exit |
+|---|---|---|---|---|
+| A100 (sm_80) | `gpu_a100` | gpu07 | **1005372** | 0 |
+| B200 (sm_100) | `gpu_b200` | blackwell00 | **1005384** | 0 |
+| MI250 (gfx90a) | `gpu_amd_mi250` | amdgpu04 | **1005373** | 0 |
+| MI300 (gfx942) | `gpu_amd_mi300x` | amdgpu00 | **1005379** | 0 |
+
+```
+# A100 job 1005372
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# MI250 job 1005373
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# B200 job 1005384
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+# MI300 job 1005379
+bit_identity_test: exec_space=HIP both_in_kernel=yes
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+```
