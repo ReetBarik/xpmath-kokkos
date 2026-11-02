@@ -145,3 +145,9 @@ add_test(NAME type_swap_smoke COMMAND type_swap_smoke)
 set_tests_properties(type_swap_smoke PROPERTIES
   LABELS "host;example"
   TIMEOUT 60)
+
+# Perf harness (GPU_PERF_PLAN). Off by default; registers no ctest targets.
+option(XPMATH_KOKKOS_BUILD_PERF "Build the GPU perf harness under perf/" OFF)
+if(XPMATH_KOKKOS_BUILD_PERF)
+  add_subdirectory(perf)
+endif()
