@@ -11,11 +11,13 @@ one task, records the result, and stops.
 
 ## 0. How a session uses this document
 
-0. Before anything else, run `git checkout main && git pull` in **both**
-   `~/xpmath-kokkos` and `~/xpmath`. The user merges each task's branches
-   before starting the next session, so `main` holds all earlier work and
-   all earlier status blocks. If a status block for a task you depend on is
-   missing from `main`, stop and tell the user.
+0. Before anything else, run `git checkout gpu-perf && git pull` in
+   **both** `~/xpmath-kokkos` and `~/kokkos-extended-precision-demo`. All
+   tasks commit onto that one shared branch (§1.2 rule 2), so it holds all
+   earlier work and all earlier status blocks. Then record the starting
+   commit of each repo (`git rev-parse HEAD`); some checks compare against
+   it. If a status block for a task you depend on is missing, stop and tell
+   the user.
 1. Read **§1 Rules** (all of it), then **only your task's section**. Do not
    read the other tasks or this file's history. Do not read the whole repo.
 2. Read `docs/GPU_PERF_PLAN_STATUS.md` and look only at the blocks for the
@@ -23,7 +25,8 @@ one task, records the result, and stops.
    sessions found.
 3. Start your session with its working directory set to the repo your task
    changes, so that repo's own `CLAUDE.md` loads:
-   - xpmath tasks: `~/xpmath`
+   - xpmath tasks: `~/kokkos-extended-precision-demo` (this is the xpmath
+     clone; the directory name is historical)
    - xpmath-kokkos tasks: `~/xpmath-kokkos`
 4. Do the task. When done, or when stopped, append a status block (§1.8)
    and end the session.
@@ -48,7 +51,7 @@ one task, records the result, and stops.
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.3[dd] |
 | P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
 | P4.0 | Generic-core design (STOP) | xpmath | login | P3 done |
-| R | Release, re-vendor, re-measure | xpmath-kokkos | all 5 GPUs | user tagged a release |
+| R | Release, re-vendor, re-measure (once, at the end) | xpmath-kokkos | all 5 GPUs | user merged `gpu-perf` and tagged a release |
 
 Backend order for every `[b]` task: **dd → ff → tf → qf**. Each backend is a
 separate session.
@@ -59,7 +62,8 @@ separate session.
 
 ### 1.1 The two repositories and who owns what
 
-- **xpmath** (`github.com/ReetBarik/xpmath`, local clone `~/xpmath`) owns
+- **xpmath** (`github.com/ReetBarik/xpmath`, local clone
+  `~/kokkos-extended-precision-demo`) owns
   the numerics and every accuracy verdict (MPFR/MPC oracle, derived bounds,
   `sweep_*_gate` targets, device baselines). See its `docs/CORRECTNESS.md`.
   All library changes in this plan are made there.
@@ -69,13 +73,10 @@ separate session.
   `__float128` outside `vendor/`. Never hand-edit `vendor/`; the only way
   to change it is `scripts/sync_upstream.sh <tag>` (task R).
 
-If `~/xpmath` does not exist, create it with
-`git clone https://github.com/ReetBarik/xpmath.git ~/xpmath`.
-**Do not use `~/xpmath_perf_audit/upstream` or
-`~/kokkos-extended-precision-demo`.** Both are xpmath clones holding the
-scrapped attempt (see §1.6). The second one's local `main` carries 8
-unpushed commits from it. Only `~/xpmath`, cloned fresh from GitHub, is
-valid, including for `XPMATH_KOKKOS_PERF_XP_DIR`.
+The xpmath clone is `~/kokkos-extended-precision-demo`, on branch
+`gpu-perf`. Use it for xpmath tasks and as `XPMATH_KOKKOS_PERF_XP_DIR`.
+**Do not use `~/xpmath_perf_audit/upstream`, and never check out the local
+branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
 
 ### 1.2 Hard rules
 
@@ -83,11 +84,18 @@ valid, including for `XPMATH_KOKKOS_PERF_XP_DIR`.
    bit-identical by algebra" is not validation. A previous attempt passed
    every host test and still silently corrupted results on a GPU through a
    compiler bug. Every library change is checked on the GPUs its task lists.
-2. **One task, one branch.** Branch name: `gpuperf/<task-id>-<slug>`
-   (for example `gpuperf/p2.1-dd-cold-paths`). `gh` is not installed: push
-   the branch and report its compare URL,
-   `https://github.com/ReetBarik/<repo>/compare/main...<branch>?expand=1`.
-   The user merges it. **Never merge, never tag, never push to `main`.**
+2. **One shared branch per repo: `gpu-perf`.** Every task commits onto
+   `gpu-perf` (in xpmath-kokkos and/or the xpmath clone) and pushes it with
+   a plain `git push`. The user merges `gpu-perf` into `main` once, at the
+   end.
+   - Prefix every commit subject with the task ID, e.g. `P2.1[dd]: ...`.
+   - **Never force-push, rebase, amend, or rewrite commits already on
+     `gpu-perf`.** Never merge, never tag, never push to `main`.
+   - **Only kept work goes on `gpu-perf`.** Do the work on a local branch
+     `wip/<task-id>`. Fast-forward `gpu-perf` to it only when every check
+     the task lists has passed and the task says to keep the change. If you
+     stop, or the task says not to keep it: push `wip/<task-id>` for
+     reference, and put only your status block on `gpu-perf`.
    End commit messages with the attribution line the session's system
    prompt gives.
 3. **Do not change what a test means to make it pass.** If a gate fails,
@@ -149,7 +157,7 @@ raw device output on GB300 and score it on the login node.
 **CHECK-HOST** (xpmath, login node). Full host suite, including both
 accuracy gates:
 ```bash
-cd ~/xpmath
+cd ~/kokkos-extended-precision-demo
 scripts/xpm_build.sh --arch host --build-dir /tmp/xpm-<task> > /tmp/<task>-build.log 2>&1; tail -5 /tmp/<task>-build.log
 ctest --test-dir /tmp/xpm-<task>/host -j8 --timeout 1800 > /tmp/<task>-host.log 2>&1
 grep -E 'tests passed|Failed|Not Run' /tmp/<task>-host.log
@@ -158,8 +166,9 @@ Pass = 100% passed.
 
 **CHECK-DEVICE-IDENTICAL `<arch>`** (xpmath, on that GPU). Proves a
 "bit-preserving" change really preserved every bit on that device:
-1. On `main`, before your change, run `validation/<arch>/run_<arch>_sweep.sh`
-   with `RAW_OUT=/tmp/<task>-<arch>-before.csv`. Then run it on your branch
+1. At your session's starting commit (§0 step 0; use a separate
+   `git worktree` for it), run `validation/<arch>/run_<arch>_sweep.sh` with
+   `RAW_OUT=/tmp/<task>-<arch>-before.csv`. Then run it on `wip/<task-id>`
    with `RAW_OUT=/tmp/<task>-<arch>-after.csv`. Use separate `BUILD_DIR`s.
 2. Remove `#` header lines and timing lines from both (read the first 20
    lines of `validation/strip_timing.sh` for its usage), then `cmp` them.
@@ -173,7 +182,7 @@ the script added by P0.5.
 
 **CHECK-SANITIZER `<arch>`** (CUDA GPUs only: A100, B200, GB300). Needed by
 any task that changes what gets inlined. A known nvcc defect (TD-4,
-`~/xpmath/docs/TOOLCHAIN_DEFECTS.md`) silently corrupts the stack frame of
+`~/kokkos-extended-precision-demo/docs/TOOLCHAIN_DEFECTS.md`) silently corrupts the stack frame of
 large inlined code. Run
 `compute-sanitizer --tool memcheck <build>/device/tests/sweep_device --out /tmp/<task>-san.csv > /tmp/<task>-san.log 2>&1`
 and `grep 'ERROR SUMMARY' /tmp/<task>-san.log`. Pass = `0 errors`.
@@ -218,14 +227,13 @@ next session doesn't repeat your work.
 ### 1.8 The status block
 
 Append to `~/xpmath-kokkos/docs/GPU_PERF_PLAN_STATUS.md`, newest last, and
-commit it on your task branch. If your task lives in xpmath, also push a
-one-commit branch with the same name in xpmath-kokkos carrying the status
-block, and give both compare URLs.
+commit it onto `gpu-perf` in xpmath-kokkos and push. This applies even
+when the task's code lives in xpmath, and even when you stopped.
 
 ```
 ## <task-id> — <title>
 Date: YYYY-MM-DD   Outcome: Done | Stopped | Partial
-Branch: <compare URL(s)>  (Do not merge: <reason>, if the task says not to)
+Commits: <repo>@<sha> for each repo you pushed to gpu-perf  (or: kept off gpu-perf, see wip/<task-id>: <reason>)
 Changed: <files, one line each>
 Checks: <each check run: name, arch, pass/fail, log path>
 Measured: <the key numbers, before → after>
@@ -362,7 +370,7 @@ in `scripts/xpm_build.sh` (`grep -n arch scripts/xpm_build.sh`).
    runs `sweep_device` and writes the raw file. It does **not** score;
    scoring runs on the login node with
    `sweep_accuracy --ulp --score-results <raw> --where gb300`.
-3. Run it on `main`. Commit the raw file under `validation/gb300/logs/`. Do
+3. Run it on `gpu-perf`. Commit the raw file under `validation/gb300/logs/`. Do
    **not** add a `sweep_device_gate_gb300` ctest target. Note in the status block that
    the user decides whether GB300 becomes a gate.
 
@@ -444,7 +452,7 @@ old alignment.
 **Checks:** CHECK-HOST; CHECK-DEVICE-IDENTICAL on all 5; CHECK-PERF on all 5.
 
 **Keep it only if** throughput is not worse anywhere by more than 3%.
-Otherwise mark the branch "Do not merge" in the status block and record why.
+Otherwise keep it off `gpu-perf` (§1.2 rule 2) and record why.
 
 ---
 
@@ -545,7 +553,7 @@ For example:
   their own commit with the measured speedup quoted;
 - (c) an opt-in "fast" tier kept separate from the default.
 
-Push the branch and **stop**. No P3.1+ task starts until the user has chosen.
+Push `gpu-perf` and **stop**. No P3.1+ task starts until the user has chosen.
 
 ### P3.1–P3.5[b] — One algorithm change per task
 
@@ -581,16 +589,20 @@ Write `docs/GENERIC_CORE_DESIGN.md`: one implementation templated on limb
 type (`float`, `double`) and limb count (2, 3, 4), replacing four
 hand-maintained backends. It must keep every public name and every result
 bit, migrate one operation family at a time, and list the order of
-implementation tasks. Push the branch and **stop**. Implementation tasks are
+implementation tasks. Push `gpu-perf` and **stop**. Implementation tasks are
 written from the approved design.
 
 ---
 
-## Task R — Release, re-vendor, re-measure (repeat after each xpmath release)
+## Task R — Release, re-vendor, re-measure (once, at the end)
 
 **Repo** xpmath-kokkos · **Needs** all 5 GPUs (one session may visit them
-in turn, or split per GPU) · **Depends on** the user has merged and tagged
-an xpmath release
+in turn, or split per GPU) · **Depends on** the user has merged xpmath's
+`gpu-perf` into `main` and tagged a release
+
+Before R, every perf measurement uses the harness built against the xpmath
+clone's `gpu-perf` via `XPMATH_KOKKOS_PERF_XP_DIR` (CHECK-PERF), so no
+intermediate releases are needed.
 
 **Steps:**
 1. `scripts/sync_upstream.sh <tag>`, rebuild, run ctest. Pass = 13/13.
@@ -601,7 +613,7 @@ an xpmath release
 4. In the status block, give the before/after summary per GPU (per-type
    science-kernel time, and DD/FF `mul`/`div`/`log` ns/op).
 
-**Done when:** the branch is pushed with all three steps green.
+**Done when:** all three steps are green and committed on `gpu-perf`.
 
 ---
 
