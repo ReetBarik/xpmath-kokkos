@@ -88,3 +88,16 @@ Next session must know:
 - If gpu-perf should carry the lane, fast-forward gpu-perf to wip/P0.5 after a clean device run; the user also decides whether GB300 becomes a gate.
 - Scorer on login node is built at /tmp/xpm-P0.5/host/tests/sweep_accuracy (may be gone).
 - Backgrounded ssh inside run_in_background returns immediately; use `ssh -n host 'setsid nohup ...'` (see P0.4 block).
+
+## P0.5 (update) — GB300 lane: acos fault fixed on wip, complex pow still fails on GB300
+Date: 2026-11-03   Outcome: Partial
+Commits: kept off gpu-perf, see xpmath wip/P0.5-dd-acos (adf9ace fix, 8b37519 logs, on top of wip/P0.5 1cfa793/b790730); gpu-perf untouched in xpmath
+Changed (xpmath wip only): include/xp/dd_complex.hpp: DD complex acos calls xp_asin_imag_mag(x,y) + copysign directly instead of asin(z).im (same pattern as TF mitigation #1; no #ifdef, no arch/compiler conditional, no function pointer)
+Checks: GB300 (graceblackwell01): full sweep_device exit 0, 436080 rows, raw = validation/gb300/logs/sweep_gb300_raw_adf9ace.csv.gz. compute-sanitizer memcheck on the FULL sweep: 0 errors (was 61 __local__ writes on DD:c:acos before). CHECK-HOST host x86 (xpm_build --arch host): PASS 44/44 host, 24/24 device (log host_check_adf9ace.log). Scoring on login node (`--where gb300`): runs, exit 4, absolute gate FAIL, log score_gb300_adf9ace.log.
+NOT run: CHECK-DEVICE-IDENTICAL on any arch, A100/B200 sanitizer, MI250/MI300 identity. GB300 cannot give a before/after (the original faults there), so identity must be shown on A100/B200 (+AMD) against the starting commit.
+Measured: DD complex acos: exit 3 / 61 sanitizer errors -> exit 0 / 0 errors. GB300 scoring: 41 points above bound in 3 cells, ALL complex pow: DD 17, QF 15, TF 15 (+FF 2 under allowance). Same points on A100 and B200 score ~14 ulps; on GB300 they score 1e8-1e18 ulps (DD c pow point 16: 14.18 -> 2.69e18; QF point 1607: 28.92 -> 2.74e15).
+Next session must know:
+- The complex-pow GB300 divergence is NOT caused by the acos change (QF/TF pow also fail and were not touched). Mechanism not diagnosed. It is a separate sm_103/CUDA 13.3.1 defect or difference; do not guess a fix before diagnosing.
+- User decides: (1) whether the acos fix is accepted as a library change after A100/B200 bit-identity + sanitizer and MI250/MI300 identity; (2) whether GB300 becomes a gate, which cannot be while complex pow fails.
+- sweep_device runs on the node but the first full-sweep raw file is not a result; use the _adf9ace.csv.gz file.
+- Node-local /tmp is not shared; only $HOME is. Launch detached jobs with `ssh -n host 'setsid nohup ...'`.
