@@ -5,7 +5,7 @@
 # usage: perf/isa_metrics.sh <build-dir> <arch>
 #
 # Writes perf/results/<arch>/isa_<xpmath-tag-or-sha>.csv from a perf build
-# (see perf/README.md). Only gfx90a is implemented; CUDA and gfx942 are P0.2.
+# (see perf/README.md). arch: gfx90a gfx942 sm_80 sm_100.
 set -euo pipefail
 
 if [ $# -ne 2 ]; then
@@ -25,11 +25,14 @@ tag=$(tr -d '\n' < "$ver_file" | tr '/ ' '__')
 out="$here/results/$arch/isa_${tag}.csv"
 
 case "$arch" in
-  gfx90a)
+  gfx90a|gfx942)
     exec python3 -I "$here/isa_metrics_hip.py" "$build" "$out"
     ;;
+  sm_80|sm_100)
+    exec python3 -I "$here/isa_metrics_cuda.py" "$build" "$out" "$arch"
+    ;;
   *)
-    echo "arch '$arch' is not implemented yet (P0.2 adds sm_80, sm_100, gfx942)" >&2
+    echo "arch '$arch' is not supported (gfx90a gfx942 sm_80 sm_100)" >&2
     exit 2
     ;;
 esac
