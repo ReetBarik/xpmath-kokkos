@@ -40,9 +40,11 @@ one task, records the result, and stops.
 | P0.3 | Throughput runner + science-shaped kernel | xpmath-kokkos | 1 GPU (any) | P0.1 |
 | P0.4 | GB300 lanes: harness build + bit-identity script | xpmath-kokkos | GB300 | P0.3 |
 | P0.5 | GB300 device-sweep lane in xpmath | xpmath | GB300 + login | — |
+| P0.5b | Validate P0.5's DD acos fix on the other GPUs; fast-forward xpmath `gpu-perf` | xpmath | A100, B200, MI250, MI300 | P0.5 |
+| P0.5c | GB300 as an accuracy gate (**only if the user approves**) | xpmath | GB300 + login | P0.5b |
 | P0.6 | Baseline runs, one session per GPU | xpmath-kokkos | that GPU | P0.2, P0.3, P0.4 |
 | P0.7 | Per-GPU cost table generator | xpmath-kokkos | login node | P0.6 (all five) |
-| P1.1 | HIP: replace `volatile` EFTs | xpmath | login + MI250 + MI300 | P0.7 |
+| P1.1 | HIP: replace `volatile` EFTs | xpmath | login + MI250 + MI300 | P0.7, P0.5b |
 | P1.2 | Type alignment | xpmath | login + all 5 GPUs | P1.1 |
 | P2.1[b] | Outline rare-case paths, backend b | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
 | P2.2[b] | Inline the hot small functions, backend b | xpmath | login + all 5 GPUs | P2.1[b] |
@@ -123,6 +125,14 @@ branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
   with output to a log, and check the tail occasionally. Don't stream them.
 - Don't re-read files you already have. Don't explore beyond the files
   your task lists unless a step fails.
+- Long jobs on a GPU node: start them with
+  `ssh -n <host> 'setsid nohup bash -lc "<cmd>" > $HOME/gpuperf-scratch/<task>/<name>.log 2>&1 &'`
+  and poll the log. A plain `ssh ... &` inside a background shell makes the
+  task look finished immediately.
+- When you write a wait loop with `pgrep -f`, match a string that is not in
+  the loop's own command line, or the loop will match itself and never end.
+- Inside `ssh <host> 'bash -lc "..."'`, a `$var` is expanded by the outer
+  shell. Escape it (`\$var`) when it must be expanded on the node.
 
 ### 1.4 Getting a GPU
 
@@ -131,8 +141,10 @@ needs a GPU:
 
 1. Ask the user: *"Please allocate a `<GPU>` node and tell me the hostname."*
    Wait for the answer. Never submit jobs yourself.
-2. Run commands with `ssh <host> 'bash -lc "<commands>"'`. `$HOME` is shared,
-   so build trees and logs written on the node are visible from the login node.
+2. Run commands with `ssh <host> 'bash -lc "<commands>"'`. **Only `$HOME` is
+   shared** with the login node; a node's `/tmp` is local to that node.
+   Anything produced on a node that you need later (raw sweep files, logs,
+   sanitizer output) goes under `$HOME/gpuperf-scratch/<task>/`.
 3. Allocations can expire. Keep every step restartable: write outputs to
    files under the repo or `$HOME`, not only to the terminal.
 4. Release the node when you're done by telling the user you've finished
@@ -168,8 +180,9 @@ Pass = 100% passed.
 "bit-preserving" change really preserved every bit on that device:
 1. At your session's starting commit (§0 step 0; use a separate
    `git worktree` for it), run `validation/<arch>/run_<arch>_sweep.sh` with
-   `RAW_OUT=/tmp/<task>-<arch>-before.csv`. Then run it on `wip/<task-id>`
-   with `RAW_OUT=/tmp/<task>-<arch>-after.csv`. Use separate `BUILD_DIR`s.
+   `RAW_OUT=$HOME/gpuperf-scratch/<task>/<arch>-before.csv`. Then run it on
+   `wip/<task-id>` with `RAW_OUT=$HOME/gpuperf-scratch/<task>/<arch>-after.csv`.
+   Use separate `BUILD_DIR`s.
 2. Remove `#` header lines and timing lines from both (read the first 20
    lines of `validation/strip_timing.sh` for its usage), then `cmp` them.
 3. Pass = identical. Any difference, even one row, is a failure. Report
@@ -184,8 +197,8 @@ the script added by P0.5.
 any task that changes what gets inlined. A known nvcc defect (TD-4,
 `~/kokkos-extended-precision-demo/docs/TOOLCHAIN_DEFECTS.md`) silently corrupts the stack frame of
 large inlined code. Run
-`compute-sanitizer --tool memcheck <build>/device/tests/sweep_device --out /tmp/<task>-san.csv > /tmp/<task>-san.log 2>&1`
-and `grep 'ERROR SUMMARY' /tmp/<task>-san.log`. Pass = `0 errors`.
+`compute-sanitizer --tool memcheck <build>/device/tests/sweep_device --out $HOME/gpuperf-scratch/<task>/<arch>-san.csv > $HOME/gpuperf-scratch/<task>/<arch>-san.log 2>&1`
+and `grep 'ERROR SUMMARY'` on that log. Pass = `0 errors`.
 
 **CHECK-GFX90A-LINT** (login node). Any task that changes inlining on HIP
 must run `scripts/xpm_lint_device_asm.sh <dir-with-gfx90a-.s-files>`. It
@@ -211,6 +224,18 @@ makes anything slower by more than 3% must say why in the status block.
   function's inlining.
 - **The MI250 QCDLoop hang was launch bounds, not code size.** It was fixed
   in QCDLoop. Don't use this plan to chase it.
+- **Sweep operands must be platform-independent.** Raw device files are
+  scored on the x86 login node, so the operands a producer derives must be
+  bit-identical on every host CPU. libm calls are not: `std::hypot` differs
+  between x86 and aarch64 glibc 2.38, which made 15 GB300 complex-pow
+  operands differ and looked like a 1e18-ulp library defect (P0.5). Derive
+  operands only from IEEE-exact operations; `scripts/sweep_inputs.hpp`'s
+  `hypot_cr` is the model. If a non-x86 producer fails a gate, first check
+  whether its operands match x86's.
+- **TD-4 also bites on sm_103 (GB300).** P0.5 hit it in DD complex `acos`
+  (error 700, 61 `Invalid __local__ write`). The fix was structural: call
+  `xp_asin_imag_mag` directly instead of the whole `asin`, with no `#ifdef`.
+  Prefer that kind of fix.
 
 ### 1.7 Stop and ask the user when
 
@@ -370,12 +395,59 @@ in `scripts/xpm_build.sh` (`grep -n arch scripts/xpm_build.sh`).
    runs `sweep_device` and writes the raw file. It does **not** score;
    scoring runs on the login node with
    `sweep_accuracy --ulp --score-results <raw> --where gb300`.
+   `scripts/sweep_accuracy.cpp` accepts only a closed list of `--where`
+   tokens, so add `gb300` to it. That touches no baseline, register or
+   expectation.
 3. Run it on `gpu-perf`. Commit the raw file under `validation/gb300/logs/`. Do
    **not** add a `sweep_device_gate_gb300` ctest target. Note in the status block that
    the user decides whether GB300 becomes a gate.
 
 **Done when:** a GB300 raw file exists and scores on the login node without
 errors. It also makes CHECK-DEVICE-IDENTICAL gb300 possible.
+
+**Outcome (2026-11-03):** done on `wip/P0.5-dd-acos` (0bd8b95). It needed one
+library change (DD complex `acos`, see §1.6) and one harness change
+(`hypot_cr`). The library change still needs the other GPUs: that is P0.5b.
+
+### P0.5b — Validate the DD acos fix on the other GPUs
+
+**Repo** xpmath · **Needs** A100, B200, MI250, MI300 · **Depends on** P0.5
+
+**Read first:** the "P0.5 (final)" status block only.
+
+**Steps:**
+1. Before = xpmath `gpu-perf` (4f60bc4). After = `wip/P0.5-dd-acos`
+   (0bd8b95). Use these in place of the §0 starting commit and
+   `wip/<task-id>`.
+2. CHECK-DEVICE-IDENTICAL on a100, b200, mi250 and mi300.
+3. CHECK-SANITIZER on a100 and b200, on the after tree.
+4. If every check passes: fast-forward xpmath `gpu-perf` to
+   `wip/P0.5-dd-acos` and push.
+
+**Stop if:** any device shows a difference. If the only differing rows are
+DD complex `acos`, report them with the scorer's ulps on that device. The
+user decides whether a bit change there is acceptable. Do not fast-forward.
+
+**Done when:** all four devices are identical, both sanitizer runs report 0
+errors, and xpmath `gpu-perf` is at 0bd8b95.
+
+### P0.5c — GB300 as an accuracy gate (only with the user's explicit approval)
+
+**Repo** xpmath · **Needs** GB300, then login node · **Depends on** P0.5b
+
+Do not start without the user's explicit approval. This task adds a ctest
+target, which is an approved exception to §1.2 rule 3.
+
+**Steps:**
+1. On GB300, run the sweep twice on `gpu-perf` and `cmp` the two raw files
+   (headers and timing removed). Stop if they differ.
+2. On the login node, score the raw file, commit
+   `validation/sweep/sweep_baseline_gb300.csv.gz` and the raw file of
+   record, and add a `sweep_device_gate_gb300` target modelled on
+   `sweep_device_gate_b200`.
+3. Update the ctest count that xpmath's CI asserts (67 → 68).
+4. Regenerate `docs/DEVICE_PRECISION.md` with a GB300 column.
+5. Run CHECK-HOST.
 
 ### P0.6 — Baseline runs (one session per GPU)
 
