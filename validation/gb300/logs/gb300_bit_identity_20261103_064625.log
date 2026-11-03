@@ -1,0 +1,68 @@
+===========================================================
+ GB300 bit-identity
+ date      : 2026-11-03T06:46:25+00:00
+ host      : graceblackwell01
+ repo      : /home/rbarik/xpmath-kokkos
+ commit    : 270a8ab75ad958830139e96dd91a25d3545bccc1
+ cobalt id : unset
+ build dir : /home/rbarik/xpmath-kokkos/build-gb300-bit-identity
+ kokkos    : /home/rbarik/qcdl_gb300/kokkos/install/kokkos-5.1.0-gb300/Release
+ log       : /home/rbarik/xpmath-kokkos/validation/gb300/logs/gb300_bit_identity_20261103_064625.log
+===========================================================
+  module load gcc/11.2.0
+  module load cmake/3.22.1
+  module load cuda/13.3.1
+
+--- provenance ---
+    Tue Nov  3 06:46:25 2026       
+    +-----------------------------------------------------------------------------------------+
+    | NVIDIA-SMI 615.71.09              KMD Version: 615.71.09     CUDA UMD Version: 13.4     |
+    +-----------------------------------------+------------------------+----------------------+
+    | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+    | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+    |                                         |                        |               MIG M. |
+    |=========================================+========================+======================|
+    |   0  NVIDIA GB300                   Off |   00000009:06:00.0 Off |                    0 |
+    | N/A   29C    P0            146W / 1300W |       0MiB / 256703MiB |      0%      Default |
+    |                                         |                        |             Disabled |
+    +-----------------------------------------+------------------------+----------------------+
+    
+    +-----------------------------------------------------------------------------------------+
+    | Processes:                                                                              |
+    nvcc: NVIDIA (R) Cuda compiler driver
+    Copyright (c) 2005-2026 NVIDIA Corporation
+    Built on Tue_Jun_09_02:45:27_PM_PDT_2026
+    Cuda compilation tools, release 13.3, V13.3.73
+    Build cuda_13.3.r13.3/compiler.38244171_0
+    g++ (GCC) 11.2.0
+Kokkos prefix present: /home/rbarik/qcdl_gb300/kokkos/install/kokkos-5.1.0-gb300/Release
+
+--- configure + build ---
+-- The CXX compiler identification is GNU 11.2.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /home/rbarik/qcdl_gb300/kokkos/install/kokkos-5.1.0-gb300/Release/bin/nvcc_wrapper - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found CUDAToolkit: /soft/compilers/cuda/cuda-13.3.1/include (found version "13.3.73") 
+-- Looking for C++ include pthread.h
+-- Looking for C++ include pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Enabled Kokkos devices: SERIAL;CUDA
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/rbarik/xpmath-kokkos/build-gb300-bit-identity
+[ 50%] Building CXX object CMakeFiles/bit_identity_test.dir/tests/bit_identity_test.cpp.o
+[100%] Linking CXX executable bit_identity_test
+[100%] Built target bit_identity_test
+
+--- run bit_identity_test ---
+bit_identity_test: exec_space=Cuda both_in_kernel=yes
+grid: 1700 real, 1780 complex points
+bit_identity_test: OK (4 backends × 63 ops × grid, zero differing cells)
+
+bit_identity_test exit: 0
+log: /home/rbarik/xpmath-kokkos/validation/gb300/logs/gb300_bit_identity_20261103_064625.log
+COBALT_JOBID=unset

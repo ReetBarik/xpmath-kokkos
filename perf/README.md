@@ -12,7 +12,7 @@ default (`XPMATH_KOKKOS_BUILD_PERF=OFF`).
 | `kernels.hpp` | one templated kernel per op, plus deterministic input generation |
 | `unit.cpp` | compiled 12 times (real/complex x 6 types), one object per unit |
 | `perf_main.cpp` | launches all 90 kernels once (no timing, no checks) |
-| `isa_metrics.sh` | per-kernel ISA metrics CSV from a built tree; arch `gfx90a gfx942 sm_80 sm_100` |
+| `isa_metrics.sh` | per-kernel ISA metrics CSV from a built tree; arch `gfx90a gfx942 sm_80 sm_100 sm_103` |
 | `isa_metrics_hip.py` | the AMDGPU (gfx90a, gfx942) parser behind `isa_metrics.sh` |
 | `isa_metrics_cuda.py` | the CUDA parser (`cuobjdump -res-usage`, `-sass`) |
 | `throughput.cpp` | the throughput runner (driver, target `xpk_perf_throughput`) |

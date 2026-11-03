@@ -5,7 +5,7 @@
 # usage: perf/isa_metrics.sh <build-dir> <arch> [science]
 #
 # Writes perf/results/<arch>/isa_<xpmath-tag-or-sha>.csv from a perf build
-# (see perf/README.md). arch: gfx90a gfx942 sm_80 sm_100.
+# (see perf/README.md). arch: gfx90a gfx942 sm_80 sm_100 sm_103.
 # With "science": writes science_isa_<tag>.csv for the science-shaped kernel
 # (build target xpk_perf_throughput).
 set -euo pipefail
@@ -36,11 +36,11 @@ case "$arch" in
   gfx90a|gfx942)
     exec python3 -I "$here/isa_metrics_hip.py" "$build" "$out" ${extra[@]+"${extra[@]}"}
     ;;
-  sm_80|sm_100)
+  sm_80|sm_100|sm_103)
     exec python3 -I "$here/isa_metrics_cuda.py" "$build" "$out" "$arch" ${extra[@]+"${extra[@]}"}
     ;;
   *)
-    echo "arch '$arch' is not supported (gfx90a gfx942 sm_80 sm_100)" >&2
+    echo "arch '$arch' is not supported (gfx90a gfx942 sm_80 sm_100 sm_103)" >&2
     exit 2
     ;;
 esac
