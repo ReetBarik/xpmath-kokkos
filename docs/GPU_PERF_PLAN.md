@@ -41,7 +41,7 @@ one task, records the result, and stops.
 | P0.4 | GB300 lanes: harness build + bit-identity script | xpmath-kokkos | GB300 | P0.3 |
 | P0.5 | GB300 device-sweep lane in xpmath | xpmath | GB300 + login | — |
 | P0.5b | Validate P0.5's DD acos fix on the other GPUs; fast-forward xpmath `gpu-perf` | xpmath | A100, B200, MI250, MI300 | P0.5 |
-| P0.5c | GB300 as an accuracy gate (**only if the user approves**) | xpmath | GB300 + login | P0.5b |
+| P0.5c | GB300 as an accuracy gate (user approved 2026-11-03) | xpmath | login (GB300 only if step 1 is not done) | P0.5b |
 | P0.6 | Baseline runs, one session per GPU | xpmath-kokkos | that GPU | P0.2, P0.3, P0.4 |
 | P0.7 | Per-GPU cost table generator | xpmath-kokkos | login node | P0.6 (all five) |
 | P1.1 | HIP: replace `volatile` EFTs | xpmath | login + MI250 + MI300 | P0.7, P0.5b |
@@ -431,16 +431,19 @@ user decides whether a bit change there is acceptable. Do not fast-forward.
 **Done when:** all four devices are identical, both sanitizer runs report 0
 errors, and xpmath `gpu-perf` is at 0bd8b95.
 
-### P0.5c — GB300 as an accuracy gate (only with the user's explicit approval)
+### P0.5c — GB300 as an accuracy gate (approved by the user 2026-11-03)
 
 **Repo** xpmath · **Needs** GB300, then login node · **Depends on** P0.5b
 
-Do not start without the user's explicit approval. This task adds a ctest
-target, which is an approved exception to §1.2 rule 3.
+The user approved this on 2026-11-03. It adds a ctest target, which is an
+approved exception to §1.2 rule 3.
 
 **Steps:**
-1. On GB300, run the sweep twice on `gpu-perf` and `cmp` the two raw files
-   (headers and timing removed). Stop if they differ.
+1. Two GB300 sweeps of the tree `gpu-perf` now points at must be
+   bit-identical (headers and timing removed). P0.5 may already have done
+   this on 0bd8b95; check its status blocks. That result counts only if
+   `gpu-perf` is at 0bd8b95. Otherwise, run the two sweeps on GB300. Stop
+   if they differ.
 2. On the login node, score the raw file, commit
    `validation/sweep/sweep_baseline_gb300.csv.gz` and the raw file of
    record, and add a `sweep_device_gate_gb300` target modelled on
