@@ -101,3 +101,16 @@ Next session must know:
 - User decides: (1) whether the acos fix is accepted as a library change after A100/B200 bit-identity + sanitizer and MI250/MI300 identity; (2) whether GB300 becomes a gate, which cannot be while complex pow fails.
 - sweep_device runs on the node but the first full-sweep raw file is not a result; use the _adf9ace.csv.gz file.
 - Node-local /tmp is not shared; only $HOME is. Launch detached jobs with `ssh -n host 'setsid nohup ...'`.
+
+## P0.5 (final) — GB300 device-sweep lane: green on GB300
+Date: 2026-11-03   Outcome: Partial (GB300 green; other-GPU checks for the acos change pending; gpu-perf in xpmath not yet fast-forwarded)
+Commits: xpmath wip/P0.5-dd-acos @0bd8b95 (single branch, contains wip/P0.5; fast-forwardable onto gpu-perf 4f60bc4). Order: 1cfa793 lane, adf9ace acos, 63daa15 hypot_cr, 0bd8b95 logs.
+Changed (xpmath): scripts/xpm_build.sh (--arch gb300, device tree only); validation/gb300/run_gb300_sweep.sh; scripts/sweep_accuracy.cpp (+gb300 --where token); include/xp/dd_complex.hpp (DD complex acos: imag_mag direct, no #ifdef); scripts/sweep_inputs.hpp (hypot_cr replaces std::hypot in complex pow operand clamp).
+Checks (all on final tree 63daa15): GB300 graceblackwell01 full sweep_device exit 0, 436080 rows; compute-sanitizer memcheck full sweep 0 errors; CHECK-HOST pass 44/44 host + 24/24 device; login-node scorer `--where gb300`: 0 points above bound, absolute gate PASS, exit 0. Logs: validation/gb300/logs/*_63daa15*, raw sweep_gb300_raw_63daa15.csv.gz.
+NOT run: CHECK-DEVICE-IDENTICAL for the acos change on A100/B200/MI250/MI300 (GB300 cannot give before/after: original faults); A100/B200 sanitizer; no sweep_device_gate_gb300 target added (user decides).
+Measured: DD c acos exit 3 / 61 sanitizer errors -> 0. GB300 above-bound points 41 -> 0.
+Next session must know:
+- Two independent causes. (1) DD complex acos inlined a duplicate asin real-leg body; sm_103 ptxas mis-sized the __local__ frame (TD-4 family). Fixed by calling xp_asin_imag_mag directly; no function pointer needed. (2) The complex pow "failures" were an INPUT mismatch, not a library defect: std::hypot differs between x86 and aarch64 glibc 2.38 (FMA vs split path), so the clamped pow operand b differed by ulps between the GB300 producer and the x86 scorer (15 points, 101 hypot diffs). hypot_cr is IEEE-exact; operands are bit-identical to the old x86 ones at all 1780 points (baselines untouched) and equal on aarch64.
+- Any FMA-default or non-x86 producer would hit (2); a device raw file scored on another machine depends on operand derivation being platform independent.
+- Remaining before fast-forwarding gpu-perf: A100/B200 (and AMD) bit-identity of the acos change vs 4f60bc4, A100/B200 sanitizer, user's call on a gb300 gate.
+- Scratch probes (not committed): ~/p05_probe (stage, libm, operand probes).
