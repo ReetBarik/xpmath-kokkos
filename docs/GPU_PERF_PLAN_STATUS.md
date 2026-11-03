@@ -114,3 +114,13 @@ Next session must know:
 - Any FMA-default or non-x86 producer would hit (2); a device raw file scored on another machine depends on operand derivation being platform independent.
 - Remaining before fast-forwarding gpu-perf: A100/B200 (and AMD) bit-identity of the acos change vs 4f60bc4, A100/B200 sanitizer, user's call on a gb300 gate.
 - Scratch probes (not committed): ~/p05_probe (stage, libm, operand probes).
+
+## P0.5 (repeat run) — GB300 reproducibility, step 1 of P0.5c
+Date: 2026-11-03   Outcome: Done
+Commits: xpmath-kokkos@(this block) only; xpmath gpu-perf NOT fast-forwarded (P0.5b does that). Runs made at xpmath wip/P0.5-dd-acos 0bd8b95.
+Checks: two independent GB300 sweeps (graceblackwell01), run 2 from a FRESH build dir. Both exit 0, 436080 rows. After stripping '#' lines (the raw files carry no timing lines; strip_timing.sh is not needed for them), cmp: IDENTICAL.
+Raw files: run 1 = $HOME/gpuperf-scratch/P0.5/raw_run1_63daa15.csv (made at 63daa15; same library and harness code as 0bd8b95, which only adds logs; also committed gzipped on wip as validation/gb300/logs/sweep_gb300_raw_63daa15.csv.gz). run 2 = $HOME/gpuperf-scratch/P0.5/raw_run2_0bd8b95.csv. Run 2 log: $HOME/gpuperf-scratch/P0.5/run2.log.
+Next session must know:
+- P0.5c can reuse these as its step-1 reproducibility evidence if gpu-perf ends up at 0bd8b95 (or any commit whose library and sweep_inputs code are unchanged).
+- Scratch dir is under $HOME and untracked. Not committed.
+- Done with graceblackwell01.
