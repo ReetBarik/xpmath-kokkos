@@ -63,3 +63,37 @@ endforeach()
 
 add_executable(xpk_perf_isa perf_main.cpp ${_xpk_units})
 target_link_libraries(xpk_perf_isa PRIVATE Kokkos::kokkos)
+
+# Throughput runner and science kernel (GPU_PERF_PLAN P0.3). Separate units and
+# executable so the 90-kernel ISA set above is untouched.
+set(_xpk_tp_units)
+foreach(_kind r c)
+  if(_kind STREQUAL "r")
+    set(_kind_id 0)
+  else()
+    set(_kind_id 1)
+  endif()
+  foreach(_id RANGE 0 5)
+    set(_name xpk_tp_${_kind}${_id})
+    add_library(${_name} OBJECT tp_unit.cpp)
+    target_include_directories(${_name} PRIVATE
+      "${PROJECT_SOURCE_DIR}/include"
+      "${_xpk_xp_inc}")
+    target_compile_definitions(${_name} PRIVATE
+      XPK_KIND=${_kind_id}
+      XPK_TYPE_ID=${_id}
+      XPK_UNIT_FN=xpk_tp_unit_${_kind}${_id}
+      XPMATH_ENABLE_DIAGNOSTICS=0)
+    target_link_libraries(${_name} PRIVATE Kokkos::kokkos)
+    if(Kokkos_ENABLE_HIP)
+      target_compile_options(${_name} PRIVATE -save-temps=obj)
+    endif()
+    list(APPEND _xpk_tp_units $<TARGET_OBJECTS:${_name}>)
+  endforeach()
+endforeach()
+
+add_executable(xpk_perf_throughput throughput.cpp ${_xpk_tp_units})
+target_compile_definitions(xpk_perf_throughput PRIVATE
+  XPK_XP_VERSION="${_xpk_xp_version}"
+  XPK_PERF_RESULTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/results")
+target_link_libraries(xpk_perf_throughput PRIVATE Kokkos::kokkos)

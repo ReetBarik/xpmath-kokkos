@@ -3,11 +3,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 UChicago Argonne, LLC
 """Per-kernel ISA metrics from -save-temps device assembly (HIP, AMDGPU).
 
-usage: isa_metrics_hip.py <build-dir> <out.csv>
+usage: isa_metrics_hip.py <build-dir> <out.csv> [--science]
 
 Reads every *-hip-amdgcn-amd-amdhsa-*.s under <build-dir>/perf. Writes
 type,op,regs,scratch_bytes,code_bytes,instructions,calls (see perf/README.md).
 Exits nonzero unless exactly the 90 expected (type, op) rows are found.
+With --science it reports the science-shaped kernel instead: exactly 6 rows
+(one per real type, op "science").
 """
 import glob
 import os
@@ -25,6 +27,7 @@ COMPLEX_OPS = ["Add", "Mul", "Div", "Abs", "Sqrt", "Log", "Exp"]
 
 TYPE_NAMES = dict(REAL_TYPES + COMPLEX_TYPES)
 KERNEL_RE = re.compile(r"xpk_perf::(RealKernel|ComplexKernel)<(.+?), xpk_perf::op::(\w+)>")
+SCIENCE_RE = re.compile(r"xpk_perf::ScienceKernel<([^<>,]+),")
 INSN_RE = re.compile(r"^\s+[a-z][a-z0-9_]*(\s|$)")
 CALLEE_RE = re.compile(r"\s(_Z[A-Za-z0-9_]+)@rel32@lo")
 
@@ -95,6 +98,28 @@ def parse_metadata(lines):
     return kernels
 
 
+def kernel_key(dem, science):
+    """(type, op) for a demangled kernel name, or None for kernels not in this set."""
+    if science:
+        m = SCIENCE_RE.search(dem)
+        tname, op = (m.group(1), "science") if m else (None, None)
+    else:
+        m = KERNEL_RE.search(dem)
+        tname, op = (m.group(2), m.group(3).lower()) if m else (None, None)
+    if not m:
+        return None
+    if tname not in TYPE_NAMES:
+        sys.exit("unknown kernel type %r in %s" % (tname, dem))
+    return (TYPE_NAMES[tname], op)
+
+
+def expected_keys(science):
+    if science:
+        return [(t, "science") for _, t in REAL_TYPES]
+    return [(t, o.lower()) for _, t in REAL_TYPES for o in REAL_OPS] + \
+           [(t, o.lower()) for _, t in COMPLEX_TYPES for o in COMPLEX_OPS]
+
+
 def closure(funcs, root):
     seen, stack = set(), [root]
     while stack:
@@ -107,9 +132,11 @@ def closure(funcs, root):
 
 
 def main():
-    if len(sys.argv) != 3:
+    args = [a for a in sys.argv[1:] if a != "--science"]
+    science = len(args) != len(sys.argv) - 1
+    if len(args) != 2:
         sys.exit(__doc__)
-    build, out = sys.argv[1], sys.argv[2]
+    build, out = args
     files = sorted(glob.glob(os.path.join(build, "perf", "**", "*-hip-amdgcn-amd-amdhsa-*.s"),
                              recursive=True))
     if not files:
@@ -128,13 +155,9 @@ def main():
 
     rows = {}
     for (name, funcs, meta), dem in zip(entries, demangled):
-        m = KERNEL_RE.search(dem)
-        if not m:
-            continue  # Kokkos housekeeping kernel (ViewValueFunctor, ...)
-        kind, tname, opname = m.groups()
-        if tname not in TYPE_NAMES:
-            sys.exit("unknown kernel type %r in %s" % (tname, dem))
-        key = (TYPE_NAMES[tname], opname.lower())
+        key = kernel_key(dem, science)
+        if key is None:
+            continue  # Kokkos housekeeping kernel, or a kernel of the other set
         if key in rows:
             sys.exit("duplicate kernel for %s" % (key,))
         reach = closure(funcs, name)
@@ -145,8 +168,7 @@ def main():
                      sum(funcs[n]["insns"] for n in reach),
                      sum(funcs[n]["calls"] for n in reach))
 
-    expected = [(t, o.lower()) for _, t in REAL_TYPES for o in REAL_OPS] + \
-               [(t, o.lower()) for _, t in COMPLEX_TYPES for o in COMPLEX_OPS]
+    expected = expected_keys(science)
     missing = [k for k in expected if k not in rows]
     extra = [k for k in rows if k not in expected]
     if missing or extra:

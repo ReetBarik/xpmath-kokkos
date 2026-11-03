@@ -3,9 +3,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 UChicago Argonne, LLC
 """Per-kernel ISA metrics from CUDA objects (cuobjdump -res-usage / -sass).
 
-usage: isa_metrics_cuda.py <build-dir> <out.csv> <sm_XX>
+usage: isa_metrics_cuda.py <build-dir> <out.csv> <sm_XX> [--science]
 
-Reads every perf/CMakeFiles/xpk_unit_*.dir/unit.cpp.o under <build-dir>. Writes
+Reads every perf/CMakeFiles/xpk_unit_*.dir/unit.cpp.o under <build-dir>
+(with --science: the xpk_tp_c*.dir/tp_unit.cpp.o objects, 6 science rows). Writes
 the same columns as the HIP script (see perf/README.md). Without relocatable
 device code, called device functions live inside the kernel's own SASS
 listing, so summing that listing covers everything the kernel can reach.
@@ -73,10 +74,13 @@ def parse_sass(lines):
 
 
 def main():
-    if len(sys.argv) != 4:
+    args = [a for a in sys.argv[1:] if a != "--science"]
+    science = len(args) != len(sys.argv) - 1
+    if len(args) != 3:
         sys.exit(__doc__)
-    build, out, arch = sys.argv[1:]
-    objs = sorted(glob.glob(os.path.join(build, "perf", "CMakeFiles", "xpk_unit_*.dir", "unit.cpp.o")))
+    build, out, arch = args
+    pattern = ("xpk_tp_c*.dir", "tp_unit.cpp.o") if science else ("xpk_unit_*.dir", "unit.cpp.o")
+    objs = sorted(glob.glob(os.path.join(build, "perf", "CMakeFiles", *pattern)))
     if not objs:
         sys.exit("no unit objects under %s/perf" % build)
 
@@ -95,19 +99,14 @@ def main():
 
     rows = {}
     for (name, (reg, stack, local), (code, insns, calls)), dem in zip(entries, demangled):
-        m = common.KERNEL_RE.search(dem)
-        if not m:
-            continue  # Kokkos housekeeping kernel
-        _, tname, opname = m.groups()
-        if tname not in common.TYPE_NAMES:
-            sys.exit("unknown kernel type %r in %s" % (tname, dem))
-        key = (common.TYPE_NAMES[tname], opname.lower())
+        key = common.kernel_key(dem, science)
+        if key is None:
+            continue  # Kokkos housekeeping kernel, or a kernel of the other set
         if key in rows:
             sys.exit("duplicate kernel for %s" % (key,))
         rows[key] = (reg, max(stack, local), code, insns, calls)
 
-    expected = [(t, o.lower()) for _, t in common.REAL_TYPES for o in common.REAL_OPS] + \
-               [(t, o.lower()) for _, t in common.COMPLEX_TYPES for o in common.COMPLEX_OPS]
+    expected = common.expected_keys(science)
     missing = [k for k in expected if k not in rows]
     extra = [k for k in rows if k not in expected]
     if missing or extra:
