@@ -149,8 +149,14 @@ branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
 The user allocates GPU nodes with an interactive `qsub`. When your task
 needs a GPU:
 
-1. Ask the user: *"Please allocate a `<GPU>` node and tell me the hostname."*
-   Wait for the answer. Never submit jobs yourself.
+1. Ask for **all** the GPUs your task lists in one message: *"This task
+   needs <list>. Please give me hostnames for the ones you can allocate
+   now, and tell me which are unavailable."* Wait for the answer. Never
+   submit jobs yourself. Availability changes day to day, and any GPU can
+   be the scarce one. Proceed with what you get, and defer the rest under
+   §1.9. The minimum to land a library change is CHECK-HOST plus at least
+   one GPU per vendor the change can affect (one NVIDIA and one AMD in
+   general; one AMD for a HIP-only change like P1.1).
 2. Run commands with `ssh <host> 'bash -lc "<commands>"'`. **Only `$HOME` is
    shared** with the login node; a node's `/tmp` is local to that node.
    Anything produced on a node that you need later (raw sweep files, logs,
@@ -295,7 +301,7 @@ CHECK-HOST, then pushes.
 
 **Deferring a GPU.** A task may land on staging without one of the GPUs it
 lists only if all of these hold:
-1. the user has said that GPU is unavailable;
+1. the user has said that GPU is unavailable (any GPU, not only A100);
 2. at least one other GPU of the **same vendor** passed the same checks in
    this task (NVIDIA: A100, B200, GB300; AMD: MI250, MI300);
 3. CHECK-HOST passed (it can never be deferred).
