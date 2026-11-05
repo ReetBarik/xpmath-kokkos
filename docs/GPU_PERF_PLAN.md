@@ -11,8 +11,11 @@ one task, records the result, and stops.
 
 ## 0. How a session uses this document
 
-0. Before anything else, run `git checkout gpu-perf && git pull` in
-   **both** `~/xpmath-kokkos` and `~/kokkos-extended-precision-demo`. All
+0. Before anything else, run `git checkout <branch> && git pull` in
+   **both** repos. In `~/xpmath-kokkos` the branch is `gpu-perf`. In
+   `~/kokkos-extended-precision-demo` it is `gpu-perf` for P0.5b, P0.5c and
+   C-* tasks, and `gpu-perf-staging` for every other xpmath task from P1.1
+   on (§1.9). All
    tasks commit onto that one shared branch (§1.2 rule 2), so it holds all
    earlier work and all earlier status blocks. Then record the starting
    commit of each repo (`git rev-parse HEAD`); some checks compare against
@@ -43,8 +46,8 @@ one task, records the result, and stops.
 | P0.5b | Validate P0.5's DD acos fix on the other GPUs; fast-forward xpmath `gpu-perf` | xpmath | A100, B200, MI250, MI300 | P0.5 |
 | P0.5c | GB300 as an accuracy gate (user approved 2026-11-03) | xpmath | login (GB300 only if step 1 is not done) | P0.5b |
 | P0.6 | Baseline runs, one session per GPU | xpmath-kokkos | that GPU | P0.2, P0.3, P0.4 |
-| P0.7 | Per-GPU cost table generator | xpmath-kokkos | login node | P0.6 (all five) |
-| P1.1 | HIP: replace `volatile` EFTs | xpmath | login + MI250 + MI300 | P0.7, P0.5b |
+| P0.7 | Per-GPU cost table generator | xpmath-kokkos | login node | P0.6 for every GPU available so far (re-run when a missing one lands) |
+| P1.1 | HIP: replace `volatile` EFTs | xpmath (staging) | login + MI250 + MI300 | P0.7, P0.5 |
 | P1.2 | Type alignment | xpmath | login + all 5 GPUs | P1.1 |
 | P2.1[b] | Outline rare-case paths, backend b | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
 | P2.2[b] | Inline the hot small functions, backend b | xpmath | login + all 5 GPUs | P2.1[b] |
@@ -53,10 +56,14 @@ one task, records the result, and stops.
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.3[dd] |
 | P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
 | P4.0 | Generic-core design (STOP) | xpmath | login | P3 done |
-| R | Release, re-vendor, re-measure (once, at the end) | xpmath-kokkos | all 5 GPUs | user merged `gpu-perf` and tagged a release |
+| C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
+| R | Release, re-vendor, re-measure (once, at the end) | xpmath-kokkos | all 5 GPUs | ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
 
 Backend order for every `[b]` task: **dd → ff → tf → qf**. Each backend is a
 separate session.
+
+"All 5 GPUs" in the Needs column means: all five, **or** the ones available
+plus deferral rows for the rest, under the rules of §1.9.
 
 ---
 
@@ -75,8 +82,9 @@ separate session.
   `__float128` outside `vendor/`. Never hand-edit `vendor/`; the only way
   to change it is `scripts/sync_upstream.sh <tag>` (task R).
 
-The xpmath clone is `~/kokkos-extended-precision-demo`, on branch
-`gpu-perf`. Use it for xpmath tasks and as `XPMATH_KOKKOS_PERF_XP_DIR`.
+The xpmath clone is `~/kokkos-extended-precision-demo`. Use it for xpmath
+tasks and as `XPMATH_KOKKOS_PERF_XP_DIR`, checked out on the branch §0
+step 0 names.
 **Do not use `~/xpmath_perf_audit/upstream`, and never check out the local
 branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
 
@@ -88,8 +96,10 @@ branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
    compiler bug. Every library change is checked on the GPUs its task lists.
 2. **One shared branch per repo: `gpu-perf`.** Every task commits onto
    `gpu-perf` (in xpmath-kokkos and/or the xpmath clone) and pushes it with
-   a plain `git push`. The user merges `gpu-perf` into `main` once, at the
-   end.
+   a plain `git push`. The user merges into `main` once, at the end.
+   **Exception (§1.9):** in the xpmath clone, every task from P1.1 on uses
+   `gpu-perf-staging`. Wherever this document says `gpu-perf` for such a
+   task's xpmath work, read `gpu-perf-staging`.
    - Prefix every commit subject with the task ID, e.g. `P2.1[dd]: ...`.
    - **Never force-push, rebase, amend, or rewrite commits already on
      `gpu-perf`.** Never merge, never tag, never push to `main`.
@@ -266,6 +276,71 @@ Next session must know: <1–5 bullets>
 ```
 
 Keep it under 40 lines. It's the only memory the next session gets.
+
+### 1.9 Two xpmath branches, and what to do when a GPU is unavailable
+
+**Branches in the xpmath clone:**
+- `gpu-perf`: checked on **every** GPU. Only P0.5b, P0.5c and catch-up
+  tasks (C-<arch>) move it.
+- `gpu-perf-staging`: every xpmath task from P1.1 on commits here. It
+  starts at 0bd8b95, P0.5's acos fix, which was checked on B200, GB300,
+  MI250 and MI300. Its A100 check is owed by P0.5b itself.
+
+xpmath-kokkos keeps one branch, `gpu-perf`.
+
+**Keeping staging current:** if xpmath `gpu-perf` has commits that staging
+lacks (for example P0.5c's gate), the next xpmath session merges it first.
+It runs `git merge origin/gpu-perf` (a normal merge, never a rebase), then
+CHECK-HOST, then pushes.
+
+**Deferring a GPU.** A task may land on staging without one of the GPUs it
+lists only if all of these hold:
+1. the user has said that GPU is unavailable;
+2. at least one other GPU of the **same vendor** passed the same checks in
+   this task (NVIDIA: A100, B200, GB300; AMD: MI250, MI300);
+3. CHECK-HOST passed (it can never be deferred).
+
+Each deferral is a row in `~/xpmath-kokkos/docs/GPU_PERF_DEFERRED.md`:
+task, GPU, xpmath `before-SHA..after-SHA`, checks owed, and whether the
+task is bit-preserving. Commit it with your status block.
+
+**Before the user merges into `main`:** xpmath `gpu-perf` and
+`gpu-perf-staging` point at the same commit, and the ledger has no open
+rows.
+
+---
+
+## C-&lt;arch&gt; — Catch-up for a deferred GPU (e.g. C-a100)
+
+**Repo** xpmath (ledger and status in xpmath-kokkos) · **Needs** that GPU ·
+**Depends on** at least one open ledger row for that GPU; for C-a100, also
+P0.5b done
+
+Run it whenever the GPU frees up. For A100, do P0.5b, P0.6-a100 and C-a100
+back to back in one allocation (three sessions).
+
+**Steps:**
+1. Take this GPU's open rows, oldest first. Group consecutive
+   bit-preserving rows into one run. A bit-changing row (Phase 3) is a run
+   on its own.
+2. For a bit-preserving run: CHECK-DEVICE-IDENTICAL with before = the first
+   row's before-SHA and after = the last row's after-SHA. If it differs,
+   test row boundaries (each row's after-SHA) to find the first failing
+   row, then stop.
+3. For a bit-changing row: run the device sweep at its after-SHA and score
+   it under the P3.0 policy, the same way the task did on the other GPUs.
+4. On CUDA GPUs: CHECK-SANITIZER at the newest after-SHA. If it fails, test
+   row boundaries to find the first failing row, then stop.
+5. CHECK-PERF at the newest after-SHA. Per-task attribution on this GPU is
+   lost; that's accepted.
+6. Mark the rows settled in the ledger, with log paths.
+7. Let X be the newest staging commit with no open ledger rows for any GPU
+   at or before it. Fast-forward xpmath `gpu-perf` to X and push.
+   Fast-forward only; X must already contain every commit on `gpu-perf`.
+
+**Stop if:** anything fails. Report the failing row and leave both branches
+as they are. A fix goes on staging as a new commit (a fix or a
+`git revert`), never by rewriting history, and the user decides which.
 
 ---
 
@@ -466,7 +541,10 @@ including the science kernel. Commit the CSVs.
 
 ### P0.7 — Per-GPU cost table generator
 
-**Repo** xpmath-kokkos · **Needs** login node · **Depends on** all P0.6 sessions
+**Repo** xpmath-kokkos · **Needs** login node · **Depends on** the P0.6 sessions done so far
+
+A GPU with no P0.6 data yet gets a "NO DATA yet" column. Re-run P0.7 (a
+short session) after that GPU's P0.6 lands.
 
 **Steps:** write `perf/gen_cost_table.py`. It reads the latest CSVs per arch
 and generates `docs/PERF_TABLE.md`:
@@ -487,7 +565,7 @@ a type from, and the baseline every later task compares against.
 
 ### P1.1 — HIP: replace `volatile` in the EFT helpers
 
-**Repo** xpmath · **Needs** login node, MI250, MI300 · **Depends on** P0.7
+**Repo** xpmath (on `gpu-perf-staging`, §1.9) · **Needs** login node, MI250, MI300 · **Depends on** P0.7, P0.5
 
 **Background:** `include/xp/config.hpp` §5 (`eft_add/sub/mul/fma`) copies
 operands into `volatile` locals on every non-CUDA path. On gfx90a that
@@ -672,8 +750,9 @@ written from the approved design.
 ## Task R — Release, re-vendor, re-measure (once, at the end)
 
 **Repo** xpmath-kokkos · **Needs** all 5 GPUs (one session may visit them
-in turn, or split per GPU) · **Depends on** the user has merged xpmath's
-`gpu-perf` into `main` and tagged a release
+in turn, or split per GPU) · **Depends on** the deferral ledger is empty,
+xpmath `gpu-perf` equals `gpu-perf-staging`, and the user has merged
+xpmath's `gpu-perf` into `main` and tagged a release
 
 Before R, every perf measurement uses the harness built against the xpmath
 clone's `gpu-perf` via `XPMATH_KOKKOS_PERF_XP_DIR` (CHECK-PERF), so no
