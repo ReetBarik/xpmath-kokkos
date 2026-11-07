@@ -149,3 +149,15 @@ Orchestrator review of P0.5b (2026-11-07):
 - Exception: xpmath gpu-perf was fast-forwarded to 0bd8b95 with ledger row 1 (B200) still open. That breaks §1.9 ("gpu-perf = checked on every GPU") and P0.5b's own Done-when. It is accepted rather than force-pushed back; C-b200 settles row 1. No B200 artifacts exist under $HOME/gpuperf-scratch/.
 - Violation: the status commit was amended after push and force-pushed (b02cd26 -> 377c5ee, a one-line change). Nothing else was lost.
 
+
+## P0.5c — GB300 as an accuracy gate
+Date: 2026-11-07   Outcome: Partial (work done and checked; kept OFF xpmath gpu-perf, see below)
+Commits: xpmath wip/P0.5c@18da0d4 (off gpu-perf, based on gpu-perf 0bd8b95); xpmath-kokkos@gpu-perf (this block). xpmath gpu-perf NOT moved.
+Why not moved: the P0.5c section does not say to fast-forward gpu-perf (rule a), and deferral ledger row 1 (P0.5b b200) is still open at/before the target (rule c). User/next session decides; the change is fast-forwardable from gpu-perf.
+Changed (xpmath): validation/sweep/sweep_baseline_gb300.csv.gz (new; scored from validation/gb300/logs/sweep_gb300_raw_63daa15.csv.gz, the raw of record already on gpu-perf); tests/CMakeLists.txt (sweep_device_gate_gb300, timeout 600); .github/workflows/ci.yml (suite 67->68, host 44->45); CLAUDE.md (count); scripts/gen_domains.py + validation/check_device_domains_fresh.sh + docs/DEVICE_PRECISION.md (GB300 column).
+Checks: step 1 reproducibility: reused P0.5 repeat-run evidence (gpu-perf is at 0bd8b95; re-cmp'd raw_run1 vs raw_run2 after stripping '#' lines: IDENTICAL; no GPU used). Scorer on login node: exit 0, 0 above bound, 436080 rows. CHECK-HOST on 18da0d4: PASS 45/45 (/tmp/P0.5c-host.log; sweep_device_gate_gb300 and device_domains_fresh pass).
+Measured: GB300 vs host: 433024/436080 identical, 3056 differ, 0 state moves, 0 above bound; arithmetic family 165440/165440 bit-identical; cause totals unchanged (170 match / 82 VENDOR_LIBM / 0 UNATTRIBUTED).
+Next session must know:
+- DEVICE_PRECISION.md generator was hardcoded to a100+mi250 (b200/mi300 are not columns); I generalized it for gb300 only. Plan step 4 assumed it was data-driven.
+- tests/README.md count history not updated. No B200 artifacts; C-b200 still owed.
+- Scratch: $HOME/gpuperf-scratch/P0.5c/. No GPU was used or held.
