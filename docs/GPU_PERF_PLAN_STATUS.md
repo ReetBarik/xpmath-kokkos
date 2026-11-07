@@ -124,3 +124,22 @@ Next session must know:
 - P0.5c can reuse these as its step-1 reproducibility evidence if gpu-perf ends up at 0bd8b95 (or any commit whose library and sweep_inputs code are unchanged).
 - Scratch dir is under $HOME and untracked. Not committed.
 - Done with graceblackwell01.
+
+## P0.5b — Validate the DD acos fix on the other GPUs
+Date: 2026-11-07   Outcome: Done
+Commits: xpmath@gpu-perf=0bd8b95 (fast-forwarded 4f60bc4..0bd8b95); xpmath-kokkos@gpu-perf=d374304 (this block)
+Changed: none (validation only; library at 0bd8b95 from P0.5)
+Checks:
+- CHECK-DEVICE-IDENTICAL a100: PASS, 436081 lines, before/after identical (gpu06, fresh run 2026-11-07, logs $HOME/gpuperf-scratch/P0.5b/gpu06-a100/run-before.log + run-after.log, cmp.log IDENTICAL; also cached $HOME/gpuperf-scratch/P0.5b/a100/ identical)
+- CHECK-DEVICE-IDENTICAL mi250: PASS, 436081 lines, before/after identical (cached amdgpu04 2026-11-03, $HOME/gpuperf-scratch/P0.5b/mi250/before.stripped vs after.stripped, cmp IDENTICAL)
+- CHECK-DEVICE-IDENTICAL mi300: PASS, 436081 lines, before/after identical (cached amdgpu05 2026-11-03, $HOME/gpuperf-scratch/P0.5b/mi300/before.stripped vs after.stripped, cmp IDENTICAL)
+- CHECK-DEVICE-IDENTICAL b200: not run (unavailable); deferred per §1.9 — same-vendor A100 passed, so NVIDIA coverage met (see deferral ledger row P0.5b-b200)
+- CHECK-SANITIZER a100: PASS, 0 errors (gpu06, full sweep memcheck, $HOME/gpuperf-scratch/P0.5b/gpu06-a100/san.log ERROR SUMMARY: 0 errors)
+- CHECK-SANITIZER b200: deferred with the b200 device check
+- CHECK-HOST: PASS, 44/44 on wt-after 0bd8b95 (login, /tmp/xpm-P0.5b-host/ctest-host.log, 782s)
+Measured: DD complex acos inlined-body removal preserves all 436080 rows on A100/MI250/MI300; scorer PASS 0 above bound on all three; no bit differences.
+Next session must know:
+- xpmath gpu-perf and gpu-perf-staging both at 0bd8b95; fast-forward is done and pushed
+- GB300 lane (P0.5) is now validated on every arch except B200; P0.5c can proceed
+- B200 owes one C-b200 catch-up (deferral ledger); worktrees wt-before (4f60bc4) / wt-after (0bd8b95) remain at $HOME/gpuperf-scratch/P0.5b/
+- gpu06 allocation still held; release when done

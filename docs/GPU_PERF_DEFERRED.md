@@ -9,3 +9,4 @@ and is not tracked here.
 
 | # | Task | GPU | xpmath before..after | Checks owed | Bit-preserving | Status |
 |---|---|---|---|---|---|---|
+| 1 | P0.5b | b200 | 4f60bc4..0bd8b95 | CHECK-DEVICE-IDENTICAL b200, CHECK-SANITIZER b200 | yes | open (A100 passed as same-vendor substitute; $HOME/gpuperf-scratch/P0.5b/ worktrees remain) |
