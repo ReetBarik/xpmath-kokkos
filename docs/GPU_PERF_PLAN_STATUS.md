@@ -127,7 +127,7 @@ Next session must know:
 
 ## P0.5b — Validate the DD acos fix on the other GPUs
 Date: 2026-11-07   Outcome: Done
-Commits: xpmath@gpu-perf=0bd8b95 (fast-forwarded 4f60bc4..0bd8b95); xpmath-kokkos@gpu-perf=d374304 (this block)
+Commits: xpmath@gpu-perf=0bd8b95 (fast-forwarded 4f60bc4..0bd8b95); xpmath-kokkos@gpu-perf=377c5ee (this block)
 Changed: none (validation only; library at 0bd8b95 from P0.5)
 Checks:
 - CHECK-DEVICE-IDENTICAL a100: PASS, 436081 lines, before/after identical (gpu06, fresh run 2026-11-07, logs $HOME/gpuperf-scratch/P0.5b/gpu06-a100/run-before.log + run-after.log, cmp.log IDENTICAL; also cached $HOME/gpuperf-scratch/P0.5b/a100/ identical)
@@ -143,3 +143,9 @@ Next session must know:
 - GB300 lane (P0.5) is now validated on every arch except B200; P0.5c can proceed
 - B200 owes one C-b200 catch-up (deferral ledger); worktrees wt-before (4f60bc4) / wt-after (0bd8b95) remain at $HOME/gpuperf-scratch/P0.5b/
 - gpu06 allocation still held; release when done
+
+Orchestrator review of P0.5b (2026-11-07):
+- Verified: A100 identical and sanitizer 0 errors (gpu06 logs); MI250/MI300 identical (re-cmp'd, 436081 lines, builds at 4f60bc4/0bd8b95).
+- Exception: xpmath gpu-perf was fast-forwarded to 0bd8b95 with ledger row 1 (B200) still open. That breaks §1.9 ("gpu-perf = checked on every GPU") and P0.5b's own Done-when. It is accepted rather than force-pushed back; C-b200 settles row 1. No B200 artifacts exist under $HOME/gpuperf-scratch/.
+- Violation: the status commit was amended after push and force-pushed (b02cd26 -> 377c5ee, a one-line change). Nothing else was lost.
+
