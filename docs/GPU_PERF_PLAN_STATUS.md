@@ -161,3 +161,13 @@ Next session must know:
 - DEVICE_PRECISION.md generator was hardcoded to a100+mi250 (b200/mi300 are not columns); I generalized it for gb300 only. Plan step 4 assumed it was data-driven.
 - tests/README.md count history not updated. No B200 artifacts; C-b200 still owed.
 - Scratch: $HOME/gpuperf-scratch/P0.5c/. No GPU was used or held.
+
+## P0.6-mi250 — Baseline runs, MI250 (gfx90a)
+Date: 2026-11-08   Outcome: Done (no GPU used; existing P0.1/P0.3 baselines accepted)
+Commits: xpmath-kokkos@gpu-perf = this block only; xpmath: no changes (clone on gpu-perf-staging, 0bd8b95; xpmath-kokkos start 5a07a83)
+Changed: none besides this block. perf/results/gfx90a/ already holds isa, science_isa, throughput, science CSVs for v0.3.0 (P0.1 63d1e5b, P0.3 576aabc).
+Checks: Done-when (ISA + throughput CSVs for vendored v0.3.0): pass. Only commit touching perf/, vendor/, include/, CMake since 576aabc is P0.4 46a8808 (sm_103 ISA support; no gfx90a effect). isa_metrics.sh gfx90a on build-perf-gfx90a regenerates isa_v0.3.0.csv byte-identical, 90 rows (login node, /tmp/p06-isa.log). throughput CSV: 90 rows, science: 6 rows, nonfinite=0 everywhere.
+Measured: unchanged from P0.3 (MI250 GCD, ratio to double: science DD 6095x, FF 3750x, TF 28934x, QF 85139x).
+Next session must know:
+- The throughput runner was NOT re-run; the MI250 timing baseline is the single P0.3 run from 2026-11-03. Re-run (~45 min on a MI250 node) if a second sample is wanted.
+- P0.7 may treat gfx90a as having data.
