@@ -395,3 +395,15 @@ Summary across GPUs, F1 @8b5c338 vs 0bd8b95 (B200 vs b790730): identical 436081/
 Next session must know:
 - §1.9 conditions are now met for F1 (NVIDIA + AMD passed, CHECK-HOST passed). Not landed: user decides the route (§1.9: only P0.5b/P0.5c/C-* tasks move xpmath gpu-perf). Ledger rows 1 and 3 stay open until B200 catch-up for P1.1/P1.2 runs on a branch containing F1.
 - MI300 not run (not requested); gfx942 is untested for F1.
+
+## F-b200-acos (addendum 4) — F1 validated on MI300; validation complete on all five GPUs
+Date: 2026-11-09   Outcome: Done for validation (F1 kept off gpu-perf/staging; landing and ledger closing are the user's call)
+Commits: xpmath wip/F-b200-acos@8b5c338 unchanged. xpmath-kokkos@gpu-perf = this block.
+Checks (amdgpu00 = MI300 gfx942, ROCm 7.0.2, device trees built on the login node; logs under $HOME/gpuperf-scratch/F-b200-acos/mi300/):
+- Before = 0bd8b95 (worktree, no F1), after = 8b5c338; build stamps verified. Both full sweeps exit 0.
+- CHECK-DEVICE-IDENTICAL mi300: PASS, 436081/436081 rows identical, 0 NaN-only (ident-mi300.log). Scorer: 0 above bound (score-after.log).
+- Lint not run for gfx942: scripts/xpm_lint_device_asm.sh guards the gfx90a defects only; it was clean on MI250.
+All five GPUs now: F1 bit-identical to baseline and 0 above bound on B200, A100, GB300, MI250, MI300; memcheck 0 errors on B200, A100, GB300; CHECK-HOST 100% (44 host tests); gfx90a lint clean.
+Next session must know:
+- Nothing further to validate for F1. To land it, a P0.5b/P0.5c/C-* style task must bring wip/F-b200-acos@8b5c338 onto xpmath gpu-perf (§1.9), then staging merges gpu-perf (normal merge) and reruns CHECK-HOST.
+- Ledger rows 1 and 3 can be closed by the user once F1 is on a branch where the B200 catch-up for P1.1/P1.2 can run; I did not close them.
