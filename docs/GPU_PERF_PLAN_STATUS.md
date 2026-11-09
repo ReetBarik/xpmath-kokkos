@@ -274,3 +274,19 @@ Next session must know:
 - The 2098 NaN-only rows are QF/TF overflow points the scorer leaves unscored.
 - No deferrals, no ledger rows. A100/B200/GB300 not run (HIP-only change, CUDA path untouched).
 - New perf CSVs (v0.3.0-7-g258e529) were kept in scratch, not committed to perf/results.
+
+## P1.2 — Type alignment
+Date: 2026-11-09   Outcome: Done (B200 deferred)
+Commits: xpmath@gpu-perf-staging = 464fd97 (fast-forward of wip/P1.2 from 258e529, pushed; wip/P1.2 also pushed); xpmath gpu-perf unmoved (0bd8b95, task does not move it); xpmath-kokkos@gpu-perf = this block + ledger row 3
+Changed: xpmath include/xp/{dd_math,ff_math,qf_math}.hpp: `alignas(16)` DoubleDouble and QuadFloat, `alignas(8)` FloatFloat. TripleFloat untouched. No sizeof/alignment assumptions found in xp headers or include/Kokkos_xpmath/impl/atomic_cas_add.hpp (memcpy + sizeof only; plan's path `impl/atomic_cas_add.hpp` is really `include/Kokkos_xpmath/impl/`).
+Checks:
+- CHECK-HOST: PASS 44/44 (xpm_build.sh's own run, /tmp/xpm-P1.2/ctest-host.log).
+- CHECK-DEVICE-IDENTICAL: PASS on mi300 (amdgpu00), mi250 (amdgpu04), a100 (gpu06), gb300 (graceblackwell01): 436081/436081 rows identical, 0 NaN-vs-NaN, 0 failing. Scorer exit 0, 0 above bound everywhere (gb300 scored on login). $HOME/gpuperf-scratch/P1.2/{mi300,mi250,a100,gb300}/
+- CHECK-PERF (same-session before=258e529 vs after=464fd97, 2 runs each, best-of-2): no non-finite; science-shaped kernels within 1.5% on all four. See Measured.
+- b200: DEFERRED (ledger row 3). CHECK-SANITIZER not listed for P1.2, not run.
+Measured: no speedup anywhere (median per-op change 0-1.5%). Reproducible >3% slowdowns, accepted by the user ("keep it"): mi250 cDD log +9.5% (133.5-134.1 -> 146.2-146.5 ms); a100 FF mul +8.9% (0.430 -> 0.468 ms); a100 cQF sqrt +3.6% (8.08 -> 8.37 ms). mi300 and gb300: nothing above 3% outside noise (mi300 per-op noise up to 12%, user accepted noise-limited misses). gb300 best aligned kernel 13% faster.
+Next session must know:
+- mi250 cDD log: ISA identical (7403 insns, 116 VGPR) before/after; only scratch 1424 -> 1440 B and shifted stack offsets. alignas on DoubleDouble alone reproduces it; QuadFloat alone does not. Mechanism unproven (hypothesis: scratch layout/stride). A pad experiment was invalid (scratch did not change). A100 slowdowns not investigated.
+- The plan states no expected gain for P1.2; none observed.
+- Ledger row 3 (b200) must be settled by C-b200 together with open row 1/2 before the user merges to main.
+- Scratch: before/after worktrees and builds under $HOME/gpuperf-scratch/P1.2/ (also var/ for the mi250 bisect).
