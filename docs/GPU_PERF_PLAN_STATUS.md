@@ -466,3 +466,14 @@ Next session must know:
 - Candidate fixes (user decides): (1) drop the trivial outlines (dd_two_prod_slow, dd_multiply_slow), keep the KI-41 loop; (2) add G's log1p change to P2.1[dd]; (3) both. Each needs full sweep + identity + full-sweep memcheck on B200 and A100/GB300, and MI250/MI300 identity + CHECK-GFX90A-LINT, since other kernels may hold the same shape.
 - Variant G is a log1p code change (+3 flops, small path), bit-identical on B200; a fix in the F1 mould, not a root-cause fix. CHECK-PERF not run.
 - Other DD functions that return a callee's result directly may carry the same exposure; no audit done.
+
+## P2.1[dd] (addendum 2) — Option 3 implemented; B200 green, other GPUs owed
+Date: 2026-11-09   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@8844010 (on top of 5d387bf): drops the dd_two_prod_slow/dd_multiply_slow outlines, keeps divide-side cold functions (nonfinite, Zone C, KI-41 lifted loop) and adds log1p small-|x| own-result-slot renormalise. xpmath-kokkos@gpu-perf = this block.
+Checks @8844010:
+- CHECK-HOST: PASS 44/44 host + 24/24 device tree (/tmp/xpm-P2.1dd-final/).
+- B200 (blackwell00): full sweep exit 0, scorer exit 0; CHECK-DEVICE-IDENTICAL vs 0769d6d 436081/436081, 0 failing; full-sweep CHECK-SANITIZER 0 errors. Logs $HOME/gpuperf-scratch/P2.1[dd]/final/{run,san}.log.
+- NOT RUN: A100, GB300 (identity + sanitizer), MI250, MI300 (identity), CHECK-GFX90A-LINT, CHECK-PERF on all 5. No deferral rows (task not landing).
+Next session must know:
+- Landing needs one more NVIDIA + one AMD at minimum (§1.9), plus CHECK-PERF; the log1p change is a code change on all backends' DD path, so HIP identity matters.
+- CHECK-PERF may show small slowdowns; the remaining outlines are cheap and expected neutral.
