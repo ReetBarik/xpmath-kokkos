@@ -257,3 +257,20 @@ Next session must know:
 - Whether NaN lower limbs are correct at these points is an xpmath question, not tested here. Operands not inspected.
 - No ledger row (nothing landed on staging). Worktrees wt-before/wt-after remain under $HOME/gpuperf-scratch/P1.1/.
 - amdgpu04 is no longer needed unless the decision above changes.
+
+## P1.1 (resumed) — HIP: replace `volatile` in the EFT helpers
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath@gpu-perf-staging = 258e529 (fast-forward of wip/P1.1 from 0bd8b95, pushed); xpmath gpu-perf unmoved (0bd8b95); xpmath-kokkos@gpu-perf = this block only
+Changed: xpmath include/xp/config.hpp §5 (HIP device pass: fp contract/reassociate off pragmas for eft_add/sub/mul, __builtin_fma for eft_fma; no volatile). Host and CUDA unchanged.
+Checks (rule of §1.5 as amended 734654a, NaN-vs-NaN allowed):
+- CHECK-HOST: PASS (earlier session, 258e529, /tmp/P1.1-build.log).
+- CHECK-DEVICE-IDENTICAL mi250 (amdgpu04 data from the first session, re-evaluated): PASS, 436081 rows, 433983 identical, 2098 NaN-vs-NaN only, 0 failing. $HOME/gpuperf-scratch/P1.1/mi250/{before,after}.stripped
+- CHECK-DEVICE-IDENTICAL mi300 (amdgpu00): PASS, same counts (433983 / 2098 / 0); scorer exit 0, 0 points above bound. $HOME/gpuperf-scratch/P1.1/mi300/
+- CHECK-PERF mi250 (amdgpu04): PASS, 0 of 90 kernels slower than 3%, no non-finite. $HOME/gpuperf-scratch/P1.1/perf/
+Measured (mi250, vs committed v0.3.0 baseline): total instructions 808831 -> 282811; stack bytes 24144 -> 21728; DD add 24 -> 0 B, DD mul 96 -> 64 B (plan expected 0). Science ns/element: DD 7493->355, FF 4601->235, TF 35468->589, QF 104245->1646; double/float unchanged.
+Next session must know:
+- Residual DD mul stack (64 B) is the by-value argument store for the non-inlined multiply (XPMATH_NOINLINE_FUNCTION), confirmed in the asm, not volatile.
+- Chain add ratios (DD add 0.01x) now sit at the native-add timing floor; treat as "very large", not precise.
+- The 2098 NaN-only rows are QF/TF overflow points the scorer leaves unscored.
+- No deferrals, no ledger rows. A100/B200/GB300 not run (HIP-only change, CUDA path untouched).
+- New perf CSVs (v0.3.0-7-g258e529) were kept in scratch, not committed to perf/results.
