@@ -343,3 +343,21 @@ Next session must know:
 - cuda-gdb on blackwell00: use `module load cuda/12.9.1` only and LD_LIBRARY_PATH=/soft/compilers/cuda/cuda-12.9.1/lib64 (loading gcc/13.3.0 breaks it with a libstdc++ symbol error). Conditional breakpoints on $UR7 fail to evaluate; use printf commands.
 - Do not run two device builds at once on the shared login node (hung it once); use `taskset -c 0-7 nice` and build sequentially.
 - Ledger rows 1 and 3 stay open; gpu-perf still sits at a SHA that fails B200.
+
+## F-b200-acos — Prove and fix DD complex acos fault on B200 (0bd8b95)
+Date: 2026-11-09   Outcome: Partial (B200 proven + fixed; A100/GB300/AMD not run, fix kept off shared branches)
+Commits: kept off gpu-perf/gpu-perf-staging, see xpmath wip/F-b200-acos: 67949b7 (throwaway experiment, asm barrier) then 8b5c338 (candidate F1, the fix). Pushed for reference. xpmath-kokkos@gpu-perf = this block + ledger notes.
+Changed: xpmath include/xp/dd_math.hpp (log1p large-arg path: receive log() into a local, quick-two-sum, return; no #ifdef). Here: this block, GPU_PERF_DEFERRED.md rows 1 and 3.
+Mechanism: PROVEN by intervention (not by ptxas source). Two different changes that stop log1p tail-forwarding its result pointer to log (asm barrier; arithmetic renormalise) both take `LDCU UR7,c[0x2f8]` in the acos kernel 4 -> 0 AND remove the fault; the unmodified build faults. cuda-gdb per warp (gdb8-adf9ace.log): warp that ran the LDCU sites reaches log with UR7=0xe1000000; warp that did not has 0xe1fffa70. Divergence as the trigger is inferred from those traces + the heavily divergent faulting warp; no converged-warp launch was run.
+Scope: isolated per-kernel memcheck of the adf9ace build over all 252 kernels (iso-adf9ace.summary): only DD:c:acos faults (99 errors); 251 others 0 errors. The other 2 LDCU UR7 sites are entry scratch in divide and multiply (legal callee clobber); only log1p forwards an incoming UR7.
+Checks (all under $HOME/gpuperf-scratch/F-b200-acos/):
+- CHECK-HOST (F1 host tree): PASS 100%, 44 tests (host-f1-ctest.log). Host half only; single-tree count 67 not run.
+- B200 blackwell00 full sweep_device @8b5c338: exit 0 (full-f1.log). Full-sweep memcheck: 0 errors (full-san-f1.log). Scorer: 0 above bound, PASS (score-f1.log).
+- CHECK-DEVICE-IDENTICAL b200 vs b790730 full sweep (library == 4f60bc4): PASS, 436081/436081 rows identical, 0 NaN-only (ident-b200.log). Bit-preserving on B200.
+- A100, GB300, MI250/MI300: NOT RUN (user gave only blackwell00). No same-vendor GPU passed, so §1.9 deferral is not satisfied; F1 must not land on staging until one NVIDIA + one AMD pass.
+Measured: DD:c:acos 700/99 memcheck errors -> exit 0/0 errors; kernel SASS LDCU UR7 4 -> 0; log1p adds 3 FLOPs on the |a|>=0.25 path.
+Next session must know:
+- F1 is a workaround for a ptxas uniform-register defect, not a root-cause fix; a similar forwarded-pointer shape elsewhere could recur. No ptxas bug filed.
+- F1 is plain C++ (no #ifdef) and also compiles on HIP, where log1p is inline: needs MI250/MI300 CHECK-DEVICE-IDENTICAL and CHECK-GFX90A-LINT. NaN/inf edge rows rely on the full-sweep identity (done on B200 only).
+- A100 + GB300 (build on node) need CHECK-DEVICE-IDENTICAL and CHECK-SANITIZER; user decides how it reaches gpu-perf (§1.9, C-* task).
+- Still unknown: why ptxas chose the UR7 form for adf9ace, and why the old path faulted on sm_103 only.
