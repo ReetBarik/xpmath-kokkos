@@ -451,3 +451,18 @@ Next session must know:
 - Do not add an #ifdef (§1.2 rule 4). Needs the user's decision: bisect the five outlines on B200, restrict outlining to multiply/divide only, or drop P2.1[dd].
 - §1.9 note: landing needs at least one AMD GPU too (MI250 or MI300); two AMD deferrals would violate condition 2.
 - Several outlines wrap trivial bodies (`return p`, `DoubleDouble(s1, 0.0)`); only the KI-41 loop is substantial. Expect little perf gain from the trivial ones.
+
+## P2.1[dd] (addendum) — Diagnosis of the B200 DD:c:acos fault
+Date: 2026-11-09   Outcome: Stopped (diagnosed on B200 only; no fix landed, nothing pushed to xpmath)
+Commits: xpmath-kokkos@gpu-perf = this block. xpmath unchanged (wip/P2.1-dd@5d387bf). Experiments in $HOME/gpuperf-scratch/P2.1[dd]/bisect/ (worktrees wt-A..D,G; variant-G.patch).
+Checks (blackwell00, B200, sweep_device --only DD:c:acos, then full sweep; identity via compare_sweep_limbs vs 0769d6d):
+- after (5d387bf): fault in the log1p clone of the acos kernel, UR7=0xe1000000 (same signature as D-b200-acos). Pre-change build clean on the same kernel.
+- A (dd_two_prod_slow made inline): --only passes; FULL sweep exit 0 but 188 DD:c:acos rows differ from before (silent wrong values).
+- B (dd_multiply_slow inline): --only passes; FULL sweep faults on DD:c:asin (error 700). Isolated pass was misleading.
+- C (divide nonfinite/zone-C inline), D (KI-41 lifted inline): still fault. Divide-side outlines are irrelevant.
+- G (full 5d387bf + log1p small-|x| path renormalises multiply_scalar's result via eft_quick_two_sum, same trick as F1): full sweep exit 0, identity 436081/436081, 0 failing. Full-sweep memcheck NOT run.
+Mechanism: same ptxas uniform-register defect as D/F-b200-acos. The trivial outlines add noinline calls on log1p's small-|x| path (via inlined multiply_scalar/two_prod) and perturb ptxas; the symptom (crash vs silent wrong rows, acos vs asin) depends on code shape. G supports, but does not prove, the hypothesis that log1p forwarding its result slot at `return multiply_scalar(sum, 2.0)` is the remaining exposed shape. SASS LDCU-UR7 counts did not separate faulting from clean builds; do not use them as a predictor.
+Next session must know:
+- Candidate fixes (user decides): (1) drop the trivial outlines (dd_two_prod_slow, dd_multiply_slow), keep the KI-41 loop; (2) add G's log1p change to P2.1[dd]; (3) both. Each needs full sweep + identity + full-sweep memcheck on B200 and A100/GB300, and MI250/MI300 identity + CHECK-GFX90A-LINT, since other kernels may hold the same shape.
+- Variant G is a log1p code change (+3 flops, small path), bit-identical on B200; a fix in the F1 mould, not a root-cause fix. CHECK-PERF not run.
+- Other DD functions that return a callee's result directly may carry the same exposure; no audit done.
