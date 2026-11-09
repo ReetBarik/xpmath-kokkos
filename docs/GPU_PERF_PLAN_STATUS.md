@@ -425,3 +425,10 @@ Next session must know:
 - F1 remains a ptxas workaround (UR7 forwarded-pointer clobber), not a root-cause fix; no ptxas bug filed, TOOLCHAIN_DEFECTS.md untouched.
 - A100/GB300/MI250/MI300 were validated for 8b5c338 earlier, not re-run at S1 (same hunk, S1 differs by P1.1/P1.2 which those GPUs already passed).
 - Question to user: B200 builds use CUDA 12.9.1 throughout; whether F1 is still needed under 13.x was not tested.
+
+## C-b200 (addendum) — rows closed, gpu-perf fast-forwarded
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath@gpu-perf = 0769d6d (fast-forward from 0bd8b95; equals gpu-perf-staging). xpmath-kokkos@gpu-perf = this addendum on top of 056e63f.
+Supersedes the C-b200 block's "gpu-perf NOT fast-forwarded" and "settled-pending": the user closed ledger rows 1-3 and approved the fast-forward on 2026-11-09. Ancestor check passed before the push. Ledger has no open rows; xpmath gpu-perf == gpu-perf-staging.
+Next session must know:
+- The FF log / cQF sqrt ~4% slowdown from P1.2 (see C-b200 block) is still unexplained.
