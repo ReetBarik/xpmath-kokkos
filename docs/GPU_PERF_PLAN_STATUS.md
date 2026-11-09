@@ -194,3 +194,16 @@ Next session must know:
 - Ratios vs double are about 2x larger than on MI250 (science DD 6114x there), mostly because native double is faster on MI300; absolute DD times are comparable. Check ns/op, not only ratios, before drawing conclusions.
 - Logs: $HOME/gpuperf-scratch/P0.6-mi300/{build,throughput,isa,science_isa}.log. Build dir build-perf-gfx942-p06 is untracked and reusable.
 - P0.7 may treat gfx942 as having data.
+
+## P0.6-gb300 — Baseline runs, GB300 (sm_103)
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath-kokkos@gpu-perf = this commit (CSVs + block); xpmath: no changes (clone on gpu-perf, 0bd8b95; xpmath-kokkos start 457615c)
+Changed: perf/results/sm_103/{throughput,science,science_isa}_v0.3.0.csv (new); isa_v0.3.0.csv (P0.4) left as committed
+Checks: fresh build dir build-perf-gb300-p06 built on graceblackwell01 (gcc/11.2.0 cmake/3.22.1 cuda/13.3.1, vendor v0.3.0, rc=0, target xpk_perf_throughput). Throughput run rc=0: 90 rows + science 6 rows, nonfinite=0 everywhere. science_isa 6 rows via isa_metrics.sh sm_103 science on the node. Done-when (ISA + throughput CSVs for v0.3.0): pass. bit_identity_test, ctest and ISA regeneration not run (no code or CMake changes; not listed for P0.6).
+Measured (GB300, ns/op, ratio to native double): double add 0.0019, mul 0.0019, div 0.0137, log 0.0552; DD add 0.0211 (11x), mul 0.0361 (19x), div 0.0967 (7x), log 6.72 (122x); cDD mul 0.193 (28x), cDD log 24.9 (162x).
+Science (ratio to double / regs / scratch B): DD 80x / 255 / 1360; FF 6x / 196 / 480; TF 86x / 255 / 1168; QF 264x / 255 / 1952; double 148/0; float 114/0. Time per element: double 8.7 ns, DD 699 ns, QF 2297 ns.
+Next session must know:
+- Ratios vs double are ~50-100x smaller than on MI250/MI300 because GB300 native double is slow (science double 8.7 ns/elem, chain add 0.0019 ns/op), not because DD is fast. P0.7 should show ns/op alongside ratios; compare absolute ns across GPUs.
+- regs=255 is the nvcc cap for DD/TF/QF science, so they spill (scratch 1.2-2 KB); FF at 196 does not hit the cap.
+- Single timing sample, not repeated. Logs: $HOME/gpuperf-scratch/P0.6-gb300/{build,throughput,science_isa}.log. Build dir build-perf-gb300-p06 is untracked and reusable on the node (aarch64, build on node only).
+- P0.7 may treat sm_103 as having data; all five arches now have P0.6 data except a100 and b200.
