@@ -290,3 +290,4 @@ Next session must know:
 - The plan states no expected gain for P1.2; none observed.
 - Ledger row 3 (b200) must be settled by C-b200 together with open row 1/2 before the user merges to main.
 - Scratch: before/after worktrees and builds under $HOME/gpuperf-scratch/P1.2/ (also var/ for the mi250 bisect).
+Orchestrator review (2026-11-09): verified. 464fd97 on origin/gpu-perf-staging and origin/wip/P1.2; staging moved 258e529 -> 464fd97 as a fast-forward (reflog + ancestor check); xpmath gpu-perf unmoved at 0bd8b95; b200 skip has ledger row 3; scratch dirs present for all four GPUs. Accepted.
