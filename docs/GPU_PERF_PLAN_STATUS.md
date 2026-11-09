@@ -436,3 +436,18 @@ Next session must know:
 ## C-b200 (addendum 2) — P1.2 slowdown accepted
 Date: 2026-11-09   Outcome: Done
 The user accepted the B200 P1.2 slowdown (FF log +4.1%, cQF sqrt +4.2%, 2 of 90 throughput ops, cause not investigated) on 2026-11-09 and said to move on. It is not an open defect. Later tasks compare against the current B200 baseline; do not chase these two ops unless a later change moves them further.
+
+## P2.1[dd] — Outline rare-case paths in real arithmetic (DD)
+Date: 2026-11-09   Outcome: Stopped
+Commits: kept off gpu-perf-staging and gpu-perf, see xpmath wip/P2.1-dd@5d387bf (branch name uses `-` because git refs cannot contain `[`): B200 fault in DD complex acos. xpmath-kokkos@gpu-perf = this block only. Starting commits: xpmath 0769d6d (staging), xpmath-kokkos dd472f7.
+Changed (wip only): xpmath include/xp/config.hpp: new XPMATH_COLD_FUNCTION (noinline; cold on g++/clang/hipcc; __noinline__ on nvcc). include/xp/dd_math.hpp: detail::dd_{two_prod,multiply,divide_nonfinite,divide_zone_c}_slow and dd_divide_lifted_slow (KI-41 loop); used by two_prod, multiply, multiply_scalar, divide, divide_scalar, dd_divide_core. Existing NOINLINE marks untouched.
+Checks:
+- CHECK-HOST: PASS 44/44 host + 24/24 device-tree (xpm_build.sh's own ctest, /tmp/xpm-P2.1dd/ctest-*.log).
+- CHECK-DEVICE-IDENTICAL b200 (blackwell00): FAIL, not scorable. before=0769d6d full sweep exit 0, scorer exit 0. after=5d387bf: DD:c:acos error 700 in full sweep and in isolation (only kernel that faulted of 252; every other kernel ran ok). Logs $HOME/gpuperf-scratch/P2.1[dd]/b200/{run-before,run-after}.log; worktrees wt-before, wt-after in the same dir.
+- CHECK-SANITIZER, CHECK-PERF, other GPUs: not run (stopped at first failure). A100, GB300, MI250, MI300: user gave only blackwell00. No deferral rows written because the task is not landing.
+Measured: n/a.
+Next session must know:
+- This is the same DD:c:acos / sm_100 fragility as D-b200-acos and F-b200-acos (UR7 result pointer clobbered; fixed on staging by F1 = 0769d6d). The new fault is introduced by the P2.1[dd] diff. Root mechanism NOT diagnosed; which of the five cold functions triggers it is unknown (two_prod is inlined into everything, so the likeliest suspect, unconfirmed).
+- Do not add an #ifdef (§1.2 rule 4). Needs the user's decision: bisect the five outlines on B200, restrict outlining to multiply/divide only, or drop P2.1[dd].
+- §1.9 note: landing needs at least one AMD GPU too (MI250 or MI300); two AMD deferrals would violate condition 2.
+- Several outlines wrap trivial bodies (`return p`, `DoubleDouble(s1, 0.0)`); only the KI-41 loop is substantial. Expect little perf gain from the trivial ones.
