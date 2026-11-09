@@ -407,3 +407,21 @@ All five GPUs now: F1 bit-identical to baseline and 0 above bound on B200, A100,
 Next session must know:
 - Nothing further to validate for F1. To land it, a P0.5b/P0.5c/C-* style task must bring wip/F-b200-acos@8b5c338 onto xpmath gpu-perf (§1.9), then staging merges gpu-perf (normal merge) and reruns CHECK-HOST.
 - Ledger rows 1 and 3 can be closed by the user once F1 is on a branch where the B200 catch-up for P1.1/P1.2 can run; I did not close them.
+
+## C-b200 — Catch-up for B200 (sm_100), with F1 (second attempt)
+Date: 2026-11-09   Outcome: Partial (all B200 checks pass; rows 1-3 settled-pending user close; gpu-perf NOT fast-forwarded)
+Commits: xpmath@gpu-perf-staging = 0769d6d (S1 = 464fd97 + F1, new commit, pushed; also on origin wip/C-b200). xpmath gpu-perf unchanged at 0bd8b95. xpmath-kokkos@gpu-perf = this block + ledger + PERF_TABLE.
+Changed: xpmath include/xp/dd_math.hpp (F1 hunk only, = 8b5c338 minus the experiment; user chose option A). Here: this block, GPU_PERF_DEFERRED.md rows 1-3, docs/PERF_TABLE.md (P0.7 re-run, B200 now has data).
+Checks (blackwell00, CUDA 12.9.1, device tree build-info git-head 0769d6d; logs $HOME/gpuperf-scratch/C-b200/s1/):
+- CHECK-HOST on S1: PASS 100%, 44/44 (host-ctest.log). Host half only; single-tree 67 count not run.
+- B200 full sweep_device: exit 0 (full-s1.log). Full-sweep memcheck: 0 errors (full-san-s1.log). Scorer: 0 defects / 0 above bound (score-s1.log).
+- CHECK-DEVICE-IDENTICAL b200 vs ~/gpuperf-scratch/D-b200-acos/full-b790730.csv (library == 4f60bc4, clean): PASS 436081/436081, 0 NaN-only (ident-b200.log). S1 contains the adf9ace acos change, P1.1, P1.2 and F1, so this one result settles the identity half of rows 1 and 3 together. No row bisection needed.
+- CHECK-PERF b200 (perf/, 3 harnesses built here: before 258e529, after 464fd97, S1 0769d6d; 2 same-session runs each; none of the 90 throughput ops or 6 science kernels is acos, so the old harnesses were valid without F1, S1 harness built anyway): after/before and S1/before: 2 of 90 ops >3% slower, FF log 1.041 and cQF sqrt 1.042 (before 0.6815 -> 0.7094 ms; 4.716 -> 4.917 ms; run-to-run spread ~0.1%). S1/after max 1.025, 0 ops >3%: F1 costs nothing measurable. Science kernel unchanged (max 1.001). Logs/CSVs perf/out-*, cmp.py.
+- P0.7 re-run: done, rc 0, 0 "NO DATA" (p07.log).
+Measured: DD:c:acos fault (exit 3, 99 memcheck errors) -> clean; identity 436081/436081.
+Not done: step 7 (gpu-perf fast-forward). Rows 1-3 are only settled-pending until the user closes them, and gpu-perf is behind staging by P1.1, P1.2, S1, so X cannot be taken without the user's go-ahead.
+Next session must know:
+- >3% slowdowns have no identified mechanism: both are in 258e529..464fd97 (P1.2 type alignment), not F1, and are in FF/QF ops. Cause not investigated.
+- F1 remains a ptxas workaround (UR7 forwarded-pointer clobber), not a root-cause fix; no ptxas bug filed, TOOLCHAIN_DEFECTS.md untouched.
+- A100/GB300/MI250/MI300 were validated for 8b5c338 earlier, not re-run at S1 (same hunk, S1 differs by P1.1/P1.2 which those GPUs already passed).
+- Question to user: B200 builds use CUDA 12.9.1 throughout; whether F1 is still needed under 13.x was not tested.

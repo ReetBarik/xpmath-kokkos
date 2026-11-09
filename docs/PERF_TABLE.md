@@ -6,7 +6,7 @@ xpmath tag: v0.3.0   Generated: 2026-11-09   Generator: `perf/gen_cost_table.py`
 
 How to read it: `ns/op` is time per operation in a dependent chain (func rows: per call). `x double` and `x float` divide by the native type on the same GPU, so they are not comparable across GPUs (native double speed differs a lot); compare absolute `ns/op` across GPUs. `regs` and `stack B` come from the compiled ISA of the single-op kernel. Single timing sample per row; expect about 3% run-to-run noise.
 
-GPUs with data: A100, GB300, MI250 (one GCD), MI300. NO DATA yet: B200.
+GPUs with data: A100, B200, GB300, MI250 (one GCD), MI300. 
 
 ## A100 (sm_80)
 
@@ -118,7 +118,111 @@ Science-shaped kernel (one chain of mixed ops per element):
 
 ## B200 (sm_100)
 
-**NO DATA yet** (no P0.6 throughput baseline for this GPU).
+Sources (perf/results/sm_100/): throughput_v0.3.0.csv, isa_v0.3.0.csv, science_v0.3.0.csv, science_isa_v0.3.0.csv
+
+| type | op | ns/op | x double | x float | regs | stack B |
+|---|---|---:|---:|---:|---:|---:|
+| double | add | 9.00e-05 | 1 | 1.21 | 25 | 0 |
+| double | atan2 | 4.43e-03 | 1 | 1.8 | 39 | 0 |
+| double | div | 7.50e-04 | 1 | 1.52 | 36 | 0 |
+| double | exp | 1.85e-03 | 1 | 1.5 | 20 | 0 |
+| double | log | 3.17e-03 | 1 | 2.08 | 28 | 0 |
+| double | mul | 9.00e-05 | 1 | 1.21 | 25 | 0 |
+| double | sin | 2.52e-03 | 1 | 1.61 | 36 | 40 |
+| double | sqrt | 1.41e-03 | 1 | 1.15 | 28 | 0 |
+| float | add | 8.00e-05 | 0.827 | 1 | 25 | 0 |
+| float | atan2 | 2.46e-03 | 0.557 | 1 | 30 | 0 |
+| float | div | 4.90e-04 | 0.66 | 1 | 25 | 0 |
+| float | exp | 1.23e-03 | 0.664 | 1 | 22 | 0 |
+| float | log | 1.52e-03 | 0.48 | 1 | 22 | 0 |
+| float | mul | 8.00e-05 | 0.828 | 1 | 25 | 0 |
+| float | sin | 1.56e-03 | 0.62 | 1 | 24 | 0 |
+| float | sqrt | 1.23e-03 | 0.872 | 1 | 20 | 0 |
+| DD | add | 7.50e-04 | 8.05 | 9.74 | 36 | 0 |
+| DD | atan2 | 8.466 | 1913 | 3436 | 118 | 832 |
+| DD | div | 4.31e-03 | 5.77 | 8.75 | 58 | 16 |
+| DD | exp | 0.09459 | 51 | 76.8 | 60 | 32 |
+| DD | log | 0.3439 | 108 | 226 | 74 | 96 |
+| DD | mul | 2.08e-03 | 22.4 | 27 | 40 | 16 |
+| DD | sin | 3.358 | 1333 | 2149 | 87 | 784 |
+| DD | sqrt | 8.50e-03 | 6.01 | 6.9 | 51 | 16 |
+| FF | add | 4.60e-04 | 4.94 | 5.98 | 30 | 0 |
+| FF | atan2 | 1.739 | 393 | 706 | 83 | 336 |
+| FF | div | 2.56e-03 | 3.43 | 5.19 | 36 | 8 |
+| FF | exp | 0.03654 | 19.7 | 29.7 | 39 | 16 |
+| FF | log | 0.08126 | 25.6 | 53.4 | 48 | 48 |
+| FF | mul | 1.26e-03 | 13.5 | 16.3 | 30 | 8 |
+| FF | sin | 0.6222 | 247 | 398 | 72 | 304 |
+| FF | sqrt | 6.16e-03 | 4.36 | 5 | 32 | 8 |
+| TF | add | 2.00e-03 | 21.4 | 25.9 | 32 | 0 |
+| TF | atan2 | 9.965 | 2252 | 4045 | 90 | 576 |
+| TF | div | 0.01031 | 13.8 | 20.9 | 44 | 40 |
+| TF | exp | 0.2017 | 109 | 164 | 54 | 96 |
+| TF | log | 0.8847 | 279 | 582 | 72 | 216 |
+| TF | mul | 5.40e-03 | 57.9 | 70 | 46 | 40 |
+| TF | sin | 1.382 | 549 | 884 | 79 | 432 |
+| TF | sqrt | 0.118 | 83.5 | 95.8 | 56 | 64 |
+| QF | add | 3.21e-03 | 34.4 | 41.6 | 32 | 0 |
+| QF | atan2 | 39.49 | 8923 | 16027 | 145 | 808 |
+| QF | div | 0.02412 | 32.3 | 49 | 48 | 152 |
+| QF | exp | 0.5416 | 292 | 440 | 80 | 264 |
+| QF | log | 2.115 | 667 | 1390 | 114 | 424 |
+| QF | mul | 6.08e-03 | 65.2 | 78.8 | 44 | 48 |
+| QF | sin | 2.395 | 951 | 1533 | 80 | 528 |
+| QF | sqrt | 0.1625 | 115 | 132 | 80 | 232 |
+| cDD | abs | 0.01634 | 6.65 | 8.96 | 66 | 128 |
+| cDD | add | 1.35e-03 | 8.91 | 12 | 46 | 0 |
+| cDD | div | 0.1157 | 37.2 | 59.9 | 98 | 304 |
+| cDD | exp | 3.503 | 587 | 1270 | 93 | 832 |
+| cDD | log | 8.956 | 1037 | 2114 | 123 | 944 |
+| cDD | mul | 8.68e-03 | 31.1 | 46.9 | 68 | 128 |
+| cDD | sqrt | 0.03766 | 7.21 | 11.2 | 78 | 176 |
+| cFF | abs | 0.01012 | 4.12 | 5.55 | 43 | 64 |
+| cFF | add | 8.10e-04 | 5.39 | 7.26 | 40 | 0 |
+| cFF | div | 0.08042 | 25.9 | 41.7 | 76 | 192 |
+| cFF | exp | 1.422 | 238 | 515 | 83 | 368 |
+| cFF | log | 1.936 | 224 | 457 | 92 | 416 |
+| cFF | mul | 6.08e-03 | 21.7 | 32.8 | 48 | 64 |
+| cFF | sqrt | 0.02283 | 4.37 | 6.8 | 47 | 64 |
+| cTF | abs | 0.1568 | 63.8 | 85.9 | 78 | 256 |
+| cTF | add | 4.25e-03 | 28.1 | 37.9 | 44 | 0 |
+| cTF | div | 0.1537 | 49.5 | 79.7 | 79 | 472 |
+| cTF | exp | 3.172 | 532 | 1150 | 96 | 624 |
+| cTF | log | 19.05 | 2205 | 4496 | 94 | 672 |
+| cTF | mul | 0.04715 | 169 | 254 | 94 | 288 |
+| cTF | sqrt | 0.323 | 61.8 | 96.2 | 64 | 168 |
+| cQF | abs | 0.235 | 95.7 | 129 | 104 | 472 |
+| cQF | add | 7.39e-03 | 48.9 | 65.9 | 48 | 0 |
+| cQF | div | 0.2739 | 88.1 | 142 | 105 | 760 |
+| cQF | exp | 11.31 | 1895 | 4099 | 130 | 856 |
+| cQF | log | 70.12 | 8117 | 16548 | 146 | 920 |
+| cQF | mul | 0.0363 | 130 | 196 | 92 | 384 |
+| cQF | sqrt | 0.5626 | 108 | 168 | 114 | 472 |
+| cdouble | abs | 2.46e-03 | 1 | 1.35 | 32 | 0 |
+| cdouble | add | 1.50e-04 | 1 | 1.35 | 32 | 0 |
+| cdouble | div | 3.11e-03 | 1 | 1.61 | 52 | 0 |
+| cdouble | exp | 5.97e-03 | 1 | 2.16 | 42 | 40 |
+| cdouble | log | 8.64e-03 | 1 | 2.04 | 43 | 0 |
+| cdouble | mul | 2.80e-04 | 1 | 1.51 | 32 | 0 |
+| cdouble | sqrt | 5.23e-03 | 1 | 1.56 | 39 | 0 |
+| cfloat | abs | 1.82e-03 | 0.743 | 1 | 25 | 0 |
+| cfloat | add | 1.10e-04 | 0.742 | 1 | 32 | 0 |
+| cfloat | div | 1.93e-03 | 0.621 | 1 | 34 | 0 |
+| cfloat | exp | 2.76e-03 | 0.462 | 1 | 32 | 0 |
+| cfloat | log | 4.24e-03 | 0.491 | 1 | 32 | 0 |
+| cfloat | mul | 1.90e-04 | 0.662 | 1 | 32 | 0 |
+| cfloat | sqrt | 3.36e-03 | 0.643 | 1 | 26 | 0 |
+
+Science-shaped kernel (one chain of mixed ops per element):
+
+| type | ns/element | x double | x float | regs | stack B |
+|---|---:|---:|---:|---:|---:|
+| double | 0.861 | 1 | 2.36 | 148 | 0 |
+| float | 0.3653 | 0.424 | 1 | 112 | 0 |
+| DD | 177.9 | 207 | 487 | 255 | 1280 |
+| FF | 83.45 | 96.9 | 228 | 200 | 448 |
+| TF | 717.8 | 834 | 1965 | 255 | 848 |
+| QF | 2480 | 2881 | 6790 | 255 | 1264 |
 
 ## GB300 (sm_103)
 
