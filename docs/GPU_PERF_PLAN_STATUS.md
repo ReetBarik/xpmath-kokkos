@@ -323,3 +323,23 @@ Next session must know:
 - Not diagnosed; no fix attempted. Do not move xpmath gpu-perf: it already sits at a SHA that fails B200 (0bd8b95).
 - Ledger row 2 (P0.7 re-run) still open; to be run by a separate session. It also meant gpu-perf could not move (condition (c)), moot given the failure.
 - Scratch moved to /vast/projects/pepper_hep/rbarik_xpmath/ ($HOME/gpuperf-scratch is now a symlink to it; home quota was over 100 GB). Old build* trees from finished tasks were deleted; logs/CSVs/worktrees kept.
+
+## D-b200-acos — Diagnose DD complex acos fault on B200 at 0bd8b95
+Date: 2026-11-09   Outcome: Partial (mechanism strongly supported, not proven by experiment; nothing fixed)
+Commits: xpmath-kokkos@gpu-perf = this block + ledger note. xpmath: no commits; wip/D-b200-acos holds no experiments (local only, not pushed); gpu-perf/gpu-perf-staging not moved.
+Changed: docs/GPU_PERF_PLAN_STATUS.md (this block), docs/GPU_PERF_DEFERRED.md (row 1 note). Full write-up: $HOME/gpuperf-scratch/D-b200-acos/DIAGNOSIS.md
+Checks (blackwell00, B200 sm_100, CUDA 12.9.1, logs under $HOME/gpuperf-scratch/D-b200-acos/):
+- First faulting commit = adf9ace (only library change in 4f60bc4..0bd8b95). b790730 (library == 4f60bc4): DD:c:acos alone exit 0 / memcheck 0 errors; FULL 252-kernel sweep exit 0 / full-sweep memcheck 0 errors (full-*-b790730.log). adf9ace: exit 3 error 700, memcheck 99 errors (run-/san-adf9ace.log).
+- cuda-gdb (gdb*-adf9ace.log): fault = `STL.64 [R0],R10` in the epilogue of the per-kernel xp::log clone, R0 = 0. log gets its result pointer in UNIFORM reg UR7, computes R0 = UR7 - c[0x2f8] at entry. At fault UR7 = 0xe1000000 (= local window base c[0x2f8]) so R0 = 0 and the store lands outside the stack.
+- UR7 is valid (0xe1fffa70, set by the kernel) at log1p entry on every hit and 0xe1000000 at the log1p->log call on every hit. Only writers of UR7 in log1p: two `LDCU UR7,c[0x0][0x2f8]` (scratch) on the small-|x| path, which returns without calling log.
+- Hypothesis: UR regs are per-warp; ptxas treats UR7 as dead on that path (true per lane) but divergent lanes of one warp clobber it before the other lanes forward it to log. Faulting warp is heavily divergent (active 0x0f0fffff, divergent 0xf0f00000); only the warp-0 converged warp is clean.
+Measured: not a frame-size effect. ptxas -v 912 B cumulative / 0 spills, kernel depot 96 B, and all PTX .func depots identical in b790730 and adf9ace. b790730 has 0 uniform-register result-pointer conversions and 0 `LDCU UR7,c[0x2f8]`; adf9ace has 1 and 4 (REG 124 -> 96, multiply/sqrt/divide calls 36/21/12 -> 24/14/8).
+TD-4: REFUTED as documented (frame under-size). Same symptom signature (error 700, Invalid __local__ write), different mechanism: a ptxas uniform-register / divergence defect on a forwarded result pointer. Treat as a new toolchain-defect candidate; docs/TOOLCHAIN_DEFECTS.md not edited.
+Fix class (not implemented): structural, no #ifdef: stop log1p tail-forwarding its result slot to log (receive into a local, then copy) or otherwise change code shape; td4_workaround indirection is the precedent. Validate by live sweep + full-sweep memcheck on B200, A100, GB300 (not DD:c:acos alone).
+Next session must know:
+- Unproven: no throwaway experiment was run. Cheapest proof: wip change to log1p, or a launch with converged warps (fault should vanish).
+- Unknown: why b790730 did not get the UR7 form; why the old asin(z).im path faulted on sm_103. Full-sweep memcheck of adf9ace not run (4 `LDCU UR7,c[0x2f8]` in the kernel, other ops may share the pattern).
+- Isolated runs mislead: exit 0 on one kernel proves little; b790730 was cleared by full-sweep + memcheck.
+- cuda-gdb on blackwell00: use `module load cuda/12.9.1` only and LD_LIBRARY_PATH=/soft/compilers/cuda/cuda-12.9.1/lib64 (loading gcc/13.3.0 breaks it with a libstdc++ symbol error). Conditional breakpoints on $UR7 fail to evaluate; use printf commands.
+- Do not run two device builds at once on the shared login node (hung it once); use `taskset -c 0-7 nice` and build sequentially.
+- Ledger rows 1 and 3 stay open; gpu-perf still sits at a SHA that fails B200.
