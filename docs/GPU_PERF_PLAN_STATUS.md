@@ -291,3 +291,18 @@ Next session must know:
 - Ledger row 3 (b200) must be settled by C-b200 together with open row 1/2 before the user merges to main.
 - Scratch: before/after worktrees and builds under $HOME/gpuperf-scratch/P1.2/ (also var/ for the mi250 bisect).
 Orchestrator review (2026-11-09): verified. 464fd97 on origin/gpu-perf-staging and origin/wip/P1.2; staging moved 258e529 -> 464fd97 as a fast-forward (reflog + ancestor check); xpmath gpu-perf unmoved at 0bd8b95; b200 skip has ledger row 3; scratch dirs present for all four GPUs. Accepted.
+
+## P0.6-b200 — Baseline runs, B200 (sm_100)
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath-kokkos@gpu-perf (CSVs + ledger + this block, one commit; SHA quoted from origin in the session reply). xpmath: no changes (0bd8b95, not moved).
+Changed:
+- perf/results/sm_100/throughput_v0.3.0.csv (90 rows)
+- perf/results/sm_100/science_v0.3.0.csv (6 rows)
+- perf/results/sm_100/science_isa_v0.3.0.csv (6 rows)
+- docs/GPU_PERF_DEFERRED.md: row 2 annotated (P0.6 part settled; P0.7 re-run still owed, row stays open)
+Checks: harness xpk_perf_throughput built on login node vs vendor/xpmath v0.3.0 (cuda/12.9.1, -j4; log $HOME/gpuperf-scratch/P0.6-b200/build.log); run on blackwell00 (NVIDIA B200, cc 10.0), nonfinite=0 in every row, exit 0 (run.log); science_isa via isa_metrics.sh sm_100 science rc=0. Row counts match sm_80 (91/7/7 lines). ctest -N not re-run (no CMake or test changes). No repeat run for noise (single run).
+Measured (B200, v0.3.0): ns/op DD add 0.00075 (8.0x double), mul 0.00208 (22x), div 0.00431 (5.8x), log 0.344 (108x); cDD log 8.96 ns/op (1037x). Science kernel ns/element: double 0.86, float 0.37, DD 178 (207x), FF 83 (97x), TF 718 (834x), QF 2480 (2881x). Science regs/scratch B: DD 255/1280, FF 200/448, TF 255/848, QF 255/1264 (regs capped at 255).
+Next session must know:
+- Run P0.7 (login node) to add B200 to PERF_TABLE.md; then ledger row 2 can be closed. Rows 1 and 3 (b200) remain open.
+- build-perf-sm100 now also holds xpk_perf_throughput (reconfigured; the P0.2-era tree had no such target). Whole run took ~2 min on B200.
+- Raw logs: $HOME/gpuperf-scratch/P0.6-b200/ (run.log, build.log, science_isa.log).
