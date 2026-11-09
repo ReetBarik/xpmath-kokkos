@@ -220,3 +220,14 @@ Next session must know:
 - Run took only a few minutes on the A100; the harness build took ~20 min on the login node at -j4.
 - Logs: $HOME/gpuperf-scratch/P0.6-a100/{build,throughput,science_isa}.log. Build dir build-perf-sm80-p06 is untracked and reusable.
 - P0.7 may treat sm_80 as having data; only b200 still lacks P0.6 data. regs=255 caps DD/QF science (spills 1.2 KB).
+
+## P0.7 — Per-GPU cost table generator
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath-kokkos@gpu-perf = this commit (generator + table + block); xpmath: no changes (clone on gpu-perf-staging, 0bd8b95; xpmath-kokkos start 29e13a0)
+Changed: perf/gen_cost_table.py (new, stdlib Python, deterministic; `--date`, `--out`); docs/PERF_TABLE.md (generated, 445 lines)
+Checks: no plan-listed checks (login-node task). Generator run twice with the same --date: byte-identical output. No ctest target added; no CMake change.
+Measured: n/a. Tables for A100, GB300, MI250, MI300 (90 type x op rows each, regs/stack joined from isa CSV, none n/a, plus 6-row science summary); B200 shows "NO DATA yet" (only isa_v0.3.0.csv exists for sm_100).
+Next session must know:
+- Re-run after a B200 P0.6 lands: `python3 -I perf/gen_cost_table.py --date <today>` and commit docs/PERF_TABLE.md. It picks the highest-version CSV per arch automatically.
+- Tag in the header is read from vendor/xpmath/UPSTREAM.txt (v0.3.0). Column "x double" is not comparable across GPUs; compare ns/op.
+- Ledger GPU_PERF_DEFERRED.md unchanged (one open row, P0.5b b200).
