@@ -477,3 +477,19 @@ Checks @8844010:
 Next session must know:
 - Landing needs one more NVIDIA + one AMD at minimum (§1.9), plus CHECK-PERF; the log1p change is a code change on all backends' DD path, so HIP identity matters.
 - CHECK-PERF may show small slowdowns; the remaining outlines are cheap and expected neutral.
+
+## P2.1[dd] (addendum 3) — Option 3 on B200 + MI300: correct, but slower
+Date: 2026-11-09   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@8844010 (unchanged since addendum 2). xpmath-kokkos@gpu-perf = this block.
+Checks @8844010 (before = 0769d6d, same session, 2 runs each, best-of-2; scratch $HOME/gpuperf-scratch/P2.1[dd]/{mi300,lint,perf,final}):
+- CHECK-DEVICE-IDENTICAL mi300 (amdgpu00): PASS 436081/436081, 0 failing; scorer exit 0 both.
+- CHECK-GFX90A-LINT (sweep_device TU compiled for gfx90a on amdgpu00, 85 callees, 252 kernels): PASS, tiers 1-4 ok. Note: only compiled for gfx90a; MI250 hardware identity NOT run.
+- CHECK-PERF b200: throughput 90 ops median 1.00, range 0.973-1.061, science DD 1.036, 0 nonfinite. >3% slower: DD sqrt +6.1%, cDD abs +4.6%, DD exp +4.4%, DD log +3.5%. Repeatable (spread ~1%).
+- CHECK-PERF mi300: median 1.009, range 0.86-1.43, science DD 1.031. Repeatable DD slowdowns: DD sqrt +43% (0.0121-0.0124 -> 0.0173-0.0175 ns/op), cDD sqrt +10%, cDD abs +10%, DD div +5%. Native double/float rows moved up to +17% (noise; ignore).
+- Earlier (addendum 2) B200: identity 436081/436081, full memcheck 0 errors, host 44/44 + 24/24.
+- NOT RUN: A100, GB300, MI250 (identity; sanitizer on A100/GB300); ISA metrics.
+Interpretation: no speedup anywhere; the plan expects none from trivial outlines and DD got slower. Likely cause (unproven): the cold calls kept in divide_scalar/dd_divide_core (non-finite, Zone C) are inlined into sqrt/exp/log (DD sqrt = hardware sqrt + two_prod + subtract + divide_scalar) and add call sites; HIP pays most.
+Next session must know:
+- Do not land 8844010 as is: >3% slowdowns have no benefit to justify them (§1.5).
+- Options: (a) drop the divide_scalar/dd_divide_core cold calls too, keeping only the KI-41 lifted outline and the log1p result-slot change (then P2.1[dd] is a ~no-op for speed plus a ptxas hardening); (b) land only the log1p change as a hardening task; (c) drop P2.1[dd]. User decides.
+- The log1p change is what actually protects B200 against the UR7 defect for this code shape; it is needed with any variant that keeps cold calls on log1p's path.
