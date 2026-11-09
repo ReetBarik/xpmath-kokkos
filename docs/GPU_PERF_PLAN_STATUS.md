@@ -373,3 +373,13 @@ Checks (gpu06 = A100-PCIE-40GB sm_80, CUDA 12.9.1; logs under $HOME/gpuperf-scra
 Next session must know:
 - NVIDIA now has two passing GPUs (B200, A100). §1.9 condition 2 still needs an AMD GPU (MI250/MI300) to pass, and GB300 (build on node) is still owed; ledger rows 1 and 3 stay open.
 - Gate rule: F1 may not land on staging until the AMD CHECK-DEVICE-IDENTICAL (+ gfx90a lint) passes.
+
+## F-b200-acos (addendum 2) — F1 validated on GB300
+Date: 2026-11-09   Outcome: Partial (all three NVIDIA GPUs pass; AMD still owed)
+Commits: xpmath wip/F-b200-acos@8b5c338 unchanged, still kept off gpu-perf/gpu-perf-staging. xpmath-kokkos@gpu-perf = this block.
+Checks (graceblackwell01 = GB300 sm_103 aarch64, built on the node via validation/gb300/run_gb300_sweep.sh; logs under $HOME/gpuperf-scratch/F-b200-acos/gb300/):
+- Before = 0bd8b95 (worktree, no F1), after = 8b5c338; build stamps verified. Both script runs exit 0.
+- CHECK-DEVICE-IDENTICAL gb300: PASS, 436081/436081 rows identical, 0 NaN-only (ident-gb300.log).
+- CHECK-SANITIZER gb300 (full sweep, after, cuda/13.3.1): 0 errors (san-after.log). Scorer on x86 login: 0 above bound, PASS (score-after.log).
+Next session must know:
+- NVIDIA: B200, A100, GB300 all pass with F1. Only AMD (MI250/MI300 CHECK-DEVICE-IDENTICAL + gfx90a lint) is missing before F1 can land on staging (§1.9); user decides how it reaches gpu-perf.
