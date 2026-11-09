@@ -306,3 +306,20 @@ Next session must know:
 - Run P0.7 (login node) to add B200 to PERF_TABLE.md; then ledger row 2 can be closed. Rows 1 and 3 (b200) remain open.
 - build-perf-sm100 now also holds xpk_perf_throughput (reconfigured; the P0.2-era tree had no such target). Whole run took ~2 min on B200.
 - Raw logs: $HOME/gpuperf-scratch/P0.6-b200/ (run.log, build.log, science_isa.log).
+
+## C-b200 — Catch-up for B200 (sm_100)
+Date: 2026-11-09   Outcome: Stopped (B200 fails; no row settled)
+Commits: xpmath-kokkos@gpu-perf = this block + ledger notes (SHA quoted from origin in the session reply). xpmath: no commits; gpu-perf NOT moved (0bd8b95).
+Changed: docs/GPU_PERF_DEFERRED.md (rows 1 and 3 annotated, both stay open); this block.
+Checks (blackwell00, B200 cc 10.0, CUDA_VISIBLE_DEVICES=0, all under $HOME/gpuperf-scratch/C-b200/b200/):
+- CHECK-DEVICE-IDENTICAL b200 4f60bc4 -> 464fd97: FAIL. Before (4f60bc4) sweep exit 0, scorer exit 0, 0 above bound (run-before.log). After (464fd97): sweep_device exit 3, `first fault backend=DD kind=c op=acos error=700`, raw CSV truncated (20.2 MB vs 25.5 MB), so no limb comparison was possible (run-after.log).
+- Row-boundary search: 0bd8b95 (row 1 after) FAILS the same way (exit 3, DD:c:acos error 700; run-0bd8b95.log). 258e529 (row 3 before) FAILS the same way (run-258e529.log). First failing row = row 1 (4f60bc4..0bd8b95). Not searched inside row 1.
+- CHECK-SANITIZER b200: FAIL at all three failing SHAs, `Invalid __local__ write` in ComplexKernel<DoubleDouble,...,14> (xp::log frame, "Access at 0x0 is out of bounds"), then cudaErrorLaunchFailure 719. ERROR SUMMARY: 69 errors @0bd8b95, 99 @258e529, 99 @464fd97 (san-*.log).
+- CHECK-PERF b200: NOT RUN (plan: stop if anything fails). Harnesses for 258e529/464fd97 are built at C-b200/perf/build-{before,after}-sm100 and can be reused.
+Measured: 4f60bc4 clean, 0bd8b95/258e529/464fd97 all fault at the same op. P1.1 (HIP-only) and P1.2 (alignas) are not the cause; the fault predates both.
+Next session must know:
+- Library commits inside row 1 (4f60bc4..0bd8b95): 1cfa793, b790730, adf9ace (DD complex acos calls xp_asin_imag_mag directly), 8b37519, 63daa15, 0bd8b95. Only adf9ace changes include/xp acos; the rest are lane/scripts/operands. adf9ace is the CANDIDATE, unproven (no intermediate SHA was run).
+- It is the TD-4 signature (§1.6): GB300 hit the same op; the fix passed on GB300/MI250/MI300/A100 but B200 was never checked. §1.9's claim that 0bd8b95 was "checked on B200" is wrong; ledger row 1 was the open item.
+- Not diagnosed; no fix attempted. Do not move xpmath gpu-perf: it already sits at a SHA that fails B200 (0bd8b95).
+- Ledger row 2 (P0.7 re-run) still open; to be run by a separate session. It also meant gpu-perf could not move (condition (c)), moot given the failure.
+- Scratch moved to /vast/projects/pepper_hep/rbarik_xpmath/ ($HOME/gpuperf-scratch is now a symlink to it; home quota was over 100 GB). Old build* trees from finished tasks were deleted; logs/CSVs/worktrees kept.
