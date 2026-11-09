@@ -181,3 +181,16 @@ Measured: new/old time ratio per row 0.991..1.032 (89/90 within 3%; worst TF add
 Next session must know:
 - Logs/build: $HOME/gpuperf-scratch/P0.6-mi250/{build.log,throughput.log,bit_identity.out,mi250_bit_identity_20261108_230432.log}; previous CSVs saved in $HOME/gpuperf-scratch/P0.6-mi250/prev/.
 - Timing noise on this GPU is about 3% run to run; use that as the CHECK-PERF threshold floor.
+
+## P0.6-mi300 — Baseline runs, MI300 (gfx942)
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath-kokkos@gpu-perf = this commit (CSVs + block); xpmath: no changes (clone on gpu-perf, 0bd8b95; xpmath-kokkos start 6202979)
+Changed: perf/results/gfx942/{throughput,science,science_isa}_v0.3.0.csv (new); isa_v0.3.0.csv (P0.2) regenerated unchanged
+Checks: fresh build dir build-perf-gfx942-p06 (login node, hipcc rocm/7.0.2, vendor v0.3.0, rc=0). isa_v0.3.0.csv regenerated identical to P0.2 (git shows no diff), 90 rows; science_isa 6 rows. Throughput run on amdgpu00 (gfx942), rc=0: 90 rows + science 6 rows, nonfinite=0 everywhere. bit_identity_test and ctest not run (no code or CMake changes; not listed for P0.6).
+Measured (MI300 GCD, ratio to native double): add DD 1701x; mul DD 2409x, cDD 3722x; div DD 405x; log DD 6265x, cDD 8611x. Science: DD 12952x, FF 8784x, TF 69532x, QF 203680x (double 5.49 ns/elem-op chain).
+Science regs/scratch B: DD 358/2560, FF 334/1408, TF 482/1584, QF 664/2064 (double 186/0, float 104/0).
+Next session must know:
+- Single timing sample, not repeated; MI250 noise was ~3% run to run, assume similar here.
+- Ratios vs double are about 2x larger than on MI250 (science DD 6114x there), mostly because native double is faster on MI300; absolute DD times are comparable. Check ns/op, not only ratios, before drawing conclusions.
+- Logs: $HOME/gpuperf-scratch/P0.6-mi300/{build,throughput,isa,science_isa}.log. Build dir build-perf-gfx942-p06 is untracked and reusable.
+- P0.7 may treat gfx942 as having data.

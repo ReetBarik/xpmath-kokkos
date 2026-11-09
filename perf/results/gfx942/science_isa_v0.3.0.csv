@@ -1,0 +1,7 @@
+type,op,regs,scratch_bytes,code_bytes,instructions,calls
+double,science,186,0,62460,9643,0
+float,science,104,0,38084,6469,0
+DD,science,358,2560,1262164,212843,951
+FF,science,334,1408,1899756,342465,1139
+TF,science,482,1584,1283652,229945,409
+QF,science,664,2064,2174796,391214,422
