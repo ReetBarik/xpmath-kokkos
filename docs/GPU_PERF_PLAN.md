@@ -200,10 +200,16 @@ Pass = 100% passed.
    `wip/<task-id>` with `RAW_OUT=$HOME/gpuperf-scratch/<task>/<arch>-after.csv`.
    Use separate `BUILD_DIR`s.
 2. Remove `#` header lines and timing lines from both (read the first 20
-   lines of `validation/strip_timing.sh` for its usage), then `cmp` them.
-3. Pass = identical. Any difference, even one row, is a failure. Report
-   the count and the first 3 differing rows (op, backend, point), not the
-   whole diff.
+   lines of `validation/strip_timing.sh` for its usage), then run
+   `python3 -I ~/xpmath-kokkos/perf/compare_sweep_limbs.py <before> <after>`.
+3. Pass = exit 0. The rule: every limb must be bit-identical, **except** that
+   a limb that is NaN in both runs may differ in sign or payload bits. IEEE
+   754 gives a NaN's sign no meaning, and a compiler may swap operands, which
+   changes only which NaN propagates. A NaN↔non-NaN change, or any change to
+   a non-NaN limb, is a failure. Report the script's summary line and its
+   first 3 failing rows, not the whole diff. (Decided by the user
+   2026-11-09, after P1.1: all 2,098 NaN-only rows were overflow points in
+   QF/TF that the scorer leaves unscored.)
 
 The scorer's exit code inside the script is a separate signal. Record it,
 but bit identity is the pass criterion for bit-preserving tasks. GB300 uses
@@ -594,9 +600,10 @@ CUDA untouched):
 **Checks:** CHECK-HOST; CHECK-DEVICE-IDENTICAL mi250 and mi300; CHECK-PERF
 mi250 (expect DD `mul` stack bytes → 0).
 
-**Stop if:** either device comparison shows any difference. That would mean
-hipcc really does reorder these operations without `volatile`. Report it;
-don't add workarounds.
+**Stop if:** either device fails CHECK-DEVICE-IDENTICAL (NaN-vs-NaN
+differences are allowed, §1.5). A failure would mean hipcc really does
+reorder these operations without `volatile`. Report it; don't add
+workarounds.
 
 ### P1.2 — Type alignment
 
