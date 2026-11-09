@@ -241,3 +241,19 @@ Measured: n/a
 Next session must know:
 - sm_100 has only isa_v0.3.0.csv; PERF_TABLE.md shows B200 as NO DATA yet.
 - When a B200 is available: do P0.6 for sm_100, settle ledger row 2, re-run P0.7.
+
+## P1.1 — HIP: replace `volatile` in the EFT helpers
+Date: 2026-11-09   Outcome: Stopped
+Commits: kept off gpu-perf, see xpmath wip/P1.1 (258e529, pushed): CHECK-DEVICE-IDENTICAL mi250 failed (2098 rows differ, all NaN-vs-NaN). xpmath gpu-perf and gpu-perf-staging unmoved (0bd8b95).
+Changed (xpmath wip/P1.1 only): include/xp/config.hpp §5: HIP device pass uses `#pragma clang fp contract(off)` + `reassociate(off)` for eft_add/sub/mul and `__builtin_fma` for eft_fma; no volatile; comment updated. Host and CUDA paths unchanged.
+Checks:
+- CHECK-HOST: PASS, 44/44 host + 24/24 (login, /tmp/P1.1-build.log, run by xpm_build.sh).
+- CHECK-DEVICE-IDENTICAL mi250 (amdgpu04): FAIL. 436081 lines each; 2098 rows differ ($HOME/gpuperf-scratch/P1.1/mi250/{before,after}.stripped; before=0bd8b95, after=258e529). First 3: QF,r,add,1694-1696 (e.g. limbs 1-3 ffc00000 before, 7fc00000 after).
+- CHECK-DEVICE-IDENTICAL mi300: not run (stopped after MI250 failure; user had an MI300 available later). CHECK-PERF mi250: not run.
+Measured: classify.py ($HOME/gpuperf-scratch/P1.1/classify.py): all 2098 differing rows differ only in limbs that are NaN in both runs (sign/payload bits). No finite or infinite value changed. Ops: QF/TF real expm1, complex sinh/cosh/exp/sin/cos, QF add, others. Those rows are scored N (unscorable) by the sweep scorer, so the scorer's exit 0 says nothing about them; before already had NaN at the same limbs.
+Next session must know:
+- Likely cause (unverified): without volatile, the compiler may commute add operands; with two NaN inputs IEEE leaves the returned NaN unspecified.
+- Plan gate is strict bit identity, so this is a stop. Not decided: whether NaN-vs-NaN counts as identical (user's call). If accepted, rerun MI300 under that rule and CHECK-PERF mi250 before landing on staging.
+- Whether NaN lower limbs are correct at these points is an xpmath question, not tested here. Operands not inspected.
+- No ledger row (nothing landed on staging). Worktrees wt-before/wt-after remain under $HOME/gpuperf-scratch/P1.1/.
+- amdgpu04 is no longer needed unless the decision above changes.
