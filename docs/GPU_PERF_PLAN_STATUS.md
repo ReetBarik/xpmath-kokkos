@@ -361,3 +361,15 @@ Next session must know:
 - F1 is plain C++ (no #ifdef) and also compiles on HIP, where log1p is inline: needs MI250/MI300 CHECK-DEVICE-IDENTICAL and CHECK-GFX90A-LINT. NaN/inf edge rows rely on the full-sweep identity (done on B200 only).
 - A100 + GB300 (build on node) need CHECK-DEVICE-IDENTICAL and CHECK-SANITIZER; user decides how it reaches gpu-perf (§1.9, C-* task).
 - Still unknown: why ptxas chose the UR7 form for adf9ace, and why the old path faulted on sm_103 only.
+
+## F-b200-acos (addendum) — F1 validated on A100
+Date: 2026-11-09   Outcome: Partial (B200 + A100 pass; GB300 and AMD still owed)
+Commits: xpmath wip/F-b200-acos@8b5c338 unchanged, still kept off gpu-perf/gpu-perf-staging. xpmath-kokkos@gpu-perf = this block.
+Checks (gpu06 = A100-PCIE-40GB sm_80, CUDA 12.9.1; logs under $HOME/gpuperf-scratch/F-b200-acos/a100/):
+- Before = 0bd8b95 (valid on A100; its worktree has no F1 text), after = 8b5c338. Build stamps verified (build-info.txt).
+- Full sweep_device: before exit 0, after exit 0 (run-before.log, run-after.log).
+- CHECK-DEVICE-IDENTICAL a100: PASS, 436081/436081 rows identical, 0 NaN-only (ident-a100.log).
+- CHECK-SANITIZER a100 (full sweep, after): 0 errors (san-after.log). Scorer: 0 above bound, PASS (score-after.log).
+Next session must know:
+- NVIDIA now has two passing GPUs (B200, A100). §1.9 condition 2 still needs an AMD GPU (MI250/MI300) to pass, and GB300 (build on node) is still owed; ledger rows 1 and 3 stay open.
+- Gate rule: F1 may not land on staging until the AMD CHECK-DEVICE-IDENTICAL (+ gfx90a lint) passes.
