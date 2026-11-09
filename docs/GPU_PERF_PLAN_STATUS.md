@@ -231,3 +231,13 @@ Next session must know:
 - Re-run after a B200 P0.6 lands: `python3 -I perf/gen_cost_table.py --date <today>` and commit docs/PERF_TABLE.md. It picks the highest-version CSV per arch automatically.
 - Tag in the header is read from vendor/xpmath/UPSTREAM.txt (v0.3.0). Column "x double" is not comparable across GPUs; compare ns/op.
 - Ledger GPU_PERF_DEFERRED.md unchanged (one open row, P0.5b b200).
+
+## P0.6-b200 — Baseline runs, B200 (sm_100) — deferred
+Date: 2026-11-09   Outcome: Stopped (deferred at user's request; no GPU used)
+Commits: xpmath-kokkos@gpu-perf = ledger row 2 + this block only; xpmath: no changes (0bd8b95)
+Changed: docs/GPU_PERF_DEFERRED.md (row 2)
+Checks: none run. Same-vendor NVIDIA baselines exist (A100, GB300).
+Measured: n/a
+Next session must know:
+- sm_100 has only isa_v0.3.0.csv; PERF_TABLE.md shows B200 as NO DATA yet.
+- When a B200 is available: do P0.6 for sm_100, settle ledger row 2, re-run P0.7.
