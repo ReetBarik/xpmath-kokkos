@@ -207,3 +207,16 @@ Next session must know:
 - regs=255 is the nvcc cap for DD/TF/QF science, so they spill (scratch 1.2-2 KB); FF at 196 does not hit the cap.
 - Single timing sample, not repeated. Logs: $HOME/gpuperf-scratch/P0.6-gb300/{build,throughput,science_isa}.log. Build dir build-perf-gb300-p06 is untracked and reusable on the node (aarch64, build on node only).
 - P0.7 may treat sm_103 as having data; all five arches now have P0.6 data except a100 and b200.
+
+## P0.6-a100 — Baseline runs, A100 (sm_80)
+Date: 2026-11-09   Outcome: Done
+Commits: xpmath-kokkos@gpu-perf = this commit (CSVs + block); xpmath: no changes (clone on gpu-perf-staging, 0bd8b95; xpmath-kokkos start 080f61e)
+Changed: perf/results/sm_80/{throughput,science,science_isa}_v0.3.0.csv (new); isa_v0.3.0.csv (P0.2) left as committed
+Checks: fresh build dir build-perf-sm80-p06 on the login node (gcc/13.3.0 cmake/3.28.3 cuda/12.9.1, vendor v0.3.0, target xpk_perf_throughput, rc=0). Throughput run on gpu07 (A100-PCIE-40GB, cc 8.0) rc=0: 90 rows + science 6 rows, nonfinite=0 everywhere. science_isa 6 rows via isa_metrics.sh sm_80 science. Done-when (ISA + throughput CSVs for v0.3.0): pass. bit_identity_test, ctest, ISA regeneration not run (no code or CMake changes; not listed for P0.6).
+Measured (A100, ns/op, ratio to native double): double add 0.00042, mul 0.00042, div 0.0036, log 0.0140; DD add 0.0044 (10x), mul 0.0115 (27x), div 0.0216 (6x), log 1.43 (102x); cDD mul 0.0265 (31x), cDD div 0.340 (38x), cDD log 33.1 (850x).
+Science (ratio to double / regs / scratch B): DD 185x / 255 / 1280; FF 55x / 213 / 448; TF 388x / 254 / 560; QF 1326x / 255 / 1232; double 136/0; float 96/0. Time per element: double 2.40 ns, DD 443 ns, QF 3185 ns.
+Next session must know:
+- Single timing sample, not repeated. Science double row is noisy (ms_min 25.2 vs median 40.3), so its ratios (and all science ratios) may be overstated up to ~1.6x; DD/FF/TF/QF rows are tight (min~median).
+- Run took only a few minutes on the A100; the harness build took ~20 min on the login node at -j4.
+- Logs: $HOME/gpuperf-scratch/P0.6-a100/{build,throughput,science_isa}.log. Build dir build-perf-sm80-p06 is untracked and reusable.
+- P0.7 may treat sm_80 as having data; only b200 still lacks P0.6 data. regs=255 caps DD/QF science (spills 1.2 KB).
