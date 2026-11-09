@@ -432,3 +432,7 @@ Commits: xpmath@gpu-perf = 0769d6d (fast-forward from 0bd8b95; equals gpu-perf-s
 Supersedes the C-b200 block's "gpu-perf NOT fast-forwarded" and "settled-pending": the user closed ledger rows 1-3 and approved the fast-forward on 2026-11-09. Ancestor check passed before the push. Ledger has no open rows; xpmath gpu-perf == gpu-perf-staging.
 Next session must know:
 - The FF log / cQF sqrt ~4% slowdown from P1.2 (see C-b200 block) is still unexplained.
+
+## C-b200 (addendum 2) — P1.2 slowdown accepted
+Date: 2026-11-09   Outcome: Done
+The user accepted the B200 P1.2 slowdown (FF log +4.1%, cQF sqrt +4.2%, 2 of 90 throughput ops, cause not investigated) on 2026-11-09 and said to move on. It is not an open defect. Later tasks compare against the current B200 baseline; do not chase these two ops unless a later change moves them further.
