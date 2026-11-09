@@ -383,3 +383,15 @@ Checks (graceblackwell01 = GB300 sm_103 aarch64, built on the node via validatio
 - CHECK-SANITIZER gb300 (full sweep, after, cuda/13.3.1): 0 errors (san-after.log). Scorer on x86 login: 0 above bound, PASS (score-after.log).
 Next session must know:
 - NVIDIA: B200, A100, GB300 all pass with F1. Only AMD (MI250/MI300 CHECK-DEVICE-IDENTICAL + gfx90a lint) is missing before F1 can land on staging (§1.9); user decides how it reaches gpu-perf.
+
+## F-b200-acos (addendum 3) — F1 validated on MI250; all four GPUs pass
+Date: 2026-11-09   Outcome: Done for validation (F1 still kept off gpu-perf/staging; landing is the user's call)
+Commits: xpmath wip/F-b200-acos@8b5c338 unchanged. xpmath-kokkos@gpu-perf = this block + ledger notes.
+Checks (amdgpu04 = MI250X gfx90a, ROCm 7.0.2, device trees built on the login node; logs under $HOME/gpuperf-scratch/F-b200-acos/mi250/):
+- Before = 0bd8b95 (worktree, no F1), after = 8b5c338; build stamps verified. Both full sweeps exit 0.
+- CHECK-DEVICE-IDENTICAL mi250: PASS, 436081/436081 rows identical, 0 NaN-only (ident-mi250.log). Scorer: 0 above bound (score-after.log).
+- CHECK-GFX90A-LINT: clean before and after (lint-before.log, lint-after.log) on a TU exercising DD log1p + complex acos (lint_tu.hip), not CI's sqrt-only TU. Largest callee unchanged (31071 B atan2); exempt kernel 26616 -> 26903 B.
+Summary across GPUs, F1 @8b5c338 vs 0bd8b95 (B200 vs b790730): identical 436081/436081 and 0 above bound on B200, A100, GB300, MI250; memcheck 0 errors on B200, A100, GB300. CHECK-HOST 100% (44 host tests).
+Next session must know:
+- §1.9 conditions are now met for F1 (NVIDIA + AMD passed, CHECK-HOST passed). Not landed: user decides the route (§1.9: only P0.5b/P0.5c/C-* tasks move xpmath gpu-perf). Ledger rows 1 and 3 stay open until B200 catch-up for P1.1/P1.2 runs on a branch containing F1.
+- MI300 not run (not requested); gfx942 is untested for F1.
