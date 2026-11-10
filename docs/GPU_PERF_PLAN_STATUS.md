@@ -540,3 +540,15 @@ Checks @6e6a989 on graceblackwell01 (GB300, aarch64, sm_103; gcc/11.2.0 cmake/3.
 Status of 6e6a989: PASS = host, a100 (identity, memcheck, perf), mi250 (identity, lint, perf), mi300 (identity, perf), gb300 (identity, memcheck, perf). NOT RUN = b200 only (identity, sanitizer, perf). 8844010 (superset incl. this log1p change) passed b200 identity + full memcheck.
 Next session must know:
 - Only B200 remains. Run it, or if the user declares it unavailable add one ledger row (xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf; note 8844010 passed b200 identity + memcheck) and land on staging by merging wip/P2.1-dd. xpmath gpu-perf must not move.
+
+## P2.1[dd] (final) — Landed on staging: log1p result-slot change only; B200 deferred
+Date: 2026-11-10   Outcome: Done (B200 deferred; no speedup found)
+Commits: xpmath gpu-perf-staging = 6e6a989 (fast-forward from 0769d6d, pushed; wip/P2.1-dd also pushed at 6e6a989). xpmath gpu-perf unmoved (0769d6d, task does not move it). xpmath-kokkos@gpu-perf = this block + ledger row 4.
+Changed: xpmath include/xp/dd_math.hpp only (+8/-1): log1p small-|x| path renormalises multiply_scalar's result via eft_quick_two_sum so log1p owns its result slot. The history also contains 5d387bf (outlining) and 8844010 (partial revert); 6e6a989 restores config.hpp and the rest of dd_math.hpp to 0769d6d, so the net diff is the log1p change.
+Checks @6e6a989 (before = 0769d6d): CHECK-HOST PASS 44/44 + 24/24; CHECK-DEVICE-IDENTICAL PASS 436081/436081 on a100, mi250, mi300, gb300; CHECK-SANITIZER 0 errors on a100 and gb300; CHECK-GFX90A-LINT PASS; CHECK-PERF no slowdown on a100, mi250, mi300, gb300; b200 DEFERRED (ledger row 4).
+Measured: P2.1[dd]'s outlining (5d387bf/8844010) gave no speedup and slowed DD (b200 DD sqrt +6%, mi300 DD sqrt +43%), so it was dropped. The kept log1p change is neutral.
+Next session must know:
+- Root cause of the B200 DD:c:acos/asin fault (D/F-b200-acos and the P2.1[dd] addenda): ptxas uniform-register defect on forwarded result slots; sensitive to code shape around log1p. Outlining two_prod/multiply degenerate returns re-triggered it (crash in acos, silent wrong rows in acos, or crash in asin depending on the variant). Isolated --only runs are NOT a valid clearance: use the full 252-kernel sweep + identity + full memcheck.
+- Any future change that adds a real call (noinline/cold) on a path inlined into log1p or into other DD functions returning a callee's result directly can re-trigger it on B200. Run B200 full sweep + memcheck for such changes before landing; C-b200 must settle ledger row 4 (identity, memcheck, perf at 6e6a989).
+- Perf timing: A100 is bimodal run to run (one 'before' run differed 26% on cDD add/mul); use interleaved repeats, not best-of-2. MI300/MI250 show uniform node drift; compare against native rows.
+- Plan note: P2.1[ff] is next in order. The outlining idea slowed DD, so it is likely not worth repeating on ff/tf/qf without a measured reason; user decides.
