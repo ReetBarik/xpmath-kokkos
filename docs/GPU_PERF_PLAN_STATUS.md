@@ -519,3 +519,13 @@ Status of 6e6a989 across GPUs: PASS = host, a100 (identity, memcheck, perf), mi2
 Next session must know:
 - If the user declares b200/gb300/mi300 unavailable: add one ledger row each (xpmath 0769d6d..6e6a989, bit-preserving yes; owed identity + sanitizer (CUDA) + perf), then land on staging. Row for b200 must note that 8844010 already passed identity + memcheck on b200 and identity on mi300.
 - Landing moves staging by merging wip/P2.1-dd (3 commits, net diff = the log1p change). xpmath gpu-perf must NOT move (§1.9: only P0.5b/P0.5c/C-* move it).
+
+## P2.1[dd] (addendum 6) — Option (b) on MI300: green
+Date: 2026-11-10   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@6e6a989 (unchanged). xpmath-kokkos@gpu-perf = this block.
+Checks @6e6a989 on amdgpu00 (MI300X, gfx942), before = 0769d6d, fresh before/after sweeps same session; scratch $HOME/gpuperf-scratch/P2.1[dd]/{mi300b,perfb}:
+- CHECK-DEVICE-IDENTICAL mi300: PASS 436081/436081, 0 failing; scorer exit 0 both runs.
+- CHECK-PERF mi300 (2 runs, means): xpmath throughput 60 ops median 1.009, range 0.958-1.064, science DD 1.005-1.008, 0 nonfinite. Native rows drift the same way (median 1.011, up to +7.7%), so this is node drift. The five xpmath rows >3% are all FF/cFF/cTF/cQF (untouched by this change, which edits only dd_math.hpp log1p); no DD row exceeds 3%. No slowdown from this change.
+Status of 6e6a989: PASS = host, a100 (identity, memcheck, perf), mi250 (identity, lint, perf), mi300 (identity, perf). NOT RUN = b200 and gb300 (identity, sanitizer, perf). 8844010 (superset incl. this log1p change) passed b200 identity + full memcheck, which supports but does not settle b200 for 6e6a989.
+Next session must know:
+- Remaining owed: b200 and gb300. Either run them or, if the user declares them unavailable, add ledger rows (xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf) and land on staging by merging wip/P2.1-dd. gpu-perf must not move.
