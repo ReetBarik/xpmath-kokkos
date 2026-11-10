@@ -493,3 +493,17 @@ Next session must know:
 - Do not land 8844010 as is: >3% slowdowns have no benefit to justify them (§1.5).
 - Options: (a) drop the divide_scalar/dd_divide_core cold calls too, keeping only the KI-41 lifted outline and the log1p result-slot change (then P2.1[dd] is a ~no-op for speed plus a ptxas hardening); (b) land only the log1p change as a hardening task; (c) drop P2.1[dd]. User decides.
 - The log1p change is what actually protects B200 against the UR7 defect for this code shape; it is needed with any variant that keeps cold calls on log1p's path.
+
+## P2.1[dd] (addendum 4) — Option (b): log1p-only change, A100 green; AMD owed
+Date: 2026-11-10   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@6e6a989 (pushed). It restores config.hpp/dd_math.hpp to 0769d6d and keeps ONLY the log1p small-|x| own-result-slot renormalise (9 changed lines in dd_math.hpp; no XPMATH_COLD_FUNCTION, no outlining). xpmath-kokkos@gpu-perf = this block. User chose option (b) on 2026-11-09.
+Checks @6e6a989 (before = 0769d6d; scratch $HOME/gpuperf-scratch/P2.1[dd]/{a100,perfb,optb}):
+- CHECK-HOST: PASS 44/44 host + 24/24 device tree (/tmp/xpm-P2.1dd-optb/).
+- CHECK-DEVICE-IDENTICAL a100 (gpu06, A100-PCIE-40GB): PASS 436081/436081, 0 failing; scorer exit 0 both runs.
+- CHECK-SANITIZER a100 (full sweep, memcheck): 0 errors.
+- CHECK-PERF a100 (same session, 2 runs, then 3 interleaved reruns of the two noisy rows): xpmath types median 1.00; DD sqrt/exp/log, cDD log/sqrt identical to 3-4 digits. First pass flagged cDD add/mul (+32%) and native rows (+10-84%) but one "before" run was a fast outlier (same build differed 26% run to run; native double science 1.50 vs 2.70). Interleaved reruns: cDD add 0.00474/0.00474 vs 0.00473, cDD mul 0.02457 vs 0.02457 before/after. Conclusion: no slowdown from this change; A100 timings are bimodal, use interleaved repeats, not best-of-2.
+- NOT RUN for 6e6a989: B200 (identity, sanitizer, perf), GB300 (identity, sanitizer, perf), MI250 and MI300 (identity), CHECK-GFX90A-LINT, perf on AMD. Earlier B200/MI300/lint results were for 8844010 (outlining + same log1p change) and do NOT count for 6e6a989, although 6e6a989 is a strict subset of it.
+Next session must know:
+- To land (§1.9): one AMD GPU must pass identity + lint on 6e6a989 (MI300 or MI250); B200 and GB300 may be deferred with ledger rows because A100 passed as same-vendor. Ledger row needed per deferred GPU: xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf.
+- Staging must also be fast-forwardable: it is at 0769d6d and wip/P2.1-dd is 3 commits ahead (5d387bf, 8844010, 6e6a989), so landing = merge/fast-forward the branch, then the history still contains the outlining commits and the net diff is only the log1p change. User/next session decides whether that is acceptable.
+- P2.1[dd] yielded no speedup; ff is next in the dd->ff->tf->qf order if the user wants the outlining attempted there (it slowed DD by 3-43% on B200/MI300, so likely not worth repeating without a reason).
