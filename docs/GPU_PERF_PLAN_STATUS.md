@@ -580,3 +580,12 @@ Next session must know:
 - quick_two_sum renormalise is NOT identity where hi = inf (lo becomes NaN): never renormalise a result that can be an overflow inf.
 - Running two perf pipelines on one node overlaps; run1 perf was contaminated and discarded (run1-exp10-fail/perf-contaminated); final perf is a clean single run.
 - The gain is multiply/divide-driven (FF mul -33%); user decides fan-out to dd/tf/qf and whether to keep sqrt NOINLINE.
+
+## P2.2[ff] (addendum) — sqrt NOINLINE variant measured; user decision: keep sqrt inlined
+Date: 2026-11-10   Outcome: Done (decision recorded; nothing landed on staging)
+Commits: xpmath wip/P2.2-ff = 6f4fb5a unchanged and is the kept shape (sqrt inlined). Variant wip/P2.2-ff-sqrtnoinline = 842c101, LOCAL ONLY, perf-only (no identity/memcheck/host run). xpmath-kokkos@gpu-perf = this block.
+Measured (GB300, 3 interleaved repeats, after/before ns; gpuperf-scratch/P2.2[ff]/perf2/): sqrt inlined vs sqrt NOINLINE: FF sqrt 1.110 vs 1.008; FF science kernel 0.951 vs 1.010 (54.4 / 51.8 / 55.0 ns per element before / inlined / NOINLINE); FF/cFF median 0.950 vs 0.950; FF mul 0.661 and div 0.832 in both. Keeping sqrt NOINLINE fixes the sqrt micro-kernel but removes the whole science-kernel gain. Mechanism not isolated (science kernel reaches real sqrt through complex sqrt, ff_complex.hpp:405). Single-row noise up to ~5% on native rows (cfloat mul 1.05).
+Decision (user, 2026-11-10): keep FF sqrt inlined. The +10.7% FF sqrt micro-kernel regression is accepted.
+Next session must know:
+- Not checked off GB300: sqrt inlined is unverified on A100, B200, MI250, MI300 (P2.1[dd] saw DD sqrt +43% on MI300 from an unrelated outlining change, so sqrt can be sensitive on AMD). asin/acos/hypot/asinh/acosh call sqrt and are not timed by the harness.
+- Fan-out to dd/tf/qf and landing on gpu-perf-staging are still the user's call.
