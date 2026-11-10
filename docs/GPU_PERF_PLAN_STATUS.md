@@ -507,3 +507,15 @@ Next session must know:
 - To land (§1.9): one AMD GPU must pass identity + lint on 6e6a989 (MI300 or MI250); B200 and GB300 may be deferred with ledger rows because A100 passed as same-vendor. Ledger row needed per deferred GPU: xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf.
 - Staging must also be fast-forwardable: it is at 0769d6d and wip/P2.1-dd is 3 commits ahead (5d387bf, 8844010, 6e6a989), so landing = merge/fast-forward the branch, then the history still contains the outlining commits and the net diff is only the log1p change. User/next session decides whether that is acceptable.
 - P2.1[dd] yielded no speedup; ff is next in the dd->ff->tf->qf order if the user wants the outlining attempted there (it slowed DD by 3-43% on B200/MI300, so likely not worth repeating without a reason).
+
+## P2.1[dd] (addendum 5) — Option (b) on MI250: green
+Date: 2026-11-10   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@6e6a989 (unchanged). xpmath-kokkos@gpu-perf = this block.
+Checks @6e6a989 on amdgpu04 (MI250, gfx90a), before = 0769d6d; scratch $HOME/gpuperf-scratch/P2.1[dd]/{mi250,perfb}:
+- CHECK-DEVICE-IDENTICAL mi250: PASS 436081/436081, 0 failing; scorer exit 0 both runs.
+- CHECK-GFX90A-LINT (sweep_device TU of 6e6a989 compiled for gfx90a, 82 callees, 252 kernels): PASS tiers 1-4.
+- CHECK-PERF mi250 (2 runs, same session): xpmath throughput 60 ops median 1.00, range 0.944-1.051, science 1.00, native 0.997-1.002, 0 nonfinite. One row >3% (DD exp +5.1% on the mean) was noise: 4 interleaved reruns DD exp before 0.867-0.888 vs after 0.852-0.866 ns/op; DD sqrt/div/log unchanged. No slowdown from this change.
+Status of 6e6a989 across GPUs: PASS = host, a100 (identity, memcheck, perf), mi250 (identity, lint, perf). NOT RUN = b200, gb300 (identity, sanitizer, perf), mi300 (identity, perf). Both vendors now have a passing GPU, so §1.9 conditions 2 and 3 hold for deferring the rest; condition 1 (user says the GPU is unavailable) has NOT been stated for b200, gb300 or mi300.
+Next session must know:
+- If the user declares b200/gb300/mi300 unavailable: add one ledger row each (xpmath 0769d6d..6e6a989, bit-preserving yes; owed identity + sanitizer (CUDA) + perf), then land on staging. Row for b200 must note that 8844010 already passed identity + memcheck on b200 and identity on mi300.
+- Landing moves staging by merging wip/P2.1-dd (3 commits, net diff = the log1p change). xpmath gpu-perf must NOT move (§1.9: only P0.5b/P0.5c/C-* move it).
