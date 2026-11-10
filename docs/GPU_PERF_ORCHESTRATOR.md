@@ -54,6 +54,65 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
+## Current state (updated 2026-11-10 by the outgoing orchestrator)
+
+Verify these against the files and branches before relying on them.
+
+- **Branches.** xpmath `gpu-perf` = 0769d6d (C-b200 fast-forward,
+  2026-11-09, user-approved). xpmath `gpu-perf-staging` = 6e6a989 (P2.1[dd]
+  final: the DD log1p result-slot change only). xpmath-kokkos `gpu-perf` holds
+  the plan, status, ledger and parked register.
+- **Ledger.** Rows 1–3 are CLOSED (the word is at the end of each row's
+  Status cell; the cell still starts with "open", so read to the end). Only
+  **row 4** is open: P2.1[dd] on B200, 0769d6d..6e6a989 (identity, sanitizer,
+  perf).
+- **Parked register** (`docs/GPU_PERF_PARKED.md`, plan §1.10): created
+  2026-11-10, no rows yet.
+- **In flight:** the P2.2[ff] GB300-only go/no-go probe. The prompt was given
+  to the user 2026-11-10; no report yet. The worker pushes only
+  `wip/P2.2-ff` and stops with GO / PARK / NO-GO.
+- **P2.1 is dropped after dd** (user, 2026-11-10). Outlining slowed DD and
+  FF and re-triggered the ptxas UR7 fault. The P2.1[ff] Stopped block holds
+  the evidence. Local-only xpmath branches `wip/P2.1-ff-plain` (a771c57) and
+  `wip/P2.1-ff-ur7` (b9b4428) exist in the clone; b9b4428's FF log1p change
+  is identity-verified and memcheck-clean on GB300, and P2.2[ff] may carry it.
+- **Not done yet:** P0.5c (login node; can slot in any time).
+
+## Open questions for the user (raise them; don't decide them)
+
+1. **B200 standing deferral.** B200 is by far the scarcest GPU. The user
+   wants B200 work clustered into rare allocations. Proposed and still
+   unanswered: amend §1.9 so B200 counts as unavailable by default through
+   Phase 2, with C-b200 windows at the end of Phase 2, after Phase 3 and
+   before release. Consecutive bit-preserving rows cost one C-b200 run, so
+   batching is cheap. Do not write this into the plan until the user says yes.
+2. **P2.3 (complex fast/slow split).** It is P2.1's outlining applied to
+   complex multiply/divide, and P2.1 failed. Recommend dropping it once the
+   P2.2[ff] verdict is in. If it is dropped, P3.0's "Depends on P2.3[dd]"
+   needs amending (suggest: depends on the P2.2 decision).
+3. **After the P2.2[ff] verdict:** GO means the user decides whether to fan
+   out (P2.2[ff] on the other four GPUs, then P2.2 for dd/tf/qf). PARK means
+   a parked row exists with Re-test at = P3.4[ff]; check that the row is
+   complete. NO-GO means P2.2 is dropped for now.
+
+## Lessons from Phase 2 (put them in prompts when relevant)
+
+- **ptxas UR7 defect** (B200 sm_100 and GB300 sm_103): a function that
+  returns a callee's result directly ("result-slot forwarding") can have its
+  result pointer clobbered when code shape changes, for example when a real
+  call (noinline/cold) is added on a path inlined into log1p. The symptom is
+  a DD/FF complex acos/asin crash (error 700), or silent wrong rows. The
+  workaround shape: the caller renormalises through `eft_quick_two_sum` so it
+  owns its result slot (xpmath 6e6a989 for DD).
+- **Clearance means the full 252-kernel sweep + identity + full memcheck.**
+  An isolated `--only` run has given false clearances.
+- **Perf noise:** A100 timing is bimodal (use 3 interleaved repeats, not
+  best-of-2); MI250/MI300 drift uniformly (compare against native rows);
+  GB300 repeat spread is under 3%.
+- Workers sometimes return a free-form HANDOFF instead of the checklist, or
+  stop without writing a status block. Verify the evidence and write a
+  Stopped block yourself, as was done for P2.1[ff].
+
 ## Reviewing a worker's report
 
 The user pastes the report. Verify cheaply before accepting it:
@@ -88,15 +147,18 @@ Then:
    short RESUME NOTE at the top, saying what changed, which existing results
    to reuse, and what remains. P1.1's resume is the model.
 
-## Session order (after P1.2)
+## Session order (amended 2026-11-10)
 
-`P2.1[dd]`, `P2.2[dd]`, `P2.3[dd]`, then the same three for ff, tf and qf;
-then `P2.4` (optional), `P3.0` (the user chooses a policy), `P3.1[dd..qf]` …
-`P3.5[dd..qf]`, and `P4.0`.
+`P2.2[ff]` GB300 probe (in flight), then the user's call (see open question
+3). Then, as decided: P2.2 for the remaining backends, P2.3 (or dropped),
+`P2.4` (optional, needs the user's go-ahead), `P3.0` (the user chooses a
+policy), `P3.1[dd..qf]` … `P3.5[dd..qf]`, and `P4.0`. Parked rows are
+re-tested automatically by the task their Re-test at names (§1.10). When you
+drop or reorder a task, move its Re-test at entries.
 
 Slot in whenever a GPU frees up:
-- `C-<arch>` for open ledger rows. B200 currently owes rows 1–3, the
-  P0.6-b200 baseline included.
+- `C-<arch>` for open ledger rows. B200 currently owes row 4. Batch B200
+  (open question 1).
 - `P0.5c` (login node).
 - A re-run of `P0.7` when a missing GPU's P0.6 lands.
 
