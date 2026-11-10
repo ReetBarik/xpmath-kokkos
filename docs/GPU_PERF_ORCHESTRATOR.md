@@ -158,6 +158,13 @@ not.
 - Anything produced on a GPU node goes under $HOME/gpuperf-scratch/<ID>/,
   never /tmp.
 
+== EVIDENCE ==
+- Every PASS you report must cite a log or CSV path under
+  $HOME/gpuperf-scratch/<ID>/ that exists. No path, no PASS.
+- Never report a GPU as checked unless you ran the check on that GPU in
+  this session. A GPU you did not run is DEFERRED (ledger row) or NOT RUN.
+- Quote numbers from command output; do not estimate or round to "about".
+
 == WHEN TO STOP AND ASK ME ==
 A check fails twice. The plan doesn't match the code. A rule above would be
 broken. You are unsure whether something is allowed. Stopping is always
