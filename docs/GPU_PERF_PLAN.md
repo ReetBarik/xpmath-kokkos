@@ -49,8 +49,8 @@ one task, records the result, and stops.
 | P0.7 | Per-GPU cost table generator | xpmath-kokkos | login node | P0.6 for every GPU available so far (re-run when a missing one lands) |
 | P1.1 | HIP: replace `volatile` EFTs | xpmath (staging) | login + MI250 + MI300 | P0.7, P0.5 |
 | P1.2 | Type alignment | xpmath | login + all 5 GPUs | P1.1 |
-| P2.1[b] | Outline rare-case paths, backend b | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
-| P2.2[b] | Inline the hot small functions, backend b | xpmath | login + all 5 GPUs | P2.1[b] |
+| P2.1[b] | Outline rare-case paths, backend b (**dd only; dropped for ff/tf/qf**) | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
+| P2.2[b] | Inline the hot small functions, backend b (ff first, GB300 probe; see section) | xpmath | login + all 5 GPUs (probe: GB300) | P1.2 |
 | P2.3[b] | Complex fast/slow split, backend b | xpmath | login + all 5 GPUs | P2.2[b] |
 | P2.4 | Expansion arrays (needs user go-ahead) | xpmath | login + all 5 GPUs | P2.3[all] |
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.3[dd] |
@@ -635,6 +635,11 @@ session each.
 
 ### P2.1[b] — Outline the rare-case paths in real arithmetic
 
+> **Amended 2026-11-10 (user decision): dropped after dd.** P2.1[dd] landed
+> only its log1p result-slot change; outlining slowed DD and FF (GB300 FF/cFF
+> median 1.077) and re-triggered the ptxas UR7 fault on B200 and sm_103. Do
+> not run P2.1 for ff, tf or qf. P2.2[b] now depends on P1.2 instead.
+
 **Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P1.2 (dd) or P2.1 of the previous backend
 
 **Read first:** in `include/xp/<b>_math.hpp`, only `two_prod`, `multiply`,
@@ -655,6 +660,29 @@ Find them with `grep -n`.
 A100, B200, GB300; CHECK-PERF on all 5.
 
 ### P2.2[b] — Inline the hot small functions
+
+> **Amended 2026-11-10 (user decision): P2.2[ff] runs first, as a GB300-only
+> go/no-go probe.** Order for P2.2 is ff first; dd, tf, qf wait for the
+> user's call after the probe.
+> - **Probe scope:** GB300 only. No other GPU, no ledger rows, nothing on
+>   `gpu-perf-staging`. Push the result to `wip/P2.2-ff` only.
+> - **Forwarding audit first (deliverable before editing):** in
+>   `ff_math.hpp`/`ff_complex*.hpp`, list every function that returns a
+>   callee's result directly (result-slot forwarding) where the callee is a
+>   real call or is inlined into a large device function, or becomes one
+>   after this task's change. log1p is known; do not assume it is the only
+>   one. For each candidate, apply the result-slot renormalise
+>   (`eft_quick_two_sum` on an already-normalised pair, as in xpmath 6e6a989
+>   and local b9b4428) only if the sweep proves it bit-identical. Watch the
+>   quick_two_sum edge: an inf hi gives lo = NaN.
+> - **Checks on GB300:** CHECK-HOST; full 252-kernel sweep exit 0;
+>   CHECK-DEVICE-IDENTICAL vs `gpu-perf-staging`; full-sweep memcheck
+>   0 errors (an `--only` run is not a clearance); perf by ratio vs before,
+>   3 interleaved repeats.
+> - **Go/no-go:** GO if the FF/cFF median or the FF science-shaped kernel is
+>   at least 3% faster and no row is more than 3% slower without a stated
+>   reason. Otherwise NO-GO. Either way, write the status block and stop;
+>   the user decides whether to fan out.
 
 **Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P2.1[b]
 

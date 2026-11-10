@@ -552,3 +552,17 @@ Next session must know:
 - Any future change that adds a real call (noinline/cold) on a path inlined into log1p or into other DD functions returning a callee's result directly can re-trigger it on B200. Run B200 full sweep + memcheck for such changes before landing; C-b200 must settle ledger row 4 (identity, memcheck, perf at 6e6a989).
 - Perf timing: A100 is bimodal run to run (one 'before' run differed 26% on cDD add/mul); use interleaved repeats, not best-of-2. MI300/MI250 show uniform node drift; compare against native rows.
 - Plan note: P2.1[ff] is next in order. The outlining idea slowed DD, so it is likely not worth repeating on ff/tf/qf without a measured reason; user decides.
+
+## P2.1[ff] — Outline rare-case paths, FF
+Date: 2026-11-10   Outcome: Stopped (no-go; series abandoned by the user)
+Commits: none pushed. Kept off staging: local-only xpmath branches wip/P2.1-ff-plain (a771c57, plan diff) and wip/P2.1-ff-ur7 (b9b4428, plan diff + FF log1p owns its result slot on both paths, same shape as DD 6e6a989). Before = 6e6a989. Worktrees: $HOME/gpuperf-scratch/P2.1[ff]/wt-{before,plain,ur7}.
+Changed: nothing landed.
+Checks (GB300 graceblackwell01, sm_103, only GPU used; $HOME/gpuperf-scratch/P2.1[ff]/gb300/):
+- plain: FAIL. Full sweep faults at FF:c:asin, error 700 (run-plain.log). Full memcheck 27 errors, 26 "Invalid __local__ write of size 8" (san-plain.log). Host 44/44.
+- ur7: sweep exit 0; CHECK-DEVICE-IDENTICAL 436081/436081, 0 failing (before.nc.csv vs ur7.nc.csv; orchestrator re-ran the comparator: PASS); full memcheck 0 errors (san-ur7.log); host 44/44 (device-tree ctest not confirmed finished).
+Measured (3 interleaved repeats, perf/out-<v>-r<n>/sm_103/): ur7/before FF mul 1.40, cFF mul 1.19, FF log 1.14, FF exp 1.13, cFF div 1.12; FF/cFF median 1.077; native rows 0.996-1.002; plain within 0.01 of ur7. No FF row improved.
+Next session must know:
+- Outlining lost even on GB300, the GPU with the most FP32 headroom. The outlined bodies are trivial, so cold calls only add call sites. P2.1 is dropped for ff, tf and qf (plan amended).
+- sm_103 DOES reproduce the UR7-class ptxas fault (plain variant). The result-slot shape (log1p renormalises via eft_quick_two_sum) clears it, as on B200 for DD.
+- b9b4428's FF log1p change is identity-verified and memcheck-clean on GB300. It is not landed on its own; P2.2[ff] may carry it as part of its forwarding audit.
+Orchestrator review (2026-11-10): written by the orchestrator from the worker's handoff; evidence spot-checked (comparator re-run, memcheck summaries, run-plain.log fault line, branches absent from origin).
