@@ -599,3 +599,12 @@ Sanity: after-run FF mul 0.00239 ns/op vs FF add 0.00133 (plausible); before-run
 Next session must know:
 - Checked now: GB300 and MI250 (identity, sweep, perf; memcheck on GB300, lint on gfx90a). Unchecked: A100, B200, MI300.
 - The call-overhead hypothesis for the huge MI250 gain is not isolated.
+
+## P2.2[ff] (addendum 3) — MI300 (gfx942) check of the kept shape (sqrt inlined)
+Date: 2026-11-10   Outcome: Done (MI300 green; A100 and B200 still unchecked; nothing landed on staging)
+Commits: xpmath wip/P2.2-ff = 6f4fb5a, unchanged. xpmath-kokkos@gpu-perf = this block. Done at the user's request (hostname amdgpu00, gfx942, rocm/7.0.2); the original probe scope was GB300 only.
+Checks (before = 6e6a989, after = 6f4fb5a; gpuperf-scratch/P2.2[ff]/mi300/): full device sweep exit 0 both (status.log). CHECK-DEVICE-IDENTICAL PASS 436081/436081, 0 failing (ident.log). CHECK-GFX90A-LINT not applicable (gfx90a only; passed in addendum 2). No sanitizer (CUDA only). Perf 3 interleaved repeats (perf/out-{before,after}-r{1,2,3}/gfx942/).
+Measured (after/before ns, median of 3; <1 = faster): FF/cFF median over 15 rows 0.595. FF mul 0.124, cFF mul 0.095, FF div 0.334, cFF div 0.676, FF log 0.327, FF exp 0.379, FF sqrt 0.690, cFF sqrt 0.375, cFF abs 0.310. FF science kernel 0.737 (0.744/0.737/0.734); DD/QF/TF/double/float science 1.001-1.006. Non-finite 0 before and after. Worst rows are native/other-backend types FF code does not touch (cdouble mul 1.038 with repeats 1.038/1.080/0.963; cfloat exp 1.029), i.e. noise.
+Next session must know:
+- Checked now: GB300, MI250, MI300 (identity, sweep, perf all pass; memcheck on GB300; lint on gfx90a). Unchecked: A100, B200.
+- FF sqrt: GB300 1.107 (slower), MI250 0.878, MI300 0.690 (faster). The GB300 regression is the only slowdown found.
