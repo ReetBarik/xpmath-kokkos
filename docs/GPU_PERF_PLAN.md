@@ -684,7 +684,7 @@ A100, B200, GB300; CHECK-PERF on all 5.
 >   reason. Otherwise NO-GO. Either way, write the status block and stop;
 >   the user decides whether to fan out.
 
-**Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P2.1[b]
+**Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P1.2 (amended 2026-11-10)
 
 **Read first:** `docs/TOOLCHAIN_DEFECTS.md` TD-1 and TD-4 entries only;
 `grep -n 'XPMATH_NOINLINE_FUNCTION\|td4_workaround' include/xp/<b>_*.hpp`.
