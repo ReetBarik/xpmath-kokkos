@@ -589,3 +589,13 @@ Decision (user, 2026-11-10): keep FF sqrt inlined. The +10.7% FF sqrt micro-kern
 Next session must know:
 - Not checked off GB300: sqrt inlined is unverified on A100, B200, MI250, MI300 (P2.1[dd] saw DD sqrt +43% on MI300 from an unrelated outlining change, so sqrt can be sensitive on AMD). asin/acos/hypot/asinh/acosh call sqrt and are not timed by the harness.
 - Fan-out to dd/tf/qf and landing on gpu-perf-staging are still the user's call.
+
+## P2.2[ff] (addendum 2) — MI250 (gfx90a) check of the kept shape (sqrt inlined)
+Date: 2026-11-10   Outcome: Done (MI250 green; A100, B200, MI300 still unchecked; nothing landed on staging)
+Commits: xpmath wip/P2.2-ff = 6f4fb5a, unchanged. xpmath-kokkos@gpu-perf = this block. Done at the user's request (hostname amdgpu04, MI250X/MI250 gfx90a, rocm/7.0.2); the original probe scope was GB300 only.
+Checks (before = 6e6a989, after = 6f4fb5a; gpuperf-scratch/P2.2[ff]/mi250/ and lint/): full device sweep exit 0 both (status.log). CHECK-DEVICE-IDENTICAL PASS 436081/436081, 0 failing (ident.log). CHECK-GFX90A-LINT PASS, exit 0, tiers 1-4 ok, 252 kernels (lint/lint.log; compiled from scripts/sweep_device.cpp at 6f4fb5a with hipcc --offload-arch=gfx90a --save-temps=obj, run on the login node). No sanitizer (CUDA only). Perf 3 interleaved repeats (perf/out-{before,after}-r{1,2,3}/gfx90a/).
+Measured (after/before ns, median of 3; <1 = faster): FF/cFF median over 15 rows 0.584. FF mul 0.145, cFF mul 0.111, FF div 0.501, cFF div 0.612, FF log 0.497, FF exp 0.508, FF sqrt 0.878 (faster here, unlike GB300's 1.107), cFF sqrt 0.184, cFF abs 0.409. FF science kernel 0.550 (0.549/0.550/0.551); DD/QF/TF/double/float science 1.000-1.002. Non-finite counts 0 before and after. Worst row anywhere: DD sin 1.025; native-type rows move up to ~18% between repeats (TF mul 0.819 in r2), so single-row differences under that are noise.
+Sanity: after-run FF mul 0.00239 ns/op vs FF add 0.00133 (plausible); before-run FF mul was 0.01668, so the old NOINLINE call is the anomaly on gfx90a. DD mul is still NOINLINE at 0.0358 ns/op, 15x FF's inlined mul; whether inlining DD's would give a similar gain here is untested, so no claim.
+Next session must know:
+- Checked now: GB300 and MI250 (identity, sweep, perf; memcheck on GB300, lint on gfx90a). Unchecked: A100, B200, MI300.
+- The call-overhead hypothesis for the huge MI250 gain is not isolated.
