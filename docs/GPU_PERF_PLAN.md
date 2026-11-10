@@ -26,6 +26,10 @@ one task, records the result, and stops.
 2. Read `docs/GPU_PERF_PLAN_STATUS.md` and look only at the blocks for the
    tasks listed under your task's **Depends on**. They tell you what earlier
    sessions found.
+   Also read `docs/GPU_PERF_PARKED.md` (short). If any open row's
+   **Re-test at** names your task, you owe that row's A/B (§1.10) at the end
+   of your task, on the GPUs your task already uses. Include those GPUs'
+   needs in your one GPU request.
 3. Start your session with its working directory set to the repo your task
    changes, so that repo's own `CLAUDE.md` loads:
    - xpmath tasks: `~/kokkos-extended-precision-demo` (this is the xpmath
@@ -319,6 +323,44 @@ task is bit-preserving. Commit it with your status block.
 **Before the user merges into `main`:** xpmath `gpu-perf` and
 `gpu-perf-staging` point at the same commit, and the ledger has no open
 rows.
+
+### 1.10 Parked ideas: when your task must re-test one
+
+Some changes measured neutral when tried, but a later task is expected to
+make them worth more (for example, inlining `multiply` once P3.4 has made it
+small). They are rows in `docs/GPU_PERF_PARKED.md`. You do not decide whether
+a row is relevant. Its **Re-test at** column names the task, and if that is
+your task, the A/B is part of your task.
+
+**Parking (the task that measured it):** if a task's own section allows a
+PARK verdict, record a row: the idea; the task; where the change lives
+(a pushed `wip/` branch and SHA, plus a one-line description so it can be
+re-applied by hand if it no longer applies cleanly); whether it is
+bit-preserving; the key ratios; and **Re-test at**, a list of task IDs.
+
+**Re-testing (the task named in Re-test at):**
+1. Finish your own task first, including its checks. Your result is "A".
+2. On your own `wip/<task-id>-parked<N>` branch from A, re-apply the parked
+   change (cherry-pick onto your own wip branch, or re-apply by hand).
+   That is "B". Never re-apply onto a shared branch.
+3. Run on B, on the GPUs your task already uses: CHECK-HOST; the full
+   device sweep (exit 0); CHECK-DEVICE-IDENTICAL A vs B if the row is
+   bit-preserving (otherwise score it under the P3.0 policy); CHECK-SANITIZER
+   on the CUDA GPUs among them if the change affects inlining; perf A vs B
+   by ratio, 3 interleaved repeats.
+4. Verdict, by the same rule the parking task used: **GO** (at least 3%
+   faster on the backend's median or its science-shaped kernel, no
+   unexplained slowdown above 3%), **PARK** (within ±3%), **NO-GO**
+   (slowdown above 3%, or any check failed).
+5. GO: do **not** land it yourself. Push `wip/<task-id>-parked<N>`, write
+   the numbers in your status block, and stop for the user. The user decides
+   whether it becomes its own task. PARK: update the row (new ratios, keep or
+   extend Re-test at). NO-GO: mark the row retired, with the reason.
+6. Your own task's result (A) lands or stops exactly as your section says,
+   whatever B shows.
+
+If a row's Re-test at names a task that was dropped, the orchestrator moves
+it. P4.0 reads every row (open or retired) as design input.
 
 ---
 
@@ -679,10 +721,14 @@ A100, B200, GB300; CHECK-PERF on all 5.
 >   CHECK-DEVICE-IDENTICAL vs `gpu-perf-staging`; full-sweep memcheck
 >   0 errors (an `--only` run is not a clearance); perf by ratio vs before,
 >   3 interleaved repeats.
-> - **Go/no-go:** GO if the FF/cFF median or the FF science-shaped kernel is
->   at least 3% faster and no row is more than 3% slower without a stated
->   reason. Otherwise NO-GO. Either way, write the status block and stop;
->   the user decides whether to fan out.
+> - **Verdict (three outcomes):** GO if the FF/cFF median or the FF
+>   science-shaped kernel is at least 3% faster and no row is more than 3%
+>   slower without a stated reason. PARK if everything is within ±3%: add a
+>   row to `docs/GPU_PERF_PARKED.md` (§1.10) with Re-test at = `P3.4[ff]`
+>   (P3.4 makes `multiply` small, which makes inlining it more likely to
+>   pay; P3.1/P3.2 also stress multiply/divide). NO-GO if anything is more
+>   than 3% slower without a reason, or a check fails. Either way, write the
+>   status block and stop; the user decides whether to fan out.
 
 **Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P1.2 (amended 2026-11-10)
 

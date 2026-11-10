@@ -13,6 +13,8 @@ hold all the state; this page tells you how to use them.
 3. The last 3–4 blocks of `docs/GPU_PERF_PLAN_STATUS.md` (`grep -n '^## '`
    first; don't read the whole file).
 4. `docs/GPU_PERF_DEFERRED.md` (the ledger of GPU checks still owed).
+5. `docs/GPU_PERF_PARKED.md` (neutral ideas parked for a later re-test, §1.10).
+   When you drop or reorder a task, move any Re-test at entries that name it.
 
 Check where the branches are:
 ```bash
@@ -120,7 +122,10 @@ Your task is <ID> from ~/xpmath-kokkos/docs/GPU_PERF_PLAN.md. Do ONLY that task.
    - `gpu-perf-staging` for every other xpmath task
 4. Record the starting commit of both repos: `git rev-parse HEAD`.
 5. In docs/GPU_PERF_PLAN_STATUS.md, read ONLY the blocks for the tasks under
-   <ID>'s "Depends on". Always read docs/GPU_PERF_DEFERRED.md.
+   <ID>'s "Depends on". Always read docs/GPU_PERF_DEFERRED.md and
+   docs/GPU_PERF_PARKED.md. If a parked row's "Re-test at" names <ID>, you
+   owe its A/B (plan §1.10) after your own task; include its GPU needs in
+   your one GPU request.
 
 == FORBIDDEN COMMANDS (no exceptions, even to fix your own mistake) ==
 - git commit --amend
@@ -167,6 +172,7 @@ acceptable; breaking a rule is not.
    - Never amended, force-pushed, rebased, or reset:
    - Ran the ancestor check before every push:
    - Every listed check passed, or was deferred with a ledger row:
+   - Parked rows naming <ID>: none / A/B done (verdict per row):
    - Moved xpmath gpu-perf: YES/NO (if YES, confirm (a), (b), (c) all held):
    - Status block pushed; SHAs quoted from origin:
    - GPUs I can release now: <hostnames or "none">
