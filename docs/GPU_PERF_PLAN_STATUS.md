@@ -529,3 +529,14 @@ Checks @6e6a989 on amdgpu00 (MI300X, gfx942), before = 0769d6d, fresh before/aft
 Status of 6e6a989: PASS = host, a100 (identity, memcheck, perf), mi250 (identity, lint, perf), mi300 (identity, perf). NOT RUN = b200 and gb300 (identity, sanitizer, perf). 8844010 (superset incl. this log1p change) passed b200 identity + full memcheck, which supports but does not settle b200 for 6e6a989.
 Next session must know:
 - Remaining owed: b200 and gb300. Either run them or, if the user declares them unavailable, add ledger rows (xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf) and land on staging by merging wip/P2.1-dd. gpu-perf must not move.
+
+## P2.1[dd] (addendum 7) — Option (b) on GB300: green; only B200 owed
+Date: 2026-11-10   Outcome: Partial (not landed; staging and gpu-perf unmoved)
+Commits: xpmath wip/P2.1-dd@6e6a989 (unchanged). xpmath-kokkos@gpu-perf = this block.
+Checks @6e6a989 on graceblackwell01 (GB300, aarch64, sm_103; gcc/11.2.0 cmake/3.22.1 cuda/13.3.1), before = 0769d6d, built on the node; scratch $HOME/gpuperf-scratch/P2.1[dd]/{gb300,perfb}:
+- CHECK-DEVICE-IDENTICAL gb300: PASS 436081/436081, 0 failing, 0 NaN-only. No device fault in either run. Scorer (login node, absolute gate) on the after raw: exit 0, PASS.
+- CHECK-SANITIZER gb300 (full-sweep memcheck of the after build): 0 errors.
+- CHECK-PERF gb300 (2 runs, means): xpmath throughput 60 ops median 1.00, range 0.977-1.006, 0 >3%; science 0.999-1.001; native 0.999-1.025; 0 nonfinite; before r1 vs r2 spread median 0.1%. No slowdown.
+Status of 6e6a989: PASS = host, a100 (identity, memcheck, perf), mi250 (identity, lint, perf), mi300 (identity, perf), gb300 (identity, memcheck, perf). NOT RUN = b200 only (identity, sanitizer, perf). 8844010 (superset incl. this log1p change) passed b200 identity + full memcheck.
+Next session must know:
+- Only B200 remains. Run it, or if the user declares it unavailable add one ledger row (xpmath 0769d6d..6e6a989, bit-preserving yes, owed identity + sanitizer + perf; note 8844010 passed b200 identity + memcheck) and land on staging by merging wip/P2.1-dd. xpmath gpu-perf must not move.
