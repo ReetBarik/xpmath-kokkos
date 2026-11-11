@@ -130,8 +130,14 @@ branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
   `grep -n` to find a function, then read only that line range.
 - Send every build and test log to a file. Show yourself only the tail or
   the failures:
-  `cmake --build build -j16 > /tmp/<task>-build.log 2>&1; tail -30 /tmp/<task>-build.log`
+  `nice -n 10 cmake --build build -j8 > /tmp/<task>-build.log 2>&1; tail -30 /tmp/<task>-build.log`
   `ctest ... > /tmp/<task>-ctest.log 2>&1; grep -E 'tests passed|Failed|\*\*\*' /tmp/<task>-ctest.log`
+- **Shared nodes (user, 2026-11-11).** The login node and the GPU nodes are
+  shared with other users. Never overwhelm them: build and test under
+  `nice -n 10` with at most `-j8` (ctest at most `-j8`); never `-j` without a
+  number or `-j$(nproc)`; build one tree at a time per node (no parallel
+  before/after/variant builds); never run two perf pipelines on one node
+  at once.
 - Never print a sweep CSV (436k rows) or a raw device file. Compare them
   with `cmp`/`diff -q`, or count differences with `diff | wc -l`.
 - Never print whole assembly files. Use the metric scripts from P0.1/P0.2.

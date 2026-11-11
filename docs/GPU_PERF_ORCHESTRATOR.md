@@ -101,6 +101,10 @@ None as of 2026-11-11.
   owns its result slot (xpmath 6e6a989 for DD).
 - **Clearance means the full 252-kernel sweep + identity + full memcheck.**
   An isolated `--only` run has given false clearances.
+- **Shared nodes:** builds must not overwhelm shared nodes (user,
+  2026-11-11): nice, at most -j8, one build per node at a time. Plan §1
+  and the canonical prompt's SHARED NODES section say so. The two prompts
+  handed out 2026-11-11 predate this; the user was told to prepend it.
 - **Perf noise:** A100 timing is bimodal (use 3 interleaved repeats, not
   best-of-2); MI250/MI300 drift uniformly (compare against native rows);
   GB300 repeat spread is under 3%.
@@ -221,6 +225,12 @@ not.
 - Never report a GPU as checked unless you ran the check on that GPU in
   this session. A GPU you did not run is DEFERRED (ledger row) or NOT RUN.
 - Quote numbers from command output; do not estimate or round to "about".
+
+== SHARED NODES ==
+The login node and GPU nodes are shared with other users; don't overwhelm
+them. Build and test under `nice -n 10` with at most -j8 (never bare -j or
+-j$(nproc)). Build one tree at a time per node, never before/after/variant
+builds in parallel. Run one perf pipeline per node at a time.
 
 == WHEN TO STOP AND ASK ME ==
 A check fails twice. The plan doesn't match the code. A rule above would be
