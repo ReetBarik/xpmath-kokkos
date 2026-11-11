@@ -54,41 +54,40 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-11)
+## Current state (updated 2026-11-11, late)
 
 Verify these against the files and branches before relying on them.
 
-- **Branches.** xpmath `gpu-perf` = 0769d6d, `gpu-perf-staging` = 6e6a989
-  (both unchanged since 2026-11-10). xpmath `wip/P2.2-ff` = 6f4fb5a (on
-  origin; child of staging): FF multiply/divide/sqrt inlined + result-slot
-  renormalise in log1p, acosh, xp_asin_real_mag, xp_atan2_safe.
-- **Ledger.** Rows 1-3 CLOSED (read to the end of the Status cell). Only
-  **row 4** open: P2.1[dd] on B200, 0769d6d..6e6a989.
+- **Branches.** xpmath `gpu-perf` = 0769d6d; `gpu-perf-staging` = 6f4fb5a
+  (P2.2[ff] landed); `wip/P2.2-dd` = 4d597fd (child of staging: 3d43c76
+  inline DD mul/div/sqrt + renormalise, 3f594b2 name-clash fix, 4d597fd
+  `angle()` pi/2 bit constants, which fixes the GB300 UR7 fault).
+- **Ledger.** Rows 1-3 CLOSED. Rows 4-7 SETTLED by C-b200 (2) and
+  C-a100 (2), pending the user's close. No open rows.
 - **Parked register:** no rows.
-- **P2.2[ff]:** probe verdict GO on GB300 (2026-11-10), then at the user's
-  request checked green on MI250, MI300, A100 (status addenda 2-4). Identity
-  436081/436081 on all four, memcheck 0 on GB300 + A100, lint on gfx90a.
-  User accepted FF sqrt +10.7% on GB300 (keep sqrt inlined). Not reviewed
-  by the user yet: A100 cFF div 1.048, stable over 3 repeats, no reason
-  stated. **B200 unchecked; nothing on staging.** Orchestrator review of
-  the evidence done 2026-11-11 (paths exist; ident PASS x4; memcheck 0 x2).
-- **User decisions 2026-11-11:** P2.2[ff] (6f4fb5a) lands on staging now
-  with B200 deferred (ledger row 5); cFF div +4.8% on A100 accepted; P2.2
-  fans out to dd, tf, qf; P2.3 dropped; **B200 deferred by default through
-  Phase 2** (§1.9), settled by batched C-b200 windows (rows 4, 5, ... in one
-  cumulative run from 0769d6d).
-- **Next:** `P2.2[ff]` landing session (no GPU), then `P2.2[dd]` (A100,
-  GB300, MI250, MI300). Prompts were given to the user in chat 2026-11-11.
+- **P2.2[dd] at 4d597fd:** identity 436081/436081 on all five GPUs, full
+  memcheck 0 on B200, A100, GB300, gfx90a lint ok, host ok. Status:
+  P2.2[dd] block, addendum (GB300 diagnosis), addendum 2 (4d597fd runs, written
+  by the orchestrator), C-b200 (2), C-a100 (2). **Not landed.** The only
+  blocker is GB300 DD science 1.165 (reproducible). Elsewhere DD science:
+  MI250 0.487, MI300 0.366, B200 0.936, A100 0.987.
+- **gpu-perf lag.** C-a100 (2) should have run C-* step 7 (fast-forward
+  gpu-perf to the newest staging commit with no open rows) but didn't.
+  Once rows 4-7 are closed, the next C-* or landing session does it.
+- **A100 cfloat div bimodal** (0.00365 vs 0.00671 ns/op, native type,
+  seen with both before builds). Not attributable to the library. Note only.
 - **The user does not want prompts stored in files.** Give every worker
-  prompt in the chat reply, ready to paste (the canonical template below is
-  the source; expand it in full).
-- **P2.1 is dropped after dd** (user, 2026-11-10). Evidence in the P2.1[ff]
-  Stopped block.
+  prompt in the chat reply, ready to paste.
+- **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
+- **Next:** the user rules on the open questions below, then a P2.2[dd]
+  landing session (no GPU), then P2.2[tf].
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
 
-None as of 2026-11-11.
+1. Land 4d597fd on staging and accept GB300 DD science 1.165? (raised
+   2026-11-11)
+2. Close ledger rows 4-7? (raised 2026-11-11)
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 
