@@ -117,14 +117,32 @@ Verify these against the files and branches before relying on them.
   user to put tasks that move xpmath `gpu-perf` or settle the ledger (C-*)
   on Sonnet, not Grok (earlier rule: Sonnet or better). Review harder: an
   open model has fast-forwarded gpu-perf and force-pushed before.
+- **Model/harness tag:** the user tells the orchestrator which model and
+  harness ran each report; record it in the review note ("Ran on: Grok /
+  Cursor") so later sessions can see which models needed corrections.
+- **P3.0 scope note (given to the user 2026-11-12 to paste into P3.0):**
+  Phase 2 finished, base 4d597fd still current; tf/qf parked (bit-identical,
+  no accuracy effect); write the policy as a mechanical gate rule for weaker
+  models (gate result -> action table, exact thresholds, what to quote,
+  re-baseline commit subject format; judgment -> "stop and ask the user");
+  push only wip/P3.0 + status block with "Policy decided:" line. If the memo
+  lacks a mechanical rule, add one in the `Plan:` amendment and confirm it
+  with the user.
+- **P3.1-P3.5 "Needs all 5 GPUs"** must be written into prompts as
+  sequenced pairs (2-node limit) with B200 deferred via ledger (§1.9).
 - **The user does not want prompts stored in files.** Prompts go in chat.
 - **P2.1 dropped after dd; P2.3, P2.4 dropped; B200 deferred (§1.9).**
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
 
-None. Decided 2026-11-11: land 4d597fd (GB300 DD science 1.165 accepted);
-rows 4-7 closed.
+- (2026-11-12, unanswered) Can the Cursor / open-model workers ssh into GPU
+  nodes and keep a session alive through multi-hour runs? If not, P3.x
+  prompts must have the user launch sweeps and paste back log paths. Ask
+  before writing the P3.1[dd] prompt if the user hasn't answered.
+
+Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
+probe NO-GO.
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 
