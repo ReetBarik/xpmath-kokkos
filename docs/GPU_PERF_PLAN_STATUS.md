@@ -750,3 +750,22 @@ Next session must know:
 - B200 not run (standing deferral); gpu-perf and staging not moved.
 Orchestrator review (2026-11-11): verified in scratch. Origin SHAs match (wip/P2.2-tf ddd5701, -mkeep fa013f2, -sqrt b3b6fcd; staging = gpu-perf = 4d597fd). b3b6fcd differs from ddd5701 only in multiply/divide INLINE->NOINLINE. Identity PASS on all shapes run (FULL MI250/MI300: 6 NaN-only rows each, allowed); SQRT memcheck A100/GB300 0 errors; lint rc 0 for FULL and SQRT; science/cTF-abs ratios match the table. Gaps (not failures): no CHECK-HOST on SQRT; ancestor check impossible for the three new wip branches (no remote ref), plain new-branch pushes, nothing overwritten.
 User decision (2026-11-12): NO-GO. Nothing lands; FULL (ddd5701) parked as GPU_PERF_PARKED.md row 1, Re-test at P3.4[tf]; SQRT and MKEEP retired. Plan amendment 13c73d7.
+
+## P2.2[qf] — Inline QF multiply/divide/sqrt (probe)
+Date: 2026-11-11   Outcome: Stopped (NO-GO by probe rule)
+Commits: kept off gpu-perf and staging (both still 4d597fd): xpmath wip/P2.2-qf = 5e59302 (e050d5c + 5e59302 on base 4d597fd). Parked as GPU_PERF_PARKED.md row 2, Re-test at P3.4[qf]. No ledger row. GB300 and MI300 not run (probe stops at A100).
+Changed: xpmath include/xp/qf_math.hpp (multiply/divide/sqrt INLINE; acosh unchanged), include/xp/qf_complex.hpp (renorm copies at xp_asin_imag_mag, xp_atan2_safe); wip branch only. Audit: $HOME/gpuperf-scratch/P2.2[qf]/forwarding_audit.md.
+Checks (scratch $HOME/gpuperf-scratch/P2.2[qf]/; before = 4d597fd):
+- CHECK-HOST at e050d5c: 44/44 (host/host-ctest.log). NOT re-run at 5e59302 (which only removes two renorm copies).
+- First attempt e050d5c (4 renorm copies), MI250 identity FAIL: 8 failing rows = acosh rows 62/63 (renorm changes f0..f2 of an already-normalised QF result) and complex asin rows 1089,1153,1217,1281,1345,1409 (+0 limbs became -0 via xp_asin_real_mag copy) (mi250/prefix-e050d5c/ident.log). Dropped those two copies in 5e59302, as the task says to keep only copies the sweep proves identical. NaN-only: exp2 6, fma 2, sqrt 6 (allowed).
+- 5e59302: MI250 (amdgpu04) sweep rc=0, identity PASS 436081 rows, 436067 identical, 14 NaN-only, 0 failing (mi250/ident.log). A100 (gpu07) sweep rc=0, identity PASS 436081/436081 identical (a100/ident.log); full-sweep memcheck ERROR SUMMARY 0 errors (a100/san-after.log).
+- CHECK-GFX90A-LINT at 5e59302: FAIL, rc=1 (lint/after/lint.log). Tier 3 FATAL: xp_atan_im 137,847 B, xp_asin_imag_mag 137,508 B exceed 131,068 B; WARN xp_asin_real_leg 123,566 B. Baseline 4d597fd: clean, rc=0, largest callee 52,248 B (lint/before/lint.log).
+- CHECK-PERF 3 interleaved repeats: a100/perf/ratios.txt, mi250/perf/ratios.txt.
+Measured (after/before, median of 3; >1 = slower):
+- A100: QF science 1.353 (1.353/1.353/1.353); QF median 0.971; cQF median 1.083. Rows >3% slower: cQF abs 1.705, cQF sqrt 1.494, QF sqrt 1.321. Native noise, not attributed: double science 1.701 (repeats 1.701/1.712/1.018), cfloat div 1.838 (bimodal).
+- MI250: QF science 0.830; QF median 0.839; cQF median 0.707; no row >3% slower. MI250 drifts: native science double/float 1.001/1.000, DD 1.011.
+- QF science code size A100: 1,080,576 -> 2,408,576 B (a100/perf/sci_isa_{before,after}.csv).
+Next session must know:
+- Same vendor split as tf: A100 slower (1.353 > 1.03 rule) while MI250 is 17% faster; plus gfx90a lint FAILS (inlining pushes xp_atan_im / xp_asin_imag_mag past the TD-1 branch reach). Any re-test at P3.4[qf] must pass the lint, not just perf.
+- QF renorm() is NOT a no-op on already-normalised QF results (weak non-overlap): never add result-slot renorm copies without the sweep.
+- Pre-fix evidence in a100/prefix-e050d5c and mi250/prefix-e050d5c. gpu-perf and staging not moved.
