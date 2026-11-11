@@ -62,6 +62,7 @@ one task, records the result, and stops.
 | P4.0 | Generic-core design (STOP) | xpmath | login | R (v0.4.0 released) |
 | C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
 | R | Release v0.4.0, re-vendor, re-measure (after Phase 3, before Phase 4) | xpmath-kokkos | all 5 GPUs | Phase 3 done, ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
+| R.1 | Tier wrappers + one-time fast bit-identity sweep (deferred from P3.0b) | xpmath-kokkos | login + all 5 GPUs | R |
 
 Backend order for every `[b]` task: **dd → ff → tf → qf**. Each backend is a
 separate session.
@@ -953,6 +954,35 @@ intermediate releases are needed.
    science-kernel time, and DD/FF `mul`/`div`/`log` ns/op).
 
 **Done when:** all three steps are green and committed on `gpu-perf`.
+
+---
+
+## R.1 — Tier wrappers in xpmath-kokkos (deferred from P3.0b)
+
+> **Added 2026-11-11 (user, during P3.0b).** P3.0b added the strict/fast tiers
+> to xpmath (`xp::strict`/`xp::fast`, `<b>_real`/`<b>_real_fast`; fast forwards
+> to strict except where a P3 task overrode a function). In xpmath-kokkos,
+> P3.0b landed **only** the perf harness fast types (`perf/`, off by default,
+> no ctest) and `perf/perf_ratios.py`, because P3 workers need them for
+> CHECK-PERF. Everything else waits until v0.4.0 is vendored.
+
+**Repo** xpmath-kokkos · **Needs** login + all 5 GPUs (one sweep each) ·
+**Depends on** R (v0.4.0 vendored, which contains the tiers)
+
+**Steps:**
+1. Re-export the fast types and aliases in `include/Kokkos_xpmath/`
+   (`DoubleDoubleFast`, `dd_real_fast`, … for dd/ff/tf/qf and complex), and
+   add fast specializations of `reduction_identity`, the numeric traits and
+   `impl/atomic_cas_add.hpp`, mirroring strict.
+2. Make the existing `bit_identity_test`, `reduction_test` and `atomic_test`
+   loop over both tiers (wrapper vs core, same tier). No new ctest targets:
+   13/13 must still pass.
+3. Add `TIER` to `validation/<arch>/run_<arch>_bit_identity.sh` and run it
+   once with the fast tier on all 5. Pass = zero differing cells on each.
+
+**Done when:** 13/13 green, the fast bit-identity sweep has zero differing
+cells on all 5 (or deferral rows per §1.9), status block committed on
+`gpu-perf`. Issues no accuracy verdict.
 
 ---
 
