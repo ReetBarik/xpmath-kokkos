@@ -690,3 +690,19 @@ Measured: rows >3% slower: cDD add chain 1.142 (repeats 1.378/0.912/1.142; known
 Next session must know:
 - 4d597fd is still only on wip/P2.2-dd; staging 6f4fb5a. Landing is the user's decision.
 - 4d597fd elsewhere: GB300 identity 436081/436081 + full memcheck 0 errors, MI250 and MI300 identity 436081/436081 (P2.2[dd]/{gb300fix,mi250fix,mi300fix}/; run against P2.2[dd]/wt-fix = 4d597fd); no status block records these, perf/lint not re-checked there.
+
+## P2.2[dd] (addendum 2) — 4d597fd fix validated on GB300, MI250, MI300 (written by orchestrator from scratch evidence)
+Date: 2026-11-11   Outcome: Partial (correctness green on all five GPUs; not landed: GB300 DD science 1.165 needs a user decision)
+Commits: xpmath wip/P2.2-dd = 4d597fd (pushed 07:31 UTC, one commit on top of 3f594b2: `angle()` builds pi/2 from bit constants instead of multiply_scalar(pi, 0.5)). Staging 6f4fb5a and gpu-perf 0769d6d unmoved. xpmath-kokkos@gpu-perf = this block.
+Provenance: the worker session that made 4d597fd ran these checks but wrote no block. Verified by the orchestrator: every run.sh builds from `P2.2[dd]/wt-fix` (HEAD 4d597fd, clean apart from untracked validation logs), all runs timestamped 07:36-08:13 UTC, after the 07:31 push; 4d597fd is the only commit after 3f594b2, so the builds are 4d597fd. Perf "before" reuses the 6f4fb5a builds from the first session, interleaved in the same session on the same node.
+Checks (all under $HOME/gpuperf-scratch/P2.2[dd]/; before = 6f4fb5a, after = 4d597fd):
+- CHECK-HOST: host-fix-ctest.log, CTEST-EXIT 0.
+- GB300 (graceblackwell00): sweep rc 0; IDENTICAL 436081/436081, NaN-only 0 (gb300fix/ident.log); full memcheck ERROR SUMMARY 0 errors (gb300fix/san-after.log).
+- MI250 (amdgpu04): sweep rc 0; IDENTICAL 436081/436081 (mi250fix/ident.log); CHECK-GFX90A-LINT tiers 1-4 ok, lint_rc=0 (lint_fix/lint.log).
+- MI300 (amdgpu00): sweep rc 0; IDENTICAL 436081/436081 (mi300fix/ident.log).
+- B200 and A100 at 4d597fd: C-b200 (2) and C-a100 (2) blocks above.
+- CHECK-PERF, 3 interleaved repeats ({gb300fix,mi250fix,mi300fix}/perf/ratios.txt). Rows >3% slower: GB300 science DD 1.165 (1.165/1.163/1.165), cFF exp 1.054, cFF log 1.046 (FF untouched by this change; the same rows were in the 3f594b2 run); MI250 TF mul 1.039 (untouched backend); MI300 cdouble mul 1.038 (native type, 1.0-1.08).
+Measured (after/before): DD science kernel GB300 1.165, MI250 0.487, MI300 0.366, A100 0.987 and B200 0.936 (C-* blocks). DD throughput GB300 roughly flat (atan2 1.015, div 0.998, log 0.995), MI250/MI300 0.15-0.44.
+Next session must know:
+- The worker's handoff said perf and lint were not re-run at 4d597fd. Wrong: both were run (paths above).
+- Landing 4d597fd is blocked only by the GB300 DD science slowdown (1.165, reproducible, no reason stated). The user decides.
