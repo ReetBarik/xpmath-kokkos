@@ -55,9 +55,9 @@ one task, records the result, and stops.
 | P1.2 | Type alignment | xpmath | login + all 5 GPUs | P1.1 |
 | P2.1[b] | Outline rare-case paths, backend b (**dd only; dropped for ff/tf/qf**) | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
 | P2.2[b] | Inline the hot small functions, backend b (ff first, GB300 probe; see section) | xpmath | login + all 5 GPUs (probe: GB300) | P1.2 |
-| P2.3[b] | Complex fast/slow split, backend b | xpmath | login + all 5 GPUs | P2.2[b] |
-| P2.4 | Expansion arrays (needs user go-ahead) | xpmath | login + all 5 GPUs | P2.3[all] |
-| P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.3[dd] |
+| ~~P2.3[b]~~ | DROPPED 2026-11-11 (user): complex fast/slow split | — | — | — |
+| P2.4 | Expansion arrays (needs user go-ahead) | xpmath | login + all 5 GPUs | P2.2[all] |
+| P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.2[dd] |
 | P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
 | P4.0 | Generic-core design (STOP) | xpmath | login | P3 done |
 | C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
@@ -703,6 +703,21 @@ A100, B200, GB300; CHECK-PERF on all 5.
 
 ### P2.2[b] — Inline the hot small functions
 
+> **Amended 2026-11-11 (user decisions after the probe).**
+> - **ff lands.** The kept shape is xpmath `wip/P2.2-ff` = 6f4fb5a (sqrt
+>   inlined). It already passed GB300, MI250, MI300, A100 (status addenda
+>   1-4). Accepted regressions: FF sqrt +10.7% on GB300; cFF div +4.8% on
+>   A100. Remaining before landing: B200 full sweep, CHECK-DEVICE-IDENTICAL
+>   vs 6e6a989, full-sweep memcheck. Then fast-forward `gpu-perf-staging`
+>   to 6f4fb5a (normal push; it is a child of staging). If B200 cannot be
+>   had, the user decides whether to land with a ledger row instead.
+> - **Fan-out approved** to dd, tf, qf (in that order), full scope as below
+>   (all 5 GPUs, §1.9 deferrals allowed). Each backend does the forwarding
+>   audit first, as in the ff probe. Lessons: never renormalise a result
+>   that can be an overflow inf (quick_two_sum gives lo = NaN; ff exp10
+>   failed identity this way); complex-returning forwards cannot be
+>   renormalised; perf runs one pipeline per node at a time.
+
 > **Amended 2026-11-10 (user decision): P2.2[ff] runs first, as a GB300-only
 > go/no-go probe.** Order for P2.2 is ff first; dd, tf, qf wait for the
 > user's call after the probe.
@@ -748,6 +763,10 @@ put the mark back only for that arch (§1.2 rule 4).
 
 ### P2.3[b] — Complex fast/slow split
 
+> **DROPPED 2026-11-11 (user).** It is P2.1's outlining applied to complex
+> multiply/divide, and P2.1 lost on every GPU and re-triggered the ptxas UR7
+> fault. Do not run it.
+
 **Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P2.2[b]
 
 **Read first:** in `include/xp/<b>_complex.hpp`, only `operator*`,
@@ -761,7 +780,7 @@ paths (e.g. KI-28's NaN recovery) become cold functions. Do not change the
 
 ### P2.4 — Expansion arrays (only with the user's go-ahead)
 
-**Repo** xpmath · **Depends on** P2.3 for all four backends
+**Repo** xpmath · **Depends on** P2.2 for all four backends (amended 2026-11-11; P2.3 dropped)
 
 Per-thread arrays with runtime indexes (`*_cross_accum`, `*_expansion_push`,
 `float e[36]` in QF `fma`) end up in slow local memory. This is where the
@@ -779,7 +798,7 @@ each one is acceptable. xpmath-kokkos only measures speed.
 
 ### P3.0 — Accuracy-vs-speed decision memo (STOP after writing)
 
-**Repo** xpmath · **Needs** login node · **Depends on** P2.3[dd]
+**Repo** xpmath · **Needs** login node · **Depends on** P2.2[dd] (amended 2026-11-11; P2.3 dropped)
 
 **Read first:** `docs/CORRECTNESS.md` §2–3 (bounds, monotone gate, exit codes).
 

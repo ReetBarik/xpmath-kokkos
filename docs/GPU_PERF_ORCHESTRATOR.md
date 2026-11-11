@@ -72,29 +72,26 @@ Verify these against the files and branches before relying on them.
   by the user yet: A100 cFF div 1.048, stable over 3 repeats, no reason
   stated. **B200 unchecked; nothing on staging.** Orchestrator review of
   the evidence done 2026-11-11 (paths exist; ident PASS x4; memcheck 0 x2).
-- **Next decision (user):** land 6f4fb5a on staging (B200 deferred as
-  ledger row 5 under §1.9, or run B200 first), and whether to fan P2.2 out
-  to dd/tf/qf.
+- **User decisions 2026-11-11:** land P2.2[ff] (6f4fb5a) on staging once
+  B200 is checked; cFF div +4.8% on A100 accepted; P2.2 fans out to dd, tf,
+  qf; P2.3 dropped (plan amended). The user is trying to get a B200 on
+  2026-11-12 morning.
+- **Next (B200 window, run sequentially on the one node, never at the same
+  time):** (a) `C-b200` for ledger row 4 (may fast-forward xpmath `gpu-perf`
+  to 6e6a989 if it passes); (b) `P2.2[ff]` resume: B200 check of 6f4fb5a,
+  then fast-forward staging to 6f4fb5a. Prompts: "Prompts for the next B200
+  window" below. Then P2.2[dd].
 - **P2.1 is dropped after dd** (user, 2026-11-10). Evidence in the P2.1[ff]
   Stopped block.
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
 
-1. **B200 standing deferral.** B200 is by far the scarcest GPU. The user
-   wants B200 work clustered into rare allocations. Proposed and still
-   unanswered: amend §1.9 so B200 counts as unavailable by default through
-   Phase 2, with C-b200 windows at the end of Phase 2, after Phase 3 and
-   before release. Consecutive bit-preserving rows cost one C-b200 run, so
-   batching is cheap. Do not write this into the plan until the user says yes.
-2. **P2.3 (complex fast/slow split).** It is P2.1's outlining applied to
-   complex multiply/divide, and P2.1 failed. Recommend dropping it once the
-   P2.2[ff] verdict is in. If it is dropped, P3.0's "Depends on P2.3[dd]"
-   needs amending (suggest: depends on the P2.2 decision).
-3. **After the P2.2[ff] verdict:** GO means the user decides whether to fan
-   out (P2.2[ff] on the other four GPUs, then P2.2 for dd/tf/qf). PARK means
-   a parked row exists with Re-test at = P3.4[ff]; check that the row is
-   complete. NO-GO means P2.2 is dropped for now.
+1. **B200 standing deferral.** Amend §1.9 so B200 is unavailable by default
+   through Phase 2, settled in batched C-b200 windows? Orchestrator
+   recommends yes. On 2026-11-11 the user agreed with the other
+   recommendations but answered on B200 only "will try to get B200
+   tomorrow"; confirm before writing it into the plan.
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 
@@ -151,7 +148,7 @@ Then:
 ## Session order (amended 2026-11-10)
 
 `P2.2[ff]` GB300 probe (in flight), then the user's call (see open question
-3). Then, as decided: P2.2 for the remaining backends, P2.3 (or dropped),
+3). Then P2.2[dd], P2.2[tf], P2.2[qf] (P2.3 dropped 2026-11-11),
 `P2.4` (optional, needs the user's go-ahead), `P3.0` (the user chooses a
 policy), `P3.1[dd..qf]` … `P3.5[dd..qf]`, and `P4.0`. Parked rows are
 re-tested automatically by the task their Re-test at names (§1.10). When you
@@ -247,6 +244,37 @@ acceptable; breaking a rule is not.
    - Status block pushed; SHAs quoted from origin:
    - GPUs I can release now: <hostnames or "none">
    Then give a 3-line summary.
+```
+
+## Prompts for the next B200 window (written 2026-11-11)
+
+Run (a) then (b) on the same B200 host, one after the other.
+
+(a) C-b200 for ledger row 4: the canonical worker prompt with `<ID>` =
+`C-b200`, plus on top:
+```
+RESUME NOTE: settle ledger row 4 only (P2.1[dd], 0769d6d..6e6a989, B200:
+CHECK-DEVICE-IDENTICAL, CHECK-SANITIZER full sweep, CHECK-PERF same-session
+before/after, 3 interleaved repeats). Rows 1-3 are already CLOSED. Do not
+run anything for P2.2[ff]; another session uses this node after you, so
+release it when done and say so.
+```
+
+(b) P2.2[ff] landing: the canonical worker prompt with `<ID>` = `P2.2[ff]`,
+plus on top:
+```
+RESUME NOTE: the probe and its addenda 1-4 are done (read the P2.2[ff]
+blocks in GPU_PERF_PLAN_STATUS.md and the 2026-11-11 amendment in the P2.2
+section). Do NOT redo GB300, MI250, MI300, A100 or host; reuse
+$HOME/gpuperf-scratch/P2.2[ff]/. Remaining, on B200 only, comparing
+xpmath 6e6a989 (before) with wip/P2.2-ff = 6f4fb5a (after): full 252-kernel
+sweep exit 0 both; CHECK-DEVICE-IDENTICAL; full-sweep memcheck 0 errors
+(no --only); perf by ratio, 3 interleaved repeats, one pipeline at a time.
+Logs under $HOME/gpuperf-scratch/P2.2[ff]/b200/. If all pass, fast-forward
+gpu-perf-staging to 6f4fb5a (ancestor check first; no merge commit, no
+new commits) and write a status block saying P2.2[ff] is landed. If
+anything fails, stop and record function + arch; no per-arch #ifdef; do
+not land. Do not move xpmath gpu-perf.
 ```
 
 ## How the user likes answers
