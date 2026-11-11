@@ -62,8 +62,7 @@ Verify these against the files and branches before relying on them.
   (P2.2[ff] landed); `wip/P2.2-dd` = 4d597fd (child of staging: 3d43c76
   inline DD mul/div/sqrt + renormalise, 3f594b2 name-clash fix, 4d597fd
   `angle()` pi/2 bit constants, which fixes the GB300 UR7 fault).
-- **Ledger.** Rows 1-3 CLOSED. Rows 4-7 SETTLED by C-b200 (2) and
-  C-a100 (2), pending the user's close. No open rows.
+- **Ledger.** Rows 1-7 all CLOSED (4-7 by the user, 2026-11-11). No open rows.
 - **Parked register:** no rows.
 - **P2.2[dd] at 4d597fd:** identity 436081/436081 on all five GPUs, full
   memcheck 0 on B200, A100, GB300, gfx90a lint ok, host ok. Status:
@@ -79,15 +78,14 @@ Verify these against the files and branches before relying on them.
 - **The user does not want prompts stored in files.** Give every worker
   prompt in the chat reply, ready to paste.
 - **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
-- **Next:** the user rules on the open questions below, then a P2.2[dd]
-  landing session (no GPU), then P2.2[tf].
+- **Next:** P2.2[dd] landing session (no GPU; staging and gpu-perf to
+  4d597fd; prompt given in chat 2026-11-11), then P2.2[tf].
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
 
-1. Land 4d597fd on staging and accept GB300 DD science 1.165? (raised
-   2026-11-11)
-2. Close ledger rows 4-7? (raised 2026-11-11)
+None. Decided 2026-11-11: land 4d597fd (GB300 DD science 1.165 accepted);
+rows 4-7 closed.
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 

@@ -717,6 +717,22 @@ A100, B200, GB300; CHECK-PERF on all 5.
 
 ### P2.2[b] — Inline the hot small functions
 
+> **Amended 2026-11-11, late (user decisions on dd).**
+> - **dd lands as 4d597fd.** xpmath `wip/P2.2-dd` = 4d597fd passed identity
+>   on all five GPUs, full memcheck on B200, A100, GB300, gfx90a lint and
+>   host (status: P2.2[dd] block, addenda 1-2, C-b200 (2), C-a100 (2)).
+>   Accepted regression: DD science kernel 1.165 on GB300. Landing session
+>   (no GPU): fast-forward `gpu-perf-staging` 6f4fb5a..4d597fd. No new
+>   ledger rows: B200 and A100 at 4d597fd are already settled (rows 6, 7).
+> - **Ledger rows 4-7 closed by the user.** So the landing session also runs
+>   C-<arch> step 7: fast-forward xpmath `gpu-perf` to the newest staging
+>   commit with no open ledger rows at or before it (expected 4d597fd), which
+>   counts as this section explicitly saying to fast-forward it.
+> - **Lesson for tf/qf:** the GB300 fault needed all three inline marks
+>   together and was fixed by making `angle()`'s pi/2 a bit constant (no
+>   multiply on that path). Check for the same shape in the tf/qf
+>   forwarding audit.
+
 > **Amended 2026-11-11 (user decisions after the probe).**
 > - **ff lands now, B200 deferred.** The kept shape is xpmath
 >   `wip/P2.2-ff` = 6f4fb5a (sqrt inlined). It passed GB300, MI250, MI300,
