@@ -618,3 +618,4 @@ Noise: science double 1.187 (repeats 1.187/1.382/0.609) is the A100 bimodality o
 Next session must know:
 - Checked now: GB300, MI250, MI300, A100 (identity, sweep, perf all pass; memcheck on GB300 and A100; lint on gfx90a). Unchecked: B200 (UR7 risk: full sweep, identity, full memcheck needed; on failure record function+arch, no per-arch #ifdef).
 - FF sqrt: GB300 1.107 (slower), A100 0.927, MI250 0.878, MI300 0.690. The GB300 regression is still the only slowdown on an FF row of note.
+Orchestrator review (2026-11-11, covers the P2.2[ff] block and addenda 1-4): wip/P2.2-ff = 6f4fb5a on origin, staging is its ancestor, staging/gpu-perf unmoved. Cited logs exist; ident.log RESULT: PASS on gb300, mi250, mi300, a100; san-after.log ERROR SUMMARY 0 errors on gb300 and a100. Open for the user: A100 cFF div 1.048 (stable, no stated reason) and B200 not checked.

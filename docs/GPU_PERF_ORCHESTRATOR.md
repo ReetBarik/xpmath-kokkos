@@ -54,28 +54,29 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-10 by the outgoing orchestrator)
+## Current state (updated 2026-11-11)
 
 Verify these against the files and branches before relying on them.
 
-- **Branches.** xpmath `gpu-perf` = 0769d6d (C-b200 fast-forward,
-  2026-11-09, user-approved). xpmath `gpu-perf-staging` = 6e6a989 (P2.1[dd]
-  final: the DD log1p result-slot change only). xpmath-kokkos `gpu-perf` holds
-  the plan, status, ledger and parked register.
-- **Ledger.** Rows 1–3 are CLOSED (the word is at the end of each row's
-  Status cell; the cell still starts with "open", so read to the end). Only
-  **row 4** is open: P2.1[dd] on B200, 0769d6d..6e6a989 (identity, sanitizer,
-  perf).
-- **Parked register** (`docs/GPU_PERF_PARKED.md`, plan §1.10): created
-  2026-11-10, no rows yet.
-- **In flight:** the P2.2[ff] GB300-only go/no-go probe. The prompt was given
-  to the user 2026-11-10; no report yet. The worker pushes only
-  `wip/P2.2-ff` and stops with GO / PARK / NO-GO.
-- **P2.1 is dropped after dd** (user, 2026-11-10). Outlining slowed DD and
-  FF and re-triggered the ptxas UR7 fault. The P2.1[ff] Stopped block holds
-  the evidence. Local-only xpmath branches `wip/P2.1-ff-plain` (a771c57) and
-  `wip/P2.1-ff-ur7` (b9b4428) exist in the clone; b9b4428's FF log1p change
-  is identity-verified and memcheck-clean on GB300, and P2.2[ff] may carry it.
+- **Branches.** xpmath `gpu-perf` = 0769d6d, `gpu-perf-staging` = 6e6a989
+  (both unchanged since 2026-11-10). xpmath `wip/P2.2-ff` = 6f4fb5a (on
+  origin; child of staging): FF multiply/divide/sqrt inlined + result-slot
+  renormalise in log1p, acosh, xp_asin_real_mag, xp_atan2_safe.
+- **Ledger.** Rows 1-3 CLOSED (read to the end of the Status cell). Only
+  **row 4** open: P2.1[dd] on B200, 0769d6d..6e6a989.
+- **Parked register:** no rows.
+- **P2.2[ff]:** probe verdict GO on GB300 (2026-11-10), then at the user's
+  request checked green on MI250, MI300, A100 (status addenda 2-4). Identity
+  436081/436081 on all four, memcheck 0 on GB300 + A100, lint on gfx90a.
+  User accepted FF sqrt +10.7% on GB300 (keep sqrt inlined). Not reviewed
+  by the user yet: A100 cFF div 1.048, stable over 3 repeats, no reason
+  stated. **B200 unchecked; nothing on staging.** Orchestrator review of
+  the evidence done 2026-11-11 (paths exist; ident PASS x4; memcheck 0 x2).
+- **Next decision (user):** land 6f4fb5a on staging (B200 deferred as
+  ledger row 5 under §1.9, or run B200 first), and whether to fan P2.2 out
+  to dd/tf/qf.
+- **P2.1 is dropped after dd** (user, 2026-11-10). Evidence in the P2.1[ff]
+  Stopped block.
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
