@@ -637,3 +637,20 @@ Next session must know:
 - B200 risk is UR7 (result-slot clobber): C-b200 must run full sweep, identity, full memcheck; on failure record function+arch, no per-arch #ifdef.
 - P2.2[dd], [tf], [qf] fan-out is next (dd, tf, qf order); each does its forwarding audit first. Never renormalise a result that can be an overflow inf.
 - Ledger has open rows 1-5 relevant to B200 gating; xpmath gpu-perf must stay put until C-b200.
+
+## P2.2[dd] — Inline DD multiply/divide/sqrt
+Date: 2026-11-11   Outcome: Stopped (GB300 identity/memcheck FAILED; nothing landed on staging)
+Commits: kept off gpu-perf-staging, see xpmath wip/P2.2-dd = 3f594b2 (pushed; 6f4fb5a + 3d43c76 change + 3f594b2 name-clash fix). Staging unmoved at 6f4fb5a, xpmath gpu-perf unmoved. xpmath-kokkos@gpu-perf = this block.
+Changed (xpmath): dd_math.hpp multiply/divide/sqrt NOINLINE->INLINE; acosh (a<=kDDSqHi path) renormalises result. dd_complex.hpp: xp_asin_real_mag, xp_atan2_safe, xp_asin_imag_mag renormalise result. exp10 and xp_log_hypot2 (log(0)) deliberately NOT renormalised (inf -> lo NaN).
+Checks (all under $HOME/gpuperf-scratch/P2.2[dd]/; before = 6f4fb5a, after = 3f594b2; run one tree/pipeline at a time, -j8 via nproc shim):
+- Forwarding audit: forwarding_audit.md (written before editing).
+- CHECK-HOST PASS 44/44 (host-ctest.log; wrapper xpm_build.sh hardcodes -j$(nproc), so build/ctest were driven by hand with -j8).
+- MI250 (amdgpu04): sweep exit 0; IDENTICAL 436081/436081 (mi250/ident.log); CHECK-GFX90A-LINT PASS tiers 1-4 (lint/lint.log); perf mi250/perf/ratios.txt.
+- MI300 (amdgpu00): sweep exit 0; IDENTICAL 436081/436081 (mi300/ident.log); perf mi300/perf/ratios.txt.
+- A100 (gpu06): sweep exit 0; IDENTICAL 436081/436081 (a100/ident.log); full memcheck 0 errors (a100/san-after.log); perf a100/perf/ratios.txt.
+- GB300 (graceblackwell00): FAIL. before sweep exit 0; after sweep exit 3 (gb300/run-after.log): DD complex log, log10, asin fault (error 700); after file has 322161 rows vs 436081 so identity cannot compare (gb300/ident.log); full memcheck 61 errors, 60 x "Invalid __local__ write of size 16" in the DD complex log kernel, frame xp::atan2(DoubleDouble,...) (gb300/san-after.log).
+- B200: not asked (standing deferral). No ledger row added: nothing landed, so no staged range is owed.
+Measured (after/before, median of 3; <1 faster; DD/cDD median over 15 rows): MI250 0.32, MI300 0.375, A100 0.979, GB300 0.998. DD science kernel: MI250 0.484, MI300 0.368, A100 0.987, GB300 1.154 (slower). Rows >3% slower: MI250 TF mul 1.037 (untouched backend); MI300 FF log 1.051, double log 1.035, cdouble exp 1.041 (noise, unproven); A100 cDD div 1.107 (user accepted), cDD mul 1.239 / cDD add 1.441 / cdouble abs 1.100 (bimodal A100 noise, repeats 0.85-1.59); GB300 cFF exp 1.053, cFF log 1.046, DD science 1.154.
+Next session must know:
+- Failure is function DD:c:log / log10 / asin, arch sm_103 only (A100 memcheck clean). Mechanism NOT diagnosed; the change has two parts (inline marks; renormalise in 4 functions) and was not bisected. Same signature as P0.5 TD-4 on sm_103 (Invalid __local__ write). No per-arch #ifdef (rule 4). Fix, bisect, or drop is the user's call.
+- Unchecked for this change: B200 (UR7 risk). GB300 perf above was measured on a build whose sweep faults, so treat as indicative only.
