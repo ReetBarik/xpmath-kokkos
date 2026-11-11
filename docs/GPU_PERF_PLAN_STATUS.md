@@ -770,3 +770,18 @@ Next session must know:
 - QF renorm() is NOT a no-op on already-normalised QF results (weak non-overlap): never add result-slot renorm copies without the sweep.
 - Pre-fix evidence in a100/prefix-e050d5c and mi250/prefix-e050d5c. gpu-perf and staging not moved.
 Orchestrator review (2026-11-12): verified in scratch. origin/wip/P2.2-qf = 5e59302 (2 commits on 4d597fd; diff only qf_math.hpp + qf_complex.hpp); staging = gpu-perf = 4d597fd, unmoved. Identity: A100 436081/436081, MI250 436067 + 14 NaN-only, 0 failing; e050d5c MI250 had 8 failing (prefix-e050d5c/ident.log), so dropping two copies was within the task's rule. A100 memcheck 0 errors; host 44/44 (e050d5c only; 5e59302 removes code, acceptable for a parked branch). Lint rc=1 as stated. Perf ratios match a100/mi250 perf/ratios.txt (A100 QF science 1.353 x3; MI250 0.830; untouched backends ~1.00, so the A100 double-science 1.701 is native bimodality, repeats 1.701/1.712/1.018). NO-GO applies under the 2026-11-12 probe rule; parked row 2 is modelled on row 1. No B200 row needed (nothing landed). Phase 2 complete.
+
+## P3.0 — Accuracy-vs-speed decision memo
+Date: 2026-11-11   Outcome: Done
+Commits: xpmath@19b6d8f on wip/P3.0 only (amendment 2026-11-11: no push to staging/gpu-perf; P3.1[dd] brings the file onto staging with `git checkout origin/wip/P3.0 -- docs/PERF_ACCURACY_POLICY.md`). xpmath-kokkos: this block only.
+Changed: xpmath docs/PERF_ACCURACY_POLICY.md (new)
+Checks: none run (doc-only, no builds, no GPUs). Headroom re-read via $HOME/gpuperf-scratch/P3.0/scripts/headroom.py over validation/sweep/sweep_baseline.csv.gz.
+Measured: n/a. Policy only; xpmath-kokkos issues no accuracy verdict.
+Decided: (c), by the user 2026-11-11. Two tiers, judged per backend:
+- strict (default): absolute gate + register unchanged; 1x bound rule; not Worse (x1.2589254 and >1 ulp) vs current strict baseline AND vs a frozen reference (baselines at xpmath 4d597fd); >=3% faster on >=1 gated GPU, no op >3% slower on any gated GPU.
+- fast (opt-in): absolute gate + register unchanged; 1x bound rule; not Worse vs fast current; <=4x (2 bits) vs reference unless <=1 ulp; >=10% faster on >=1 gated GPU, no op >3% slower on any gated GPU.
+- Gated GPUs: a100, b200, mi250, mi300; GB300 reported only. Strict pass -> strict (and re-baseline both); else fast pass -> fast only; else reject; anything else -> stop and ask. P3 tasks never edit the bound, kUlpAllowance, the register or the reference.
+Next session must know:
+- NEW TASK NEEDED before P3.1: P3.0b (user chose a dedicated setup task, run by a stronger model with the user) builds the tier switch, the fast baselines (copies of strict), the frozen reference, the per-point compare script that applies the table, and xpmath-kokkos two-tier bit-identity tests. The orchestrator must add P3.0b to GPU_PERF_PLAN.md; P3.1+ depends on it.
+- CORRECTNESS.md §3 says "no point above its bound" but sweep_accuracy.cpp:2097 kUlpAllowance = 8.0; 109 host rows are above 1x. Flagged for a separate fix; P3 does not touch it.
+- P3.4 caveat (unverified, from memory): JMP FMA mul may reach ~4-5 ulps vs mul bound 3, which would fail both tiers. P3.4 must measure it.
