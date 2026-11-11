@@ -654,3 +654,12 @@ Measured (after/before, median of 3; <1 faster; DD/cDD median over 15 rows): MI2
 Next session must know:
 - Failure is function DD:c:log / log10 / asin, arch sm_103 only (A100 memcheck clean). Mechanism NOT diagnosed; the change has two parts (inline marks; renormalise in 4 functions) and was not bisected. Same signature as P0.5 TD-4 on sm_103 (Invalid __local__ write). No per-arch #ifdef (rule 4). Fix, bisect, or drop is the user's call.
 - Unchecked for this change: B200 (UR7 risk). GB300 perf above was measured on a build whose sweep faults, so treat as indicative only.
+
+## P2.2[dd] (addendum) — GB300 fault diagnosed (mechanism strongly supported, nothing fixed)
+Date: 2026-11-11   Outcome: Partial (diagnosis only; nothing landed, no library change)
+Commits: xpmath-kokkos@gpu-perf = this block. xpmath wip/P2.2-dd = 3f594b2 unchanged; staging unmoved. Full write-up: $HOME/gpuperf-scratch/P2.2[dd]/diag/DIAGNOSIS.md
+Checks (graceblackwell00, sm_103, memcheck --only DD:c:log, logs diag/*_log.log): 6f4fb5a 0 errors; 3f594b2 61; inline marks only 61; renormalise only 0; multiply-only / divide-only / sqrt-only 0 each. Pairs not tested.
+Findings: the renormalise edits are innocent; the fault needs the combination of the three inline marks. Not TD-4 (kernel STACK equals highest local store in all variants). Fault = STL.128 [UR7] in the atan2 clone epilogue, result pointer in uniform reg UR6 = 0 under cuda-gdb; `UMOV UR6,0x0` x2 inside that clone overwrite it. Those two UMOVs and the caller's `UIADD3 UR6,UR8,0x10` exist only in the inline-all build (0/0 in before, m, d, s). Same family as D-b200-acos.
+Next session must know:
+- Unproven by experiment (no fix tried). Options for the user: bisect pairs, keep one mark NOINLINE (A100/AMD gain mostly from multiply), or a structural result-slot change; all need full-sweep memcheck + identity on GB300 and A100.
+- Single-kernel repro takes seconds; building a variant is one TU, about 3 min on the node (scripts in diag/).
