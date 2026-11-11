@@ -59,9 +59,9 @@ one task, records the result, and stops.
 | P2.4 | Expansion arrays (needs user go-ahead) | xpmath | login + all 5 GPUs | P2.2[all] |
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.2[dd] |
 | P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
-| P4.0 | Generic-core design (STOP) | xpmath | login | P3 done |
+| P4.0 | Generic-core design (STOP) | xpmath | login | R (v0.4.0 released) |
 | C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
-| R | Release, re-vendor, re-measure (once, at the end) | xpmath-kokkos | all 5 GPUs | ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
+| R | Release v0.4.0, re-vendor, re-measure (after Phase 3, before Phase 4) | xpmath-kokkos | all 5 GPUs | Phase 3 done, ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
 
 Backend order for every `[b]` task: **dd → ff → tf → qf**. Each backend is a
 separate session.
@@ -100,7 +100,7 @@ branch `scrapped/tier1-792b17d`.** Both hold the scrapped attempt (§1.6).
    compiler bug. Every library change is checked on the GPUs its task lists.
 2. **One shared branch per repo: `gpu-perf`.** Every task commits onto
    `gpu-perf` (in xpmath-kokkos and/or the xpmath clone) and pushes it with
-   a plain `git push`. The user merges into `main` once, at the end.
+   a plain `git push`. The user merges into `main` at a release (v0.4.0 after Phase 3).
    **Exception (§1.9):** in the xpmath clone, every task from P1.1 on uses
    `gpu-perf-staging`. Wherever this document says `gpu-perf` for such a
    task's xpmath work, read `gpu-perf-staging`.
@@ -873,7 +873,7 @@ Each task is one row below, applied to one backend (dd first). For each:
 
 ### P4.0 — Design (STOP after writing)
 
-**Repo** xpmath · **Needs** login node · **Depends on** Phase 3 complete
+**Repo** xpmath · **Needs** login node · **Depends on** R (v0.4.0 released) (amended 2026-11-11)
 
 Write `docs/GENERIC_CORE_DESIGN.md`: one implementation templated on limb
 type (`float`, `double`) and limb count (2, 3, 4), replacing four
@@ -885,6 +885,14 @@ written from the approved design.
 ---
 
 ## Task R — Release, re-vendor, re-measure (once, at the end)
+
+> **Amended 2026-11-11 (user): release v0.4.0 after Phase 3, before
+> Phase 4.** The user is preparing a paper; settling the math comes first.
+> Order: finish Phase 2 (P2.2[tf], P2.2[qf]) -> P3.0 policy -> P3.1-P3.5
+> for every backend -> C-<arch> for any open rows -> user merges xpmath
+> `gpu-perf` into `main` and tags v0.4.0 -> R. Phase 4 (P4.0 onward) starts
+> after the release and gets its own release and R later if it changes
+> anything.
 
 **Repo** xpmath-kokkos · **Needs** all 5 GPUs (one session may visit them
 in turn, or split per GPU) · **Depends on** the deferral ledger is empty,

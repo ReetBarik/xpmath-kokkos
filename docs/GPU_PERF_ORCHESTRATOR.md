@@ -32,7 +32,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   - xpmath `gpu-perf-staging` is where tasks from P1.1 on land.
   - The local branch `scrapped/tier1-792b17d` is off-limits.
 - **No `gh`.** Workers push branches. The user merges `gpu-perf` into
-  `main` once, at the end. Never merge, tag, push to `main`, or force-push.
+  `main` at a release (v0.4.0 after Phase 3). Never merge, tag, push to `main`, or force-push.
 - **GPUs.** A100, B200, GB300 (aarch64; build on the node), MI250, MI300.
   The user allocates them with an interactive qsub; workers ssh in.
   Availability varies day to day. A missing GPU is deferred via the ledger
@@ -145,14 +145,16 @@ Then:
    short RESUME NOTE at the top, saying what changed, which existing results
    to reuse, and what remains. P1.1's resume is the model.
 
-## Session order (amended 2026-11-10)
+## Session order (amended 2026-11-11, late)
 
-`P2.2[ff]` GB300 probe (in flight), then the user's call (see open question
-3). Then P2.2[dd], P2.2[tf], P2.2[qf] (P2.3 dropped 2026-11-11),
-`P2.4` (optional, needs the user's go-ahead), `P3.0` (the user chooses a
-policy), `P3.1[dd..qf]` … `P3.5[dd..qf]`, and `P4.0`. Parked rows are
-re-tested automatically by the task their Re-test at names (§1.10). When you
-drop or reorder a task, move its Re-test at entries.
+P2.2[tf], P2.2[qf]; P2.4 pending the user's decision (orchestrator
+recommends drop); `P3.0` (login only; may run alongside tf/qf; the user
+chooses a policy); `P3.1[dd..qf]` … `P3.5[dd..qf]`; C-<arch> for open rows;
+the user merges and tags **v0.4.0**; `R`. Then Phase 4 (`P4.0` design and
+whatever follows). The user is preparing a paper, so settled math (Phase 3)
+comes before the release. Parked rows are re-tested automatically by the
+task their Re-test at names (§1.10). When you drop or reorder a task, move
+its Re-test at entries.
 
 Slot in whenever a GPU frees up:
 - `C-<arch>` for open ledger rows. B200 rows are batched (§1.9 standing
@@ -160,8 +162,8 @@ Slot in whenever a GPU frees up:
 - `P0.5c` (login node).
 - A re-run of `P0.7` when a missing GPU's P0.6 lands.
 
-At the end: the ledger is empty and xpmath `gpu-perf` == `gpu-perf-staging`;
-the user merges and tags; then `R for xpmath tag <tag>`.
+Release v0.4.0 (after Phase 3): the ledger is empty and xpmath `gpu-perf` ==
+`gpu-perf-staging`; the user merges and tags; then `R for xpmath tag v0.4.0`.
 
 Start the worker in `~/kokkos-extended-precision-demo` for xpmath tasks and
 in `~/xpmath-kokkos` for xpmath-kokkos tasks. Tasks that move `gpu-perf` or
