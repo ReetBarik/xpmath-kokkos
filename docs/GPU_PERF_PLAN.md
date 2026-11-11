@@ -56,7 +56,7 @@ one task, records the result, and stops.
 | P2.1[b] | Outline rare-case paths, backend b (**dd only; dropped for ff/tf/qf**) | xpmath | login + all 5 GPUs | P1.2 (or prior P2.1) |
 | P2.2[b] | Inline the hot small functions, backend b (ff first, GB300 probe; see section) | xpmath | login + all 5 GPUs (probe: GB300) | P1.2 |
 | ~~P2.3[b]~~ | DROPPED 2026-11-11 (user): complex fast/slow split | — | — | — |
-| P2.4 | Expansion arrays (needs user go-ahead) | xpmath | login + all 5 GPUs | P2.2[all] |
+| ~~P2.4~~ | DROPPED 2026-11-11 (user): expansion arrays | — | — | — |
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.2[dd] |
 | P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
 | P4.0 | Generic-core design (STOP) | xpmath | login | R (v0.4.0 released) |
@@ -811,6 +811,13 @@ paths (e.g. KI-28's NaN recovery) become cold functions. Do not change the
 
 ### P2.4 — Expansion arrays (only with the user's go-ahead)
 
+> **DROPPED 2026-11-11 (user).** Its cost evidence came from QCDLoop (out
+> of scope); the bit-preserving attempt (scrapped 792b17d) broke A100; P3.5
+> replaces most of the target (`*_cross_accum`) with Kahan's FMA
+> determinant, which needs no array. P3.5 measures local-memory traffic
+> before/after instead. QF `fma`'s `float e[36]` stays as is; note it in
+> P4.0. Do not run P2.4.
+
 **Repo** xpmath · **Depends on** P2.2 for all four backends (amended 2026-11-11; P2.3 dropped)
 
 Per-thread arrays with runtime indexes (`*_cross_accum`, `*_expansion_push`,
@@ -828,6 +835,18 @@ These tasks trade some accuracy for speed. xpmath's gates decide whether
 each one is acceptable. xpmath-kokkos only measures speed.
 
 ### P3.0 — Accuracy-vs-speed decision memo (STOP after writing)
+
+> **Amended 2026-11-11 (user).** Runs on Opus, interactively with the user,
+> in parallel with P2.2[tf]/[qf] (login node, no GPU). Because those tasks
+> fast-forward `gpu-perf-staging`, P3.0 must not push to staging or
+> `gpu-perf`: it commits `docs/PERF_ACCURACY_POLICY.md` on xpmath
+> `wip/P3.0` (branched from staging) only. If the user chooses during the
+> session, the memo records the choice and its consequences for every
+> P3.1-P3.5 task, and the status block says "Decided: (x)". P3.1[dd]'s
+> first commit brings the file onto staging with
+> `git checkout origin/wip/P3.0 -- docs/PERF_ACCURACY_POLICY.md`.
+> The user is preparing a paper: the memo states, per option, what accuracy
+> claim the paper can make and what must be measured to support it.
 
 **Repo** xpmath · **Needs** login node · **Depends on** P2.2[dd] (amended 2026-11-11; P2.3 dropped)
 
@@ -865,7 +884,7 @@ Each task is one row below, applied to one backend (dd first). For each:
 | P3.2[b] | `exp` | Get the reduction integer from one native multiply in place of the full `divide(a, ln2)`. Replace the per-term `divide_scalar` in the Taylor loop with multiplication by precomputed reciprocal-factorial constants, using a fixed term count with no data-dependent exit. |
 | P3.3[b] | `sincos` | Same series change as P3.2. Add a cheap multi-part pi/2 reduction for moderate arguments; keep Payne-Hanek only above a threshold the session measures. |
 | P3.4[b] | `multiply` | FMA-based double-word multiply (Joldes–Muller–Popescu) in place of the current full accumulation. |
-| P3.5[b] | complex `operator/` | Replace the 5-word expansion in `*_cross` with Kahan's FMA determinant for `a*b − c*d`. |
+| P3.5[b] | complex `operator/` | Replace the 5-word expansion in `*_cross` with Kahan's FMA determinant for `a*b − c*d`. Also report local-memory traffic and scratch bytes before/after (P2.4 dropped in its favour). |
 
 ---
 

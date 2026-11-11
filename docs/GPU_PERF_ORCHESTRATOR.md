@@ -71,7 +71,9 @@ Verify these against the files and branches before relying on them.
   prompt in the chat reply, ready to paste.
 - **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
 - **Next:** P2.2[tf] (A100, GB300, MI250, MI300; B200 deferred; prompt
-  given in chat 2026-11-11), then P2.2[qf].
+  given in chat 2026-11-11), then P2.2[qf]. In parallel: P3.0 on Opus with
+  the user (prompt given 2026-11-11). P2.4 dropped. Release v0.4.0 after
+  Phase 3, before Phase 4.
 - **Cleanup 2026-11-11.** All scratch worktrees and build trees were
   removed (scratch 20G -> 8.7G; it lives on /vast via the
   `~/gpuperf-scratch` symlink). Kept: every log, ident file, ratios file,
@@ -147,9 +149,9 @@ Then:
 
 ## Session order (amended 2026-11-11, late)
 
-P2.2[tf], P2.2[qf]; P2.4 pending the user's decision (orchestrator
-recommends drop); `P3.0` (login only; may run alongside tf/qf; the user
-chooses a policy); `P3.1[dd..qf]` … `P3.5[dd..qf]`; C-<arch> for open rows;
+P2.2[tf], P2.2[qf] (P2.4 dropped 2026-11-11); `P3.0` on Opus with the
+user, in parallel with tf/qf (prompt given 2026-11-11; pushes wip/P3.0
+only); `P3.1[dd..qf]` … `P3.5[dd..qf]`; C-<arch> for open rows;
 the user merges and tags **v0.4.0**; `R`. Then Phase 4 (`P4.0` design and
 whatever follows). The user is preparing a paper, so settled math (Phase 3)
 comes before the release. Parked rows are re-tested automatically by the
