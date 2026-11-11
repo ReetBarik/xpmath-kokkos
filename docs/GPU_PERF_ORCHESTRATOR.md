@@ -256,5 +256,8 @@ acceptable; breaking a rule is not.
 ## How the user likes answers
 
 Concise, plain English. Tables with a copy-pasteable session-ID column.
+Worker prompts always go in the chat reply, fully expanded from the
+canonical template (RESUME NOTE on top), ready to paste into a Sonnet
+session; never store them in files (user, 2026-11-11).
 Ask clarifying questions when a request is ambiguous. Verify claims against
 files before relaying them.
