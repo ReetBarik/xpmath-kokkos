@@ -608,3 +608,13 @@ Measured (after/before ns, median of 3; <1 = faster): FF/cFF median over 15 rows
 Next session must know:
 - Checked now: GB300, MI250, MI300 (identity, sweep, perf all pass; memcheck on GB300; lint on gfx90a). Unchecked: A100, B200.
 - FF sqrt: GB300 1.107 (slower), MI250 0.878, MI300 0.690 (faster). The GB300 regression is the only slowdown found.
+
+## P2.2[ff] (addendum 4) — A100 (sm_80) check of the kept shape (sqrt inlined); B200 NOT yet checked
+Date: 2026-11-11   Outcome: A100 done (green); B200 pending (no node allocated); nothing landed on staging
+Commits: xpmath wip/P2.2-ff = 6f4fb5a, unchanged. xpmath-kokkos@gpu-perf = this block. Done at the user's request (hostname gpu06, A100-PCIE-40GB cc 8.0, gcc/13.3.0 cmake/3.28.3 cuda/12.9.1).
+Checks (before = 6e6a989, after = 6f4fb5a; gpuperf-scratch/P2.2[ff]/a100/): full device sweep exit 0 both (status.log, run-{before,after}.log; run via validation/a100/run_a100_sweep.sh, driver a100/run.sh). CHECK-DEVICE-IDENTICAL PASS 436081/436081, 0 failing (ident.log). CHECK-SANITIZER memcheck on full after sweep: ERROR SUMMARY 0 errors (san-after.log). CHECK-HOST cited from 6f4fb5a (44/44, 24/24, host2-build.log), not redone. Perf 3 interleaved repeats, xpk_perf_throughput --arch sm_80 (perf/out-{before,after}-r{1,2,3}/sm_80/, ratios perf/ratios.txt).
+Measured (after/before ns, median of 3; <1 = faster): FF/cFF median over 15 rows 0.939. FF mul 0.591, cFF mul 0.785, FF div 0.869, cFF div 1.048 (repeats 1.050/1.044/1.048), FF log 0.937, FF exp 0.939, FF sqrt 0.927, cFF sqrt 0.919. FF science kernel 0.914 (0.914/0.915/0.912); DD/QF/TF/float science 0.992-1.000.
+Noise: science double 1.187 (repeats 1.187/1.382/0.609) is the A100 bimodality on a native type FF code does not touch; do not read it. cFF div 1.048 is stable across repeats but is the only FF-family row above 1.0; not investigated.
+Next session must know:
+- Checked now: GB300, MI250, MI300, A100 (identity, sweep, perf all pass; memcheck on GB300 and A100; lint on gfx90a). Unchecked: B200 (UR7 risk: full sweep, identity, full memcheck needed; on failure record function+arch, no per-arch #ifdef).
+- FF sqrt: GB300 1.107 (slower), A100 0.927, MI250 0.878, MI300 0.690. The GB300 regression is still the only slowdown on an FF row of note.
