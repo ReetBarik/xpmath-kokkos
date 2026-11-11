@@ -62,7 +62,8 @@ Verify these against the files and branches before relying on them.
   landed 2026-11-11, block "P2.2[dd] (final)"). Nothing has landed since.
   xpmath-kokkos `gpu-perf` holds every plan/status/ledger commit.
 - **Ledger.** Rows 1-7 all CLOSED. No open rows.
-- **Parked register:** row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
+- **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
+  Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
   Re-test at `P3.4[tf]`. Parked by explicit user exception to §1.10's
   "neutral" rule (it is not neutral; see below).
 - **Phase 2 results.**
@@ -78,17 +79,14 @@ Verify these against the files and branches before relying on them.
     2.149 unexplained, AMD ~0.995). All three wip branches are on origin.
     Plan amendment 13c73d7; status block "P2.2[tf] — ... (perf go/no-go
     data)" + orchestrator review + user-decision line. No B200 row.
+- **qf: NO-GO by probe rule (2026-11-12).** FULL wip/P2.2-qf = 5e59302:
+    A100 QF science 1.353 (code 1,080,576->2,408,576 B), MI250 0.830;
+    gfx90a lint FAILS (xp_atan_im 137,847 B > 131,068 B reach). GB300/MI300
+    not run. Parked row 2, Re-test at P3.4[qf] (must pass lint too).
+    Status block "P2.2[qf] ... (probe)" + orchestrator review. Phase 2 is
+    finished.
 - **In flight.**
-  - `P2.2[qf]` PROBE (Sonnet; prompt given in chat 2026-11-12). Plan
-    P2.2[b] amendment 2026-11-12: forwarding audit, FULL shape only, on
-    A100 + MI250 (+ host, gfx90a lint, A100 full memcheck, 3 perf repeats,
-    QF science code size). Rule: A100 QF science >3% slower -> NO-GO, push
-    wip/P2.2-qf, parked row 2 at `P3.4[qf]`, no ledger row, stop. Else ask
-    for GB300 + MI300 and follow normal landing (staging ff, B200 row
-    4d597fd..<landed>). On its report: verify scratch
-    ($HOME/gpuperf-scratch/P2.2[qf]/), check the parked row or ledger row,
-    write the review note. If qf is NO-GO, Phase 2 is finished.
-  - `P3.0` (Opus, interactive with the user, parallel; no GPU). Worktree
+  - `P3.0` (Opus, interactive with the user; no GPU). Worktree
     $HOME/gpuperf-scratch/P3.0/wt on xpmath `wip/P3.0` (local only, still at
     4d597fd with no commits as of 2026-11-12; not on origin). Pushes only
     wip/P3.0 + a status block; checklist line "Policy decided:
@@ -98,7 +96,7 @@ Verify these against the files and branches before relying on them.
   docs/PERF_ACCURACY_POLICY.md onto staging from origin/wip/P3.0. P3.4[tf]
   (and P3.4[qf] if parked) owes the parked A/B (§1.10); mention it in
   those prompts.
-- **Order to v0.4.0 (user, 2026-11-11):** Phase 2 (qf left) -> P3.0 ->
+- **Order to v0.4.0 (user, 2026-11-11):** Phase 2 (done) -> P3.0 ->
   P3.1-P3.5 [dd,ff,tf,qf] -> C-<arch> for open rows (one C-b200 needs a
   B200 window) -> user merges and tags v0.4.0 -> R. Then Phase 4. Reason:
   the user is preparing a paper; settled math first. The tf vendor split
@@ -108,7 +106,8 @@ Verify these against the files and branches before relying on them.
 - **Cleanup candidates:** $HOME/gpuperf-scratch/P2.2[tf]/ still holds
   worktrees wt-before, wt-after, wt-mkeep, wt-sqrt and build trees
   (branches are on origin, so worktrees are disposable; keep logs, ident,
-  ratios, diag, CSVs). Earlier cleanup (2026-11-11): removed worktrees'
+  ratios, diag, CSVs). Same for $HOME/gpuperf-scratch/P2.2[qf]/ (wt-before,
+  wt-after; 2.1G). Earlier cleanup (2026-11-11): removed worktrees'
   logs in `<wt>.logs/`, variant edits in `<wt>.patch` (first line = base
   SHA). Home quota is tight (~91G/100G); build trees go under scratch.
 - **A100 cfloat div bimodal** (native type). Not the library. Note only.
@@ -193,9 +192,9 @@ Then:
 
 ## Session order (amended 2026-11-12)
 
-P2.2[qf] probe (in flight; tf was NO-GO, parked at P3.4[tf]); `P3.0` on
+P2.2[qf] probe done (NO-GO, parked at P3.4[qf]; tf parked at P3.4[tf]); `P3.0` on
 Opus with the user, in parallel (pushes wip/P3.0 only);
-`P3.1[dd..qf]` … `P3.5[dd..qf]` (P3.4[tf] owes parked row 1's A/B);
+`P3.1[dd..qf]` … `P3.5[dd..qf]` (P3.4[tf] owes parked row 1's A/B, P3.4[qf] row 2's);
 C-<arch> for open rows; the user merges and tags **v0.4.0**; `R`. Then
 Phase 4 (`P4.0`). The user is preparing a paper, so settled math (Phase 3)
 comes before the release. Parked rows are re-tested by the task their
