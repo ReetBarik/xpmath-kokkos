@@ -54,66 +54,66 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-11, late)
+## Current state (updated 2026-11-12)
 
 Verify these against the files and branches before relying on them.
 
 - **Branches.** xpmath `gpu-perf` = `gpu-perf-staging` = 4d597fd (P2.2[dd]
-  landed and gpu-perf fast-forwarded 2026-11-11, block "P2.2[dd] (final)").
-- **Ledger.** Rows 1-7 all CLOSED (4-7 by the user, 2026-11-11). No open rows.
-- **Parked register:** no rows.
-- **P2.2[dd]: done** at 4d597fd. Accepted regression: GB300 DD science
-  1.165. The GB300 UR7 fault needed all three inline marks together and was
-  fixed by making `angle()`'s pi/2 a bit constant.
-- **A100 cfloat div bimodal** (0.00365 vs 0.00671 ns/op, native type,
-  seen with both before builds). Not attributable to the library. Note only.
-- **The user does not want prompts stored in files.** Give every worker
-  prompt in the chat reply, ready to paste.
-- **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
-- **In flight (prompts given in chat 2026-11-11):**
-  - `P2.2[tf]` (Sonnet; A100, GB300, MI250, MI300; B200 deferred). Its
-    prompt = canonical template + RESUME NOTE: forwarding audit first,
-    UR7/angle() lesson, full-sweep clearance, -j8 by hand, builds under
-    scratch (home quota), 3 interleaved perf repeats, stop on fault, land on
-    staging only if no unexplained >3% row and then add one B200 ledger row
-    (4d597fd..<landed>), never move gpu-perf, and a PARALLEL SESSION note
-    (don't touch wip/P3.0 or its worktree; `git pull --ff-only` in
-    xpmath-kokkos right before committing).
-  - `P3.0` (Opus, interactive with the user, parallel; no GPU). Works in
-    its own worktree $HOME/gpuperf-scratch/P3.0/wt on xpmath `wip/P3.0`
-    (from staging), never checks out anything in the main xpmath clone,
-    pushes only wip/P3.0 + a status block. Its checklist has an extra line
-    "Policy decided: (a)/(b)/(c)/other/Undecided".
-- **P2.2[tf]: NO-GO (user, 2026-11-12).** FULL (ddd5701) splits by
-  vendor (science A100 1.646, GB300 1.383, MI250 0.735, MI300 0.695);
-  SQRT/MKEEP retired. FULL parked (row 1, Re-test at P3.4[tf], user
-  exception to §1.10's neutral rule). Staging/gpu-perf stay 4d597fd.
-- **Parked register:** row 1 (tf FULL -> P3.4[tf]).
-- **qf = probe first** (plan P2.2 amendment 2026-11-12): A100 + MI250 on
-  the FULL shape; A100 science >3% slower -> NO-GO + park at P3.4[qf].
-- **Template gap:** the ancestor check fails on a branch with no remote ref;
-  for a new branch, prompts say to confirm `git ls-remote origin <branch>`
-  is empty instead.
-- **Next:** `P2.2[qf]` probe (prompt given 2026-11-12). tf and qf run SEQUENTIALLY (both
-  fast-forward staging). The qf prompt is the tf prompt with tf->qf, the
-  B200 row's before-SHA = tf's landed SHA, and any new lessons from tf.
+  landed 2026-11-11, block "P2.2[dd] (final)"). Nothing has landed since.
+  xpmath-kokkos `gpu-perf` holds every plan/status/ledger commit.
+- **Ledger.** Rows 1-7 all CLOSED. No open rows.
+- **Parked register:** row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
+  Re-test at `P3.4[tf]`. Parked by explicit user exception to §1.10's
+  "neutral" rule (it is not neutral; see below).
+- **Phase 2 results.**
+  - ff landed 6f4fb5a (accepted FF sqrt +10.7% GB300, cFF div +4.8% A100).
+  - dd landed 4d597fd (accepted GB300 DD science 1.165; AMD gained 2-3x).
+  - **tf: NO-GO (user, 2026-11-12).** FULL (TF mul/div/sqrt inline + 3
+    renorm copies) correct on all GPUs run, but TF science after/before:
+    A100 1.646, GB300 1.383, MI250 0.735, MI300 0.695. NVIDIA is
+    instruction-fetch bound (science-kernel code ~2x; ncu in
+    $HOME/gpuperf-scratch/P2.2[tf]/a100/perf/diag/DIAGNOSIS.md). Variants
+    retired: MKEEP (fa013f2, multiply NOINLINE; A100 1.492, GB300 1.242) and
+    SQRT (b3b6fcd, sqrt only; A100 1.085, GB300 0.968 but GB300 cTF abs
+    2.149 unexplained, AMD ~0.995). All three wip branches are on origin.
+    Plan amendment 13c73d7; status block "P2.2[tf] — ... (perf go/no-go
+    data)" + orchestrator review + user-decision line. No B200 row.
+- **In flight.**
+  - `P2.2[qf]` PROBE (Sonnet; prompt given in chat 2026-11-12). Plan
+    P2.2[b] amendment 2026-11-12: forwarding audit, FULL shape only, on
+    A100 + MI250 (+ host, gfx90a lint, A100 full memcheck, 3 perf repeats,
+    QF science code size). Rule: A100 QF science >3% slower -> NO-GO, push
+    wip/P2.2-qf, parked row 2 at `P3.4[qf]`, no ledger row, stop. Else ask
+    for GB300 + MI300 and follow normal landing (staging ff, B200 row
+    4d597fd..<landed>). On its report: verify scratch
+    ($HOME/gpuperf-scratch/P2.2[qf]/), check the parked row or ledger row,
+    write the review note. If qf is NO-GO, Phase 2 is finished.
+  - `P3.0` (Opus, interactive with the user, parallel; no GPU). Worktree
+    $HOME/gpuperf-scratch/P3.0/wt on xpmath `wip/P3.0` (local only, still at
+    4d597fd with no commits as of 2026-11-12; not on origin). Pushes only
+    wip/P3.0 + a status block; checklist line "Policy decided:
+    (a)/(b)/(c)/other/Undecided".
 - **After P3.0 reports:** if the user chose a policy, write its gate rule
   into the P3.1-P3.5 section (`Plan: ...`). P3.1[dd]'s first commit copies
-  docs/PERF_ACCURACY_POLICY.md onto staging from origin/wip/P3.0.
-- **Order to v0.4.0 (user, 2026-11-11):** Phase 2 -> P3.0 -> P3.1-P3.5
-  [dd,ff,tf,qf] -> C-<arch> for open rows (one C-b200 needs a B200 window)
-  -> user merges and tags v0.4.0 -> R. Then Phase 4. Reason: the user is
-  preparing a paper; settled math first. P2.4 dropped.
-- **Cleanup 2026-11-11.** All scratch worktrees and build trees were
-  removed (scratch 20G -> 8.7G; it lives on /vast via the
-  `~/gpuperf-scratch` symlink). Kept: every log, ident file, ratios file,
-  CSV and script. Each removed worktree's untracked sweep logs are in
-  `<wt>.logs/`, and each uncommitted variant edit is in `<wt>.patch` (first
-  line = base SHA; re-create with `git worktree add --detach <wt> <sha> &&
-  git -C <wt> apply ../<wt>.patch`). Paths in older blocks that name `wt-*`
-  dirs (and ledger row 1's "worktrees remain") are historical. Workers
-  create fresh worktrees. Home quota is tight (~91G/100G); keep build
-  trees under scratch, not in the repos.
+  docs/PERF_ACCURACY_POLICY.md onto staging from origin/wip/P3.0. P3.4[tf]
+  (and P3.4[qf] if parked) owes the parked A/B (§1.10); mention it in
+  those prompts.
+- **Order to v0.4.0 (user, 2026-11-11):** Phase 2 (qf left) -> P3.0 ->
+  P3.1-P3.5 [dd,ff,tf,qf] -> C-<arch> for open rows (one C-b200 needs a
+  B200 window) -> user merges and tags v0.4.0 -> R. Then Phase 4. Reason:
+  the user is preparing a paper; settled math first. The tf vendor split
+  (AMD wins, NVIDIA icache loss) is a paper-worthy result and P4.0 input.
+- **User's GPU limit:** at most 2 nodes allocated at once. Prompts must
+  sequence GPUs (ask for the next pair only at release points).
+- **Cleanup candidates:** $HOME/gpuperf-scratch/P2.2[tf]/ still holds
+  worktrees wt-before, wt-after, wt-mkeep, wt-sqrt and build trees
+  (branches are on origin, so worktrees are disposable; keep logs, ident,
+  ratios, diag, CSVs). Earlier cleanup (2026-11-11): removed worktrees'
+  logs in `<wt>.logs/`, variant edits in `<wt>.patch` (first line = base
+  SHA). Home quota is tight (~91G/100G); build trees go under scratch.
+- **A100 cfloat div bimodal** (native type). Not the library. Note only.
+- **The user does not want prompts stored in files.** Prompts go in chat.
+- **P2.1 dropped after dd; P2.3, P2.4 dropped; B200 deferred (§1.9).**
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
@@ -146,6 +146,13 @@ rows 4-7 closed.
 - **Worker handoffs can be wrong about what was run.** The P2.2[dd] fix
   worker said perf and lint weren't re-run at 4d597fd; the scratch dirs
   showed both had been. Check scratch before relaying gaps.
+- **Inlining can lose on NVIDIA by instruction fetch** (tf, 2026-11-11):
+  the science kernel's code roughly doubled and stall_no_instruction rose
+  to 86-90% while executed instructions fell. AMD gained 26-30% from the
+  same shape. Bigger backends (qf) are at higher risk; probe first.
+- **The ancestor check fails for a new branch** (no remote ref). Prompts
+  now say: for a new branch, confirm `git ls-remote origin <branch>` is
+  empty, then push.
 - Workers sometimes return a free-form HANDOFF instead of the checklist, or
   stop without writing a status block. Verify the evidence and write a
   Stopped block yourself, as was done for P2.1[ff].
@@ -184,16 +191,16 @@ Then:
    short RESUME NOTE at the top, saying what changed, which existing results
    to reuse, and what remains. P1.1's resume is the model.
 
-## Session order (amended 2026-11-11, late)
+## Session order (amended 2026-11-12)
 
-P2.2[tf], P2.2[qf] (P2.4 dropped 2026-11-11); `P3.0` on Opus with the
-user, in parallel with tf/qf (prompt given 2026-11-11; pushes wip/P3.0
-only); `P3.1[dd..qf]` … `P3.5[dd..qf]`; C-<arch> for open rows;
-the user merges and tags **v0.4.0**; `R`. Then Phase 4 (`P4.0` design and
-whatever follows). The user is preparing a paper, so settled math (Phase 3)
-comes before the release. Parked rows are re-tested automatically by the
-task their Re-test at names (§1.10). When you drop or reorder a task, move
-its Re-test at entries.
+P2.2[qf] probe (in flight; tf was NO-GO, parked at P3.4[tf]); `P3.0` on
+Opus with the user, in parallel (pushes wip/P3.0 only);
+`P3.1[dd..qf]` … `P3.5[dd..qf]` (P3.4[tf] owes parked row 1's A/B);
+C-<arch> for open rows; the user merges and tags **v0.4.0**; `R`. Then
+Phase 4 (`P4.0`). The user is preparing a paper, so settled math (Phase 3)
+comes before the release. Parked rows are re-tested by the task their
+Re-test at names (§1.10). When you drop or reorder a task, move its Re-test
+at entries.
 
 Slot in whenever a GPU frees up:
 - `C-<arch>` for open ledger rows. B200 rows are batched (§1.9 standing
