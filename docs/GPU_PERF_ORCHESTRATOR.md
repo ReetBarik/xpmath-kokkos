@@ -112,8 +112,9 @@ Verify these against the files and branches before relying on them.
   SHA). Home quota is tight (~91G/100G); build trees go under scratch.
 - **A100 cfloat div bimodal** (native type). Not the library. Note only.
 - **Worker tooling from P3.1 on (user, 2026-11-12):** P3.0 runs on Opus in
-  Claude Code. P3.1 onward run in Cursor, mostly on Grok, sometimes Sonnet.
-  Prompts for those runs must work in Cursor: don't count on CLAUDE.md or
+  Claude Code. P3.1 onward may run in Cursor (Grok, sometimes Sonnet) or in
+  Claude Code on Muse or another open model. Prompts must work in any of
+  these harnesses: don't count on CLAUDE.md or
   memory being loaded; long GPU runs go under nohup with a log file and a
   done-marker (the agent's terminal can time out); no `!` shell prefix; the
   FINISH checklist is required, and so is quoting evidence paths. Ask the
