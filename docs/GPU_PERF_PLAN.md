@@ -717,6 +717,27 @@ A100, B200, GB300; CHECK-PERF on all 5.
 
 ### P2.2[b] — Inline the hot small functions
 
+> **Amended 2026-11-12 (user decisions on tf; applies to qf).**
+> - **tf: NO-GO, nothing lands.** FULL (xpmath `wip/P2.2-tf` = ddd5701:
+>   TF multiply/divide/sqrt inline + 3 renorm copies) is correct on every
+>   GPU run but splits by vendor: TF science A100 1.646, GB300 1.383,
+>   MI250 0.735, MI300 0.695 (NVIDIA instruction-fetch bound; code size
+>   ~2x). SQRT (b3b6fcd, sqrt only) and MKEEP (fa013f2) are retired.
+>   Status block "P2.2[tf] — Inline TF multiply/divide/sqrt (perf
+>   go/no-go data)". No B200 row.
+> - **FULL is parked** (`GPU_PERF_PARKED.md` row 1, Re-test at
+>   `P3.4[tf]`), by explicit user exception to §1.10's "neutral" rule:
+>   P3.4 (and P3.1/P3.2) shrink TF code, which is what the NVIDIA loss
+>   depends on.
+> - **qf runs as a probe first.** CHECK-HOST, then FULL-shape qf
+>   (multiply/divide/sqrt inline after the forwarding audit) on A100 and
+>   MI250 only: full sweep, identity, full memcheck on A100, gfx90a lint,
+>   perf 3 interleaved repeats. If the QF science kernel on A100 is more
+>   than 3% slower (the tf vendor split), stop: NO-GO, push `wip/P2.2-qf`,
+>   park it at `P3.4[qf]` the same way, no ledger row. Only if A100 passes
+>   the 3% rule does qf continue to GB300 and MI300 and the normal landing
+>   rules (B200 row under §1.9). No partial-inline variants in qf.
+
 > **Amended 2026-11-11, late (user decisions on dd).**
 > - **dd lands as 4d597fd.** xpmath `wip/P2.2-dd` = 4d597fd passed identity
 >   on all five GPUs, full memcheck on B200, A100, GB300, gfx90a lint and

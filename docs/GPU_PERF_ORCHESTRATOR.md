@@ -84,19 +84,17 @@ Verify these against the files and branches before relying on them.
     (from staging), never checks out anything in the main xpmath clone,
     pushes only wip/P3.0 + a status block. Its checklist has an extra line
     "Policy decided: (a)/(b)/(c)/other/Undecided".
-- **P2.2[tf] go/no-go (2026-11-11, night).** First worker stopped before
-  pushing: local xpmath wip/P2.2-tf = ddd5701 (TF mul/div/sqrt inline +
-  3 renorm copies), wip/P2.2-tf-mkeep = fa013f2 (multiply NOINLINE). Correct
-  everywhere it ran (host 44/44; A100, GB300 identity + memcheck clean;
-  verified in scratch), but perf fails: TF science A100 1.646, GB300 1.383
-  (ncu: instruction-fetch bound, code size ~2x; mkeep 1.492/1.242). User
-  chose option A: a fresh Sonnet worker runs a sqrt-only-inline variant
-  (wip/P2.2-tf-sqrt) on A100 + GB300, then MI250 and MI300 (both shapes +
-  lint), one GPU swap at a time (user can hold 2 nodes). It stops for the
-  user's GO/NO-GO; nothing lands. Orchestrator lean: NO-GO unless AMD
-  gains ~2x and some shape is near DD's 1.17 on NVIDIA. For qf: start with
-  a short A100+GB300 code-size/science check (QF code is larger).
-- **Next after tf:** `P2.2[qf]`. tf and qf run SEQUENTIALLY (both
+- **P2.2[tf]: NO-GO (user, 2026-11-12).** FULL (ddd5701) splits by
+  vendor (science A100 1.646, GB300 1.383, MI250 0.735, MI300 0.695);
+  SQRT/MKEEP retired. FULL parked (row 1, Re-test at P3.4[tf], user
+  exception to §1.10's neutral rule). Staging/gpu-perf stay 4d597fd.
+- **Parked register:** row 1 (tf FULL -> P3.4[tf]).
+- **qf = probe first** (plan P2.2 amendment 2026-11-12): A100 + MI250 on
+  the FULL shape; A100 science >3% slower -> NO-GO + park at P3.4[qf].
+- **Template gap:** the ancestor check fails on a branch with no remote ref;
+  for a new branch, prompts say to confirm `git ls-remote origin <branch>`
+  is empty instead.
+- **Next:** `P2.2[qf]` probe (prompt given 2026-11-12). tf and qf run SEQUENTIALLY (both
   fast-forward staging). The qf prompt is the tf prompt with tf->qf, the
   B200 row's before-SHA = tf's landed SHA, and any new lessons from tf.
 - **After P3.0 reports:** if the user chose a policy, write its gate rule
