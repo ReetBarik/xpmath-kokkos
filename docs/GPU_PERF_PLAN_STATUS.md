@@ -706,3 +706,17 @@ Measured (after/before): DD science kernel GB300 1.165, MI250 0.487, MI300 0.366
 Next session must know:
 - The worker's handoff said perf and lint were not re-run at 4d597fd. Wrong: both were run (paths above).
 - Landing 4d597fd is blocked only by the GB300 DD science slowdown (1.165, reproducible, no reason stated). The user decides.
+
+## P2.2[dd] (final) — Landed on staging and gpu-perf at 4d597fd
+Date: 2026-11-11   Outcome: Done (landed on both xpmath branches; landing session, no GPU, nothing rerun)
+Commits: xpmath gpu-perf-staging fast-forwarded 6f4fb5a..4d597fd and xpmath gpu-perf fast-forwarded 0769d6d..4d597fd (--ff-only, no merge commit, no new commits; ancestor check passed before each push). xpmath-kokkos@gpu-perf = this block. No ledger rows added.
+Changed: this file only. Library change is xpmath dd_math.hpp (multiply/divide/sqrt NOINLINE->INLINE; acosh renormalise) and dd_complex.hpp (3 forwards renormalised; angle() pi/2 as bit constants), already in 4d597fd.
+Checks (all run in earlier sessions, cited here, none rerun; logs under $HOME/gpuperf-scratch/):
+- GB300, MI250, MI300, CHECK-GFX90A-LINT, CHECK-HOST at 4d597fd: P2.2[dd] block + addendum + addendum 2 (P2.2[dd]/{gb300fix,mi250fix,mi300fix,lint_fix}/, host-fix-ctest.log). Identity 436081/436081 on each; GB300 full memcheck 0 errors.
+- B200: C-b200 (2) block (C-b200-2/b200/): identity 436081/436081, full memcheck 0 errors.
+- A100: C-a100 (2) block (C-a100-2/a100/): identity 436081/436081, full memcheck 0 errors.
+- gpu-perf move: (a) amendment 2026-11-11 late in plan P2.2[b] counts as the explicit fast-forward instruction; (b) holds via the cited addenda and C-b200 (2)/C-a100 (2); (c) GPU_PERF_DEFERRED.md rows 1-7 all end "CLOSED by user"; 0769d6d is an ancestor of 4d597fd. Parked register has no rows.
+Measured (after/before): DD science kernel GB300 1.165 (ACCEPTED regression, user 2026-11-11), MI250 0.487, MI300 0.366, A100 0.987, B200 0.936.
+Next session must know:
+- For tf/qf: the GB300 fault needed all three inline marks (multiply, divide, sqrt) together; it was fixed by making angle()'s pi/2 a bit constant (no multiply on that path). Check for that shape in the tf/qf forwarding audit.
+- Staging and gpu-perf now both at 4d597fd; ledger has no open rows. Next in fan-out: P2.2[tf], then P2.2[qf].
