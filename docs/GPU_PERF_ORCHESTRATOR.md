@@ -70,10 +70,30 @@ Verify these against the files and branches before relying on them.
 - **The user does not want prompts stored in files.** Give every worker
   prompt in the chat reply, ready to paste.
 - **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
-- **Next:** P2.2[tf] (A100, GB300, MI250, MI300; B200 deferred; prompt
-  given in chat 2026-11-11), then P2.2[qf]. In parallel: P3.0 on Opus with
-  the user (prompt given 2026-11-11). P2.4 dropped. Release v0.4.0 after
-  Phase 3, before Phase 4.
+- **In flight (prompts given in chat 2026-11-11):**
+  - `P2.2[tf]` (Sonnet; A100, GB300, MI250, MI300; B200 deferred). Its
+    prompt = canonical template + RESUME NOTE: forwarding audit first,
+    UR7/angle() lesson, full-sweep clearance, -j8 by hand, builds under
+    scratch (home quota), 3 interleaved perf repeats, stop on fault, land on
+    staging only if no unexplained >3% row and then add one B200 ledger row
+    (4d597fd..<landed>), never move gpu-perf, and a PARALLEL SESSION note
+    (don't touch wip/P3.0 or its worktree; `git pull --ff-only` in
+    xpmath-kokkos right before committing).
+  - `P3.0` (Opus, interactive with the user, parallel; no GPU). Works in
+    its own worktree $HOME/gpuperf-scratch/P3.0/wt on xpmath `wip/P3.0`
+    (from staging), never checks out anything in the main xpmath clone,
+    pushes only wip/P3.0 + a status block. Its checklist has an extra line
+    "Policy decided: (a)/(b)/(c)/other/Undecided".
+- **Next after tf:** `P2.2[qf]`. tf and qf run SEQUENTIALLY (both
+  fast-forward staging). The qf prompt is the tf prompt with tf->qf, the
+  B200 row's before-SHA = tf's landed SHA, and any new lessons from tf.
+- **After P3.0 reports:** if the user chose a policy, write its gate rule
+  into the P3.1-P3.5 section (`Plan: ...`). P3.1[dd]'s first commit copies
+  docs/PERF_ACCURACY_POLICY.md onto staging from origin/wip/P3.0.
+- **Order to v0.4.0 (user, 2026-11-11):** Phase 2 -> P3.0 -> P3.1-P3.5
+  [dd,ff,tf,qf] -> C-<arch> for open rows (one C-b200 needs a B200 window)
+  -> user merges and tags v0.4.0 -> R. Then Phase 4. Reason: the user is
+  preparing a paper; settled math first. P2.4 dropped.
 - **Cleanup 2026-11-11.** All scratch worktrees and build trees were
   removed (scratch 20G -> 8.7G; it lives on /vast via the
   `~/gpuperf-scratch` symlink). Kept: every log, ident file, ratios file,
@@ -109,6 +129,13 @@ rows 4-7 closed.
 - **Perf noise:** A100 timing is bimodal (use 3 interleaved repeats, not
   best-of-2); MI250/MI300 drift uniformly (compare against native rows);
   GB300 repeat spread is under 3%.
+- **Deletions:** the auto-mode classifier blocks the orchestrator's
+  `rm`/`worktree remove`, even with the user's approval. Give the user
+  `! <command>` lines instead, one short command per line (long lines get
+  wrapped on paste and break bash).
+- **Worker handoffs can be wrong about what was run.** The P2.2[dd] fix
+  worker said perf and lint weren't re-run at 4d597fd; the scratch dirs
+  showed both had been. Check scratch before relaying gaps.
 - Workers sometimes return a free-form HANDOFF instead of the checklist, or
   stop without writing a status block. Verify the evidence and write a
   Stopped block yourself, as was done for P2.1[ff].
