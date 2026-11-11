@@ -619,3 +619,21 @@ Next session must know:
 - Checked now: GB300, MI250, MI300, A100 (identity, sweep, perf all pass; memcheck on GB300 and A100; lint on gfx90a). Unchecked: B200 (UR7 risk: full sweep, identity, full memcheck needed; on failure record function+arch, no per-arch #ifdef).
 - FF sqrt: GB300 1.107 (slower), A100 0.927, MI250 0.878, MI300 0.690. The GB300 regression is still the only slowdown on an FF row of note.
 Orchestrator review (2026-11-11, covers the P2.2[ff] block and addenda 1-4): wip/P2.2-ff = 6f4fb5a on origin, staging is its ancestor, staging/gpu-perf unmoved. Cited logs exist; ident.log RESULT: PASS on gb300, mi250, mi300, a100; san-after.log ERROR SUMMARY 0 errors on gb300 and a100. Open for the user: A100 cFF div 1.048 (stable, no stated reason) and B200 not checked.
+
+## P2.2[ff] (final) — Landed on staging; B200 deferred
+Date: 2026-11-11   Outcome: Done (landed; B200 deferred under §1.9 standing deferral)
+Commits: xpmath gpu-perf-staging fast-forwarded 6e6a989..6f4fb5a (no merge commit, no new commits; ancestor check passed before push). xpmath gpu-perf NOT moved. xpmath-kokkos@gpu-perf = this block + ledger row 5.
+Changed: xpmath include/xp/ff_math.hpp, include/xp/ff_complex.hpp (inline FF multiply/divide/sqrt; forwarded result slots renormalised except exp10, reverted). xpmath-kokkos docs/GPU_PERF_DEFERRED.md (row 5), this file.
+Checks (all run in earlier sessions, cited here, none rerun; logs under $HOME/gpuperf-scratch/P2.2[ff]/):
+- CHECK-HOST at 6f4fb5a PASS 44/44 + 24/24 (host2-build.log).
+- CHECK-DEVICE-IDENTICAL vs 6e6a989 PASS 436081/436081 on GB300 (gb300/ident.log), MI250 (mi250/ident.log), MI300 (mi300/ident.log), A100 (a100/ident.log).
+- CHECK-SANITIZER memcheck full sweep 0 errors on GB300 (gb300/san-after.log) and A100 (a100/san-after.log).
+- CHECK-GFX90A-LINT PASS on MI250 (lint/lint.log).
+- CHECK-PERF 3 interleaved repeats on each GPU (perf/ratios.txt, perf/out-{before,after}-r*/).
+- B200: NOT RUN, deferred (ledger row 5: identity, full memcheck, perf).
+Measured: see addenda 1-4 (FF/cFF median after/before: MI250 0.584, MI300 0.595, A100 0.939). Accepted regressions (user, 2026-11-11): FF sqrt 1.107 on GB300, cFF div 1.048 on A100.
+Next session must know:
+- This session ran no GPU checks and requested no GPU.
+- B200 risk is UR7 (result-slot clobber): C-b200 must run full sweep, identity, full memcheck; on failure record function+arch, no per-arch #ifdef.
+- P2.2[dd], [tf], [qf] fan-out is next (dd, tf, qf order); each does its forwarding audit first. Never renormalise a result that can be an overflow inf.
+- Ledger has open rows 1-5 relevant to B200 gating; xpmath gpu-perf must stay put until C-b200.
