@@ -103,13 +103,9 @@ Verify these against the files and branches before relying on them.
   (AMD wins, NVIDIA icache loss) is a paper-worthy result and P4.0 input.
 - **User's GPU limit:** at most 2 nodes allocated at once. Prompts must
   sequence GPUs (ask for the next pair only at release points).
-- **Cleanup candidates:** $HOME/gpuperf-scratch/P2.2[tf]/ still holds
-  worktrees wt-before, wt-after, wt-mkeep, wt-sqrt and build trees
-  (branches are on origin, so worktrees are disposable; keep logs, ident,
-  ratios, diag, CSVs). Same for $HOME/gpuperf-scratch/P2.2[qf]/ (wt-before,
-  wt-after; 2.1G). Earlier cleanup (2026-11-11): removed worktrees'
-  logs in `<wt>.logs/`, variant edits in `<wt>.patch` (first line = base
-  SHA). Home quota is tight (~91G/100G); build trees go under scratch.
+- **Cleanup:** done 2026-11-12 for P2.2[tf] and P2.2[qf] (worktrees and 52
+  build trees removed; 4.1G->1009M, 2.1G->528M; evidence kept). Home quota
+  is tight; build trees go under scratch.
 - **A100 cfloat div bimodal** (native type). Not the library. Note only.
 - **Worker tooling from P3.1 on (user, 2026-11-12):** P3.0 runs on Opus in
   Claude Code. P3.1 onward may run in Cursor (Grok, sometimes Sonnet) or in
