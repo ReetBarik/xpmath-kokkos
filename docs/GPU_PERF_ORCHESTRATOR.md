@@ -111,6 +111,15 @@ Verify these against the files and branches before relying on them.
   logs in `<wt>.logs/`, variant edits in `<wt>.patch` (first line = base
   SHA). Home quota is tight (~91G/100G); build trees go under scratch.
 - **A100 cfloat div bimodal** (native type). Not the library. Note only.
+- **Worker tooling from P3.1 on (user, 2026-11-12):** P3.0 runs on Opus in
+  Claude Code. P3.1 onward run in Cursor, mostly on Grok, sometimes Sonnet.
+  Prompts for those runs must work in Cursor: don't count on CLAUDE.md or
+  memory being loaded; long GPU runs go under nohup with a log file and a
+  done-marker (the agent's terminal can time out); no `!` shell prefix; the
+  FINISH checklist is required, and so is quoting evidence paths. Ask the
+  user to put tasks that move xpmath `gpu-perf` or settle the ledger (C-*)
+  on Sonnet, not Grok (earlier rule: Sonnet or better). Review harder: an
+  open model has fast-forwarded gpu-perf and force-pushed before.
 - **The user does not want prompts stored in files.** Prompts go in chat.
 - **P2.1 dropped after dd; P2.3, P2.4 dropped; B200 deferred (§1.9).**
 - **Not done yet:** P0.5c (login node; can slot in any time).
