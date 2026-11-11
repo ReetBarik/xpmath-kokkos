@@ -72,6 +72,16 @@ Verify these against the files and branches before relying on them.
 - **P2.1 dropped after dd; P2.3 dropped; B200 deferred by default (§1.9).**
 - **Next:** P2.2[tf] (A100, GB300, MI250, MI300; B200 deferred; prompt
   given in chat 2026-11-11), then P2.2[qf].
+- **Cleanup 2026-11-11.** All scratch worktrees and build trees were
+  removed (scratch 20G -> 8.7G; it lives on /vast via the
+  `~/gpuperf-scratch` symlink). Kept: every log, ident file, ratios file,
+  CSV and script. Each removed worktree's untracked sweep logs are in
+  `<wt>.logs/`, and each uncommitted variant edit is in `<wt>.patch` (first
+  line = base SHA; re-create with `git worktree add --detach <wt> <sha> &&
+  git -C <wt> apply ../<wt>.patch`). Paths in older blocks that name `wt-*`
+  dirs (and ledger row 1's "worktrees remain") are historical. Workers
+  create fresh worktrees. Home quota is tight (~91G/100G); keep build
+  trees under scratch, not in the repos.
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
