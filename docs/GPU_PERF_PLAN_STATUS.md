@@ -663,3 +663,17 @@ Findings: the renormalise edits are innocent; the fault needs the combination of
 Next session must know:
 - Unproven by experiment (no fix tried). Options for the user: bisect pairs, keep one mark NOINLINE (A100/AMD gain mostly from multiply), or a structural result-slot change; all need full-sweep memcheck + identity on GB300 and A100.
 - Single-kernel repro takes seconds; building a variant is one TU, about 3 min on the node (scripts in diag/).
+
+## C-b200 (2) — B200 catch-up for ledger rows 4-6 (0769d6d..4d597fd)
+Date: 2026-11-11   Outcome: Done (rows 4, 5, 6 settled; row 7 A100 left open)
+Commits: xpmath-kokkos@gpu-perf = this block + ledger rows 4-7 (SHA from origin in the session reply). xpmath: no commits; gpu-perf (0769d6d) NOT moved: A100 rows (new row 7 and older) still open, so condition (c) fails.
+Changed: docs/GPU_PERF_DEFERRED.md (rows 4-6 settled, row 7 added), this file.
+Checks (blackwell00, B200 cc 10.0, CUDA_VISIBLE_DEVICES=0, -j8 nice, one tree at a time; all under $HOME/gpuperf-scratch/C-b200-2/):
+- NOTE: origin/gpu-perf-staging is 6f4fb5a, not 4d597fd (the task expected 4d597fd). 4d597fd exists only on wip/P2.2-dd; user said to go ahead on it. Worktrees wt-before=0769d6d, wt-after=4d597fd.
+- CHECK-DEVICE-IDENTICAL b200 0769d6d -> 4d597fd: PASS, rows 436081 identical 436081 NaN-only 0 failing 0 (b200/ident.log). Both sweeps exit 0, scorer 0 above bound / 0 defects (b200/run-{before,after}.log).
+- CHECK-SANITIZER b200 full sweep at 4d597fd: ERROR SUMMARY 0 errors (b200/san-after.log).
+- CHECK-PERF b200 sm_100, 3 interleaved repeats, after/before (perf/ratios.txt): median DD 0.939, cDD 0.955, FF 0.886, cFF 0.799, QF/TF/cQF/cTF/double/cdouble 1.000; science DD 0.936, FF 0.899, QF 1.000, TF 0.999.
+Measured: only row >3% slower is float add chain 1.143 (repeats 1.143/0.875/1.143): untouched native float, no library change touches it, noisy bimodal; not attributable to these commits.
+Next session must know:
+- No B200 fault: UR7 family did not recur at 4d597fd (DD:c:log/asin/acos clean in full sweep + full memcheck).
+- Staging still 6f4fb5a; landing 4d597fd on staging is the user's call. Row 7 (A100 at 4d597fd) is the remaining owed check.
