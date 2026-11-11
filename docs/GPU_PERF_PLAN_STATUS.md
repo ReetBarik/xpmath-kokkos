@@ -677,3 +677,16 @@ Measured: only row >3% slower is float add chain 1.143 (repeats 1.143/0.875/1.14
 Next session must know:
 - No B200 fault: UR7 family did not recur at 4d597fd (DD:c:log/asin/acos clean in full sweep + full memcheck).
 - Staging still 6f4fb5a; landing 4d597fd on staging is the user's call. Row 7 (A100 at 4d597fd) is the remaining owed check.
+
+## C-a100 (2) — A100 catch-up for ledger row 7 (P2.2[dd], 6f4fb5a..4d597fd)
+Date: 2026-11-11   Outcome: Done (row 7 settled)
+Commits: xpmath-kokkos@gpu-perf = this block + ledger row 7 (SHA from origin in the session reply). xpmath: no commits; gpu-perf and gpu-perf-staging NOT moved by this session.
+Changed: docs/GPU_PERF_DEFERRED.md (row 7 settled), this file.
+Checks (gpu06, A100-PCIE-40GB sm_80, -j8 nice, one pipeline; all under $HOME/gpuperf-scratch/C-a100-2/; worktrees wt-before=6f4fb5a, wt-after=4d597fd; starting HEADs: xpmath 6f4fb5a on gpu-perf-staging, xpmath-kokkos 1d0214a on gpu-perf):
+- CHECK-DEVICE-IDENTICAL a100: PASS, rows 436081 identical 436081 NaN-only 0 failing 0 (a100/ident.log). Both sweeps exit 0 (a100/status.log, run-{before,after}.log).
+- CHECK-SANITIZER a100, full sweep (no --only) at 4d597fd: ERROR SUMMARY 0 errors (a100/san-after.log).
+- CHECK-PERF a100 sm_80, 3 interleaved repeats, after/before (perf/ratios.txt): median DD 0.958, cDD 0.987, FF/QF/TF/cFF/cQF/cTF 1.000-1.001; science DD 0.987, FF 1.011, QF 1.000, TF 1.000.
+Measured: rows >3% slower: cDD add chain 1.142 (repeats 1.378/0.912/1.142; known bimodal); cdouble abs 1.270 and sqrt 1.098, double science 1.659 (native types, repeats 0.9-1.75; noisy); cfloat div 1.838 (repeats 1.838/1.823/1.838). cfloat div is native float, bimodal 0.00365 vs 0.00671 ns/op: before took the fast mode in all 3 repeats here, after the slow mode; in the earlier 3f594b2 session (P2.2[dd]/a100/perf) before ran slow mode twice. So both modes occur for 6f4fb5a-source builds; mechanism NOT shown, not attributed to the change. cDD div accepted earlier; not >3% here.
+Next session must know:
+- 4d597fd is still only on wip/P2.2-dd; staging 6f4fb5a. Landing is the user's decision.
+- 4d597fd elsewhere: GB300 identity 436081/436081 + full memcheck 0 errors, MI250 and MI300 identity 436081/436081 (P2.2[dd]/{gb300fix,mi250fix,mi300fix}/; run against P2.2[dd]/wt-fix = 4d597fd); no status block records these, perf/lint not re-checked there.
