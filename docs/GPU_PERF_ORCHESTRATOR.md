@@ -72,26 +72,23 @@ Verify these against the files and branches before relying on them.
   by the user yet: A100 cFF div 1.048, stable over 3 repeats, no reason
   stated. **B200 unchecked; nothing on staging.** Orchestrator review of
   the evidence done 2026-11-11 (paths exist; ident PASS x4; memcheck 0 x2).
-- **User decisions 2026-11-11:** land P2.2[ff] (6f4fb5a) on staging once
-  B200 is checked; cFF div +4.8% on A100 accepted; P2.2 fans out to dd, tf,
-  qf; P2.3 dropped (plan amended). The user is trying to get a B200 on
-  2026-11-12 morning.
-- **Next (B200 window, run sequentially on the one node, never at the same
-  time):** (a) `C-b200` for ledger row 4 (may fast-forward xpmath `gpu-perf`
-  to 6e6a989 if it passes); (b) `P2.2[ff]` resume: B200 check of 6f4fb5a,
-  then fast-forward staging to 6f4fb5a. Prompts: "Prompts for the next B200
-  window" below. Then P2.2[dd].
+- **User decisions 2026-11-11:** P2.2[ff] (6f4fb5a) lands on staging now
+  with B200 deferred (ledger row 5); cFF div +4.8% on A100 accepted; P2.2
+  fans out to dd, tf, qf; P2.3 dropped; **B200 deferred by default through
+  Phase 2** (§1.9), settled by batched C-b200 windows (rows 4, 5, ... in one
+  cumulative run from 0769d6d).
+- **Next:** `P2.2[ff]` landing session (no GPU), then `P2.2[dd]` (A100,
+  GB300, MI250, MI300). Prompts were given to the user in chat 2026-11-11.
+- **The user does not want prompts stored in files.** Give every worker
+  prompt in the chat reply, ready to paste (the canonical template below is
+  the source; expand it in full).
 - **P2.1 is dropped after dd** (user, 2026-11-10). Evidence in the P2.1[ff]
   Stopped block.
 - **Not done yet:** P0.5c (login node; can slot in any time).
 
 ## Open questions for the user (raise them; don't decide them)
 
-1. **B200 standing deferral.** Amend §1.9 so B200 is unavailable by default
-   through Phase 2, settled in batched C-b200 windows? Orchestrator
-   recommends yes. On 2026-11-11 the user agreed with the other
-   recommendations but answered on B200 only "will try to get B200
-   tomorrow"; confirm before writing it into the plan.
+None as of 2026-11-11.
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 
@@ -155,8 +152,8 @@ re-tested automatically by the task their Re-test at names (§1.10). When you
 drop or reorder a task, move its Re-test at entries.
 
 Slot in whenever a GPU frees up:
-- `C-<arch>` for open ledger rows. B200 currently owes row 4. Batch B200
-  (open question 1).
+- `C-<arch>` for open ledger rows. B200 rows are batched (§1.9 standing
+  deferral); run C-b200 only when the user has a B200 window.
 - `P0.5c` (login node).
 - A re-run of `P0.7` when a missing GPU's P0.6 lands.
 
@@ -244,37 +241,6 @@ acceptable; breaking a rule is not.
    - Status block pushed; SHAs quoted from origin:
    - GPUs I can release now: <hostnames or "none">
    Then give a 3-line summary.
-```
-
-## Prompts for the next B200 window (written 2026-11-11)
-
-Run (a) then (b) on the same B200 host, one after the other.
-
-(a) C-b200 for ledger row 4: the canonical worker prompt with `<ID>` =
-`C-b200`, plus on top:
-```
-RESUME NOTE: settle ledger row 4 only (P2.1[dd], 0769d6d..6e6a989, B200:
-CHECK-DEVICE-IDENTICAL, CHECK-SANITIZER full sweep, CHECK-PERF same-session
-before/after, 3 interleaved repeats). Rows 1-3 are already CLOSED. Do not
-run anything for P2.2[ff]; another session uses this node after you, so
-release it when done and say so.
-```
-
-(b) P2.2[ff] landing: the canonical worker prompt with `<ID>` = `P2.2[ff]`,
-plus on top:
-```
-RESUME NOTE: the probe and its addenda 1-4 are done (read the P2.2[ff]
-blocks in GPU_PERF_PLAN_STATUS.md and the 2026-11-11 amendment in the P2.2
-section). Do NOT redo GB300, MI250, MI300, A100 or host; reuse
-$HOME/gpuperf-scratch/P2.2[ff]/. Remaining, on B200 only, comparing
-xpmath 6e6a989 (before) with wip/P2.2-ff = 6f4fb5a (after): full 252-kernel
-sweep exit 0 both; CHECK-DEVICE-IDENTICAL; full-sweep memcheck 0 errors
-(no --only); perf by ratio, 3 interleaved repeats, one pipeline at a time.
-Logs under $HOME/gpuperf-scratch/P2.2[ff]/b200/. If all pass, fast-forward
-gpu-perf-staging to 6f4fb5a (ancestor check first; no merge commit, no
-new commits) and write a status block saying P2.2[ff] is landed. If
-anything fails, stop and record function + arch; no per-arch #ifdef; do
-not land. Do not move xpmath gpu-perf.
 ```
 
 ## How the user likes answers

@@ -316,6 +316,14 @@ lists only if all of these hold:
    this task (NVIDIA: A100, B200, GB300; AMD: MI250, MI300);
 3. CHECK-HOST passed (it can never be deferred).
 
+**B200 standing deferral (user, 2026-11-11).** Through the end of Phase 2,
+B200 counts as unavailable for every task: condition 1 above holds without
+asking. Do not request a B200; defer it with a ledger row (conditions 2 and
+3 still apply). B200 rows are settled in batches by `C-b200` when the user
+gets a B200 window (planned: end of Phase 2, after Phase 3, before
+release). C-b200's step 1 groups consecutive bit-preserving rows into one
+run, so one window settles all of them.
+
 Each deferral is a row in `~/xpmath-kokkos/docs/GPU_PERF_DEFERRED.md`:
 task, GPU, xpmath `before-SHA..after-SHA`, checks owed, and whether the
 task is bit-preserving. Commit it with your status block.
@@ -704,15 +712,16 @@ A100, B200, GB300; CHECK-PERF on all 5.
 ### P2.2[b] — Inline the hot small functions
 
 > **Amended 2026-11-11 (user decisions after the probe).**
-> - **ff lands.** The kept shape is xpmath `wip/P2.2-ff` = 6f4fb5a (sqrt
->   inlined). It already passed GB300, MI250, MI300, A100 (status addenda
->   1-4). Accepted regressions: FF sqrt +10.7% on GB300; cFF div +4.8% on
->   A100. Remaining before landing: B200 full sweep, CHECK-DEVICE-IDENTICAL
->   vs 6e6a989, full-sweep memcheck. Then fast-forward `gpu-perf-staging`
->   to 6f4fb5a (normal push; it is a child of staging). If B200 cannot be
->   had, the user decides whether to land with a ledger row instead.
+> - **ff lands now, B200 deferred.** The kept shape is xpmath
+>   `wip/P2.2-ff` = 6f4fb5a (sqrt inlined). It passed GB300, MI250, MI300,
+>   A100 and host (status addenda 1-4). Accepted regressions: FF sqrt
+>   +10.7% on GB300; cFF div +4.8% on A100. Landing = fast-forward
+>   `gpu-perf-staging` to 6f4fb5a plus ledger row for B200 (6e6a989..6f4fb5a,
+>   CHECK-DEVICE-IDENTICAL, CHECK-SANITIZER, CHECK-PERF, bit-preserving) under
+>   the §1.9 standing deferral. No GPU needed.
 > - **Fan-out approved** to dd, tf, qf (in that order), full scope as below
->   (all 5 GPUs, §1.9 deferrals allowed). Each backend does the forwarding
+>   on A100, GB300, MI250, MI300; B200 is deferred by the §1.9 standing
+>   deferral (ledger row). Each backend does the forwarding
 >   audit first, as in the ff probe. Lessons: never renormalise a result
 >   that can be an overflow inf (quick_two_sum gives lo = NaN; ff exp10
 >   failed identity this way); complex-returning forwards cannot be
