@@ -720,3 +720,31 @@ Measured (after/before): DD science kernel GB300 1.165 (ACCEPTED regression, use
 Next session must know:
 - For tf/qf: the GB300 fault needed all three inline marks (multiply, divide, sqrt) together; it was fixed by making angle()'s pi/2 a bit constant (no multiply on that path). Check for that shape in the tf/qf forwarding audit.
 - Staging and gpu-perf now both at 4d597fd; ledger has no open rows. Next in fan-out: P2.2[tf], then P2.2[qf].
+
+## P2.2[tf] — Inline TF multiply/divide/sqrt (perf go/no-go data)
+Date: 2026-11-11   Outcome: Stopped (user decision pending)
+Commits: kept off gpu-perf and staging (both still 4d597fd), see xpmath wip/P2.2-tf (FULL = ddd5701), wip/P2.2-tf-mkeep (MKEEP = fa013f2: FULL with multiply NOINLINE), wip/P2.2-tf-sqrt (SQRT = b3b6fcd: only sqrt inline; multiply+divide NOINLINE). All three keep the renorm() result-slot copies at acosh, xp_asin_imag_mag, xp_atan2_safe. No ledger row (nothing landed).
+Changed: xpmath include/xp/tf_math.hpp, include/xp/tf_complex.hpp (wip branches only); this file.
+Checks (scratch $HOME/gpuperf-scratch/P2.2[tf]/; before = 4d597fd):
+- CHECK-HOST FULL 44/44: host/host-ctest.log (earlier session; SQRT and MKEEP host NOT RUN).
+- A100 (gpu07) FULL: a100/{ident.log,san-after.log,perf/ratios.txt}; SQRT: a100/sqrt/{ident.log,san-sqrt.log,ratios-sqrt.txt}. Identity 436081/436081 both; full memcheck 0 errors both; sweeps rc=0.
+- GB300 (graceblackwell01) FULL: gb300/{ident.log,san-after.log,perf/ratios.txt}; SQRT: gb300/sqrt/{ident.log,san-sqrt.log,ratios-sqrt.txt}. Identity 436081/436081 both; memcheck 0 errors both.
+- MI250 (amdgpu04) and MI300 (amdgpu00), FULL and SQRT: {mi250,mi300}/ident-{after,sqrt}.log: identity PASS (FULL: 436075 identical + 6 NaN-only, failing 0; SQRT: 436081 identical); sweeps rc=0 (status.log); perf before/FULL/SQRT interleaved 3 repeats: {mi250,mi300}/perf/ratios-{after,sqrt}.txt.
+- CHECK-GFX90A-LINT (login node, hipcc gfx90a, full sweep_device.cpp): FULL clean, 73 callees, largest 81,826 B xp_asin_real_leg; SQRT clean, 75 callees, largest 84,723 B; no WARN: lint/{after,sqrt}/lint.log.
+- MKEEP: NVIDIA perf and diagnosis only (earlier session; a100/mkeep, gb300/perf/ratios-mkeep-summary.txt); no AMD, no identity/sanitizer run on MKEEP.
+Measured (after/before, median of 3; >1 = slower). Columns: TF science | TF throughput median | cTF median | worst row >3%:
+- FULL  A100: 1.646 | 0.985 | 1.000 | science TF 1.646 (cTF log 1.232, TF div 1.181, cTF abs 1.160; native cfloat div 1.838 / double science 1.394 are bimodal noise)
+- FULL  GB300: 1.383 | 0.955 | 0.978 | science TF 1.383 (cTF abs 1.323, TF div 1.210)
+- FULL  MI250: 0.735 | 0.890 | 0.722 | none
+- FULL  MI300: 0.695 | 0.710 | 0.683 | DD log 1.036 (repeats 1.036/0.996/1.075), cTF add 1.036
+- MKEEP A100: 1.492 | 1.000 | 1.001 | science TF 1.492 (TF div 1.181, cTF abs 1.118)
+- MKEEP GB300: 1.242 | 1.002 | 1.000 | cTF abs 1.537 (science TF 1.242, TF div 1.209)
+- MKEEP MI250, MI300: NOT RUN
+- SQRT  A100: 1.085 | 1.000 | 1.000 | double science 1.151 (native, bimodal), cDD div 1.097 (repeats 0.94/1.157/1.097), science TF 1.085
+- SQRT  GB300: 0.968 | 0.999 | 1.000 | cTF abs 2.149 (2.153/2.149/2.146; FULL was 1.323, cause not investigated)
+- SQRT  MI250: 0.995 | 0.998 | 0.993 | none
+- SQRT  MI300: 0.997 | 1.006 | 1.006 | FF sqrt 1.068 (repeats 1.100/1.068/0.981; FF untouched), double div 1.063 (noisy); AMD drifts uniformly: native double/float science 1.008/0.998
+TF science kernel code size, B (before / FULL / MKEEP / SQRT): A100 695,808 / 1,469,312 / 999,040 / 720,512; GB300 840,704 / 1,573,760 / 1,107,200 / 971,904 (a100/sqrt/sci_isa_sqrt.csv, gb300/sqrt/sci_isa_sqrt.csv). Diagnosis of FULL: a100/perf/diag/DIAGNOSIS.md (instruction-fetch bound).
+Next session must know:
+- FULL helps AMD a lot (science -26%/-30%) and hurts NVIDIA science kernels (+65%/+38%). SQRT is neutral on AMD, +8.5% on A100 and -3.2% on GB300 science, but GB300 cTF abs is 2.149x slower under SQRT (unexplained). Decision belongs to the user; nothing lands without it.
+- B200 not run (standing deferral); gpu-perf and staging not moved.
