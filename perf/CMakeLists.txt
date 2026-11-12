@@ -66,6 +66,16 @@ target_link_libraries(xpk_perf_isa PRIVATE Kokkos::kokkos)
 
 # Throughput runner and science kernel (GPU_PERF_PLAN P0.3). Separate units and
 # executable so the 90-kernel ISA set above is untouched.
+#
+# Fast-tier types (xpmath P3.0b) get unit ids 6..9. They exist only when the
+# xpmath headers in use have tiers (feature test: xp/tier.hpp), so a "before"
+# build against xpmath 4d597fd still configures and compiles.
+set(_xpk_tp_max_id 5)
+set(_xpk_have_tiers FALSE)
+if(EXISTS "${_xpk_xp_inc}/xp/tier.hpp")
+  set(_xpk_tp_max_id 9)
+  set(_xpk_have_tiers TRUE)
+endif()
 set(_xpk_tp_units)
 foreach(_kind r c)
   if(_kind STREQUAL "r")
@@ -73,7 +83,7 @@ foreach(_kind r c)
   else()
     set(_kind_id 1)
   endif()
-  foreach(_id RANGE 0 5)
+  foreach(_id RANGE 0 ${_xpk_tp_max_id})
     set(_name xpk_tp_${_kind}${_id})
     add_library(${_name} OBJECT tp_unit.cpp)
     target_include_directories(${_name} PRIVATE
@@ -96,4 +106,7 @@ add_executable(xpk_perf_throughput throughput.cpp ${_xpk_tp_units})
 target_compile_definitions(xpk_perf_throughput PRIVATE
   XPK_XP_VERSION="${_xpk_xp_version}"
   XPK_PERF_RESULTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/results")
+if(_xpk_have_tiers)
+  target_compile_definitions(xpk_perf_throughput PRIVATE XPK_HAVE_TIERS=1)
+endif()
 target_link_libraries(xpk_perf_throughput PRIVATE Kokkos::kokkos)

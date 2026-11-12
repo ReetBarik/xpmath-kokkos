@@ -33,6 +33,18 @@ constexpr const char* kName = "TF";
 #elif XPK_TYPE_ID == 5
 using T = QF;
 constexpr const char* kName = "QF";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 6
+using T = DD_fast;
+constexpr const char* kName = "DD_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 7
+using T = FF_fast;
+constexpr const char* kName = "FF_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 8
+using T = TF_fast;
+constexpr const char* kName = "TF_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 9
+using T = QF_fast;
+constexpr const char* kName = "QF_fast";
 #else
 #error "bad XPK_TYPE_ID"
 #endif
@@ -61,6 +73,22 @@ constexpr const char* kRealName = "TF";
 using T = QFC;
 constexpr const char* kName = "cQF";
 constexpr const char* kRealName = "QF";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 6
+using T = DDC_fast;
+constexpr const char* kName = "cDD_fast";
+constexpr const char* kRealName = "DD_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 7
+using T = FFC_fast;
+constexpr const char* kName = "cFF_fast";
+constexpr const char* kRealName = "FF_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 8
+using T = TFC_fast;
+constexpr const char* kName = "cTF_fast";
+constexpr const char* kRealName = "TF_fast";
+#elif defined(XPMATH_HAS_TIERS) && XPK_TYPE_ID == 9
+using T = QFC_fast;
+constexpr const char* kName = "cQF_fast";
+constexpr const char* kRealName = "QF_fast";
 #else
 #error "bad XPK_TYPE_ID"
 #endif

@@ -29,6 +29,16 @@ template <>
 struct IsComplex<TFC> : std::true_type {};
 template <>
 struct IsComplex<QFC> : std::true_type {};
+#if defined(XPMATH_HAS_TIERS)
+template <>
+struct IsComplex<DDC_fast> : std::true_type {};
+template <>
+struct IsComplex<FFC_fast> : std::true_type {};
+template <>
+struct IsComplex<TFC_fast> : std::true_type {};
+template <>
+struct IsComplex<QFC_fast> : std::true_type {};
+#endif
 
 KOKKOS_INLINE_FUNCTION double sink(double x) { return x; }
 KOKKOS_INLINE_FUNCTION double sink(float x) { return static_cast<double>(x); }
@@ -43,6 +53,19 @@ KOKKOS_INLINE_FUNCTION double sink(const QF& x) {
   return (static_cast<double>(x.f0) + static_cast<double>(x.f1)) +
          (static_cast<double>(x.f2) + static_cast<double>(x.f3));
 }
+#if defined(XPMATH_HAS_TIERS)
+KOKKOS_INLINE_FUNCTION double sink(const DD_fast& x) { return x.hi + x.lo; }
+KOKKOS_INLINE_FUNCTION double sink(const FF_fast& x) {
+  return static_cast<double>(x.hi) + static_cast<double>(x.lo);
+}
+KOKKOS_INLINE_FUNCTION double sink(const TF_fast& x) {
+  return static_cast<double>(x.f0) + static_cast<double>(x.f1) + static_cast<double>(x.f2);
+}
+KOKKOS_INLINE_FUNCTION double sink(const QF_fast& x) {
+  return (static_cast<double>(x.f0) + static_cast<double>(x.f1)) +
+         (static_cast<double>(x.f2) + static_cast<double>(x.f3));
+}
+#endif
 KOKKOS_INLINE_FUNCTION double sink(const CD& z) { return z.real() + z.imag(); }
 KOKKOS_INLINE_FUNCTION double sink(const CF& z) {
   return static_cast<double>(z.real()) + static_cast<double>(z.imag());
@@ -59,6 +82,12 @@ KOKKOS_INLINE_FUNCTION double lead(const DD& x) { return x.hi; }
 KOKKOS_INLINE_FUNCTION double lead(const FF& x) { return static_cast<double>(x.hi); }
 KOKKOS_INLINE_FUNCTION double lead(const TF& x) { return static_cast<double>(x.f0); }
 KOKKOS_INLINE_FUNCTION double lead(const QF& x) { return static_cast<double>(x.f0); }
+#if defined(XPMATH_HAS_TIERS)
+KOKKOS_INLINE_FUNCTION double lead(const DD_fast& x) { return x.hi; }
+KOKKOS_INLINE_FUNCTION double lead(const FF_fast& x) { return static_cast<double>(x.hi); }
+KOKKOS_INLINE_FUNCTION double lead(const TF_fast& x) { return static_cast<double>(x.f0); }
+KOKKOS_INLINE_FUNCTION double lead(const QF_fast& x) { return static_cast<double>(x.f0); }
+#endif
 
 KOKKOS_INLINE_FUNCTION double re_of(const CD& z) { return z.real(); }
 KOKKOS_INLINE_FUNCTION double im_of(const CD& z) { return z.imag(); }

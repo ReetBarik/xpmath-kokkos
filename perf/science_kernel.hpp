@@ -61,12 +61,12 @@ struct ScienceKernel {
     constexpr int id = (13 * B + 5) % nvals;
     constexpr int ix = (7 * B + 11) % nvals;
     const Z t0 = z[ia] * z[ib];
-    const Z t1 = Kokkos::sqrt(t0);
+    const Z t1 = fwd::sqrt(t0);
     const Z t2 = t1 + z[ic];
     const Z den = z[id] + four;
     const Z t3 = t2 / den;
-    const Z t4 = Kokkos::log(t3 + c28);
-    R at = Kokkos::atan2(im_of(t2), re_of(t2)) * sixteenth;
+    const Z t4 = fwd::log(t3 + c28);
+    R at = fwd::atan2(im_of(t2), re_of(t2)) * sixteenth;
     if (lead(im_of(t3)) < 0.0) at = -at;  // branch-cut-style sign choice
     z[ix] = Z(re_of(t4), im_of(t4) + at);
   }

@@ -39,6 +39,16 @@ XPK_DECL(xpk_tp_unit_c2);
 XPK_DECL(xpk_tp_unit_c3);
 XPK_DECL(xpk_tp_unit_c4);
 XPK_DECL(xpk_tp_unit_c5);
+#ifdef XPK_HAVE_TIERS
+XPK_DECL(xpk_tp_unit_r6);
+XPK_DECL(xpk_tp_unit_r7);
+XPK_DECL(xpk_tp_unit_r8);
+XPK_DECL(xpk_tp_unit_r9);
+XPK_DECL(xpk_tp_unit_c6);
+XPK_DECL(xpk_tp_unit_c7);
+XPK_DECL(xpk_tp_unit_c8);
+XPK_DECL(xpk_tp_unit_c9);
+#endif
 
 namespace {
 
@@ -52,6 +62,11 @@ const Unit kUnits[] = {
     {"FF", xpk_tp_unit_r3},     {"TF", xpk_tp_unit_r4},      {"QF", xpk_tp_unit_r5},
     {"cdouble", xpk_tp_unit_c0}, {"cfloat", xpk_tp_unit_c1}, {"cDD", xpk_tp_unit_c2},
     {"cFF", xpk_tp_unit_c3},    {"cTF", xpk_tp_unit_c4},     {"cQF", xpk_tp_unit_c5},
+#ifdef XPK_HAVE_TIERS
+    {"DD_fast", xpk_tp_unit_r6}, {"FF_fast", xpk_tp_unit_r7}, {"TF_fast", xpk_tp_unit_r8},
+    {"QF_fast", xpk_tp_unit_r9}, {"cDD_fast", xpk_tp_unit_c6}, {"cFF_fast", xpk_tp_unit_c7},
+    {"cTF_fast", xpk_tp_unit_c8}, {"cQF_fast", xpk_tp_unit_c9},
+#endif
 };
 
 void usage() {

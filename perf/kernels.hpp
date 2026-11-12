@@ -37,6 +37,22 @@ using QFC = Kokkos::Experimental::QuadFloatComplex;
 using CD = Kokkos::complex<double>;
 using CF = Kokkos::complex<float>;
 
+// Fast tier (xpmath P3.0b). Present only when the xpmath headers in use define
+// XPMATH_HAS_TIERS, so the harness still builds against xpmath 4d597fd, which
+// has none. The fast types forward to strict until a P3 task overrides a
+// function; the wrapper layer is not involved (task R.1 adds it), so these
+// kernels name the xp types directly and call through the Kokkos:: forwards.
+#if defined(XPMATH_HAS_TIERS)
+using DD_fast = xp::DoubleDoubleFast;
+using FF_fast = xp::FloatFloatFast;
+using TF_fast = xp::TripleFloatFast;
+using QF_fast = xp::QuadFloatFast;
+using DDC_fast = xp::DoubleDoubleComplexFast;
+using FFC_fast = xp::FloatFloatComplexFast;
+using TFC_fast = xp::TripleFloatComplexFast;
+using QFC_fast = xp::QuadFloatComplexFast;
+#endif
+
 // make(x, t): build a T from the double x. `t` in [-1,1) only gives DD a
 // non-trivial low word; FF/TF/QF take their limbs from x's exact expansion.
 template <class T>
@@ -91,6 +107,19 @@ XPK_XP_COMPLEX_TRAITS(DDC, DD);
 XPK_XP_COMPLEX_TRAITS(FFC, FF);
 XPK_XP_COMPLEX_TRAITS(TFC, TF);
 XPK_XP_COMPLEX_TRAITS(QFC, QF);
+#if defined(XPMATH_HAS_TIERS)
+template <>
+struct RealTraits<DD_fast> {
+  static constexpr double exp_max = 700.0;
+  static KOKKOS_INLINE_FUNCTION DD_fast make(double x, double t) {
+    return DD_fast(x, x * 0x1p-55 * t);
+  }
+};
+XPK_XP_COMPLEX_TRAITS(DDC_fast, DD_fast);
+XPK_XP_COMPLEX_TRAITS(FFC_fast, FF_fast);
+XPK_XP_COMPLEX_TRAITS(TFC_fast, TF_fast);
+XPK_XP_COMPLEX_TRAITS(QFC_fast, QF_fast);
+#endif
 #undef XPK_XP_COMPLEX_TRAITS
 
 // ---------------------------------------------------------------------------
@@ -109,6 +138,40 @@ struct Atan2 {};
 struct Abs {};
 }  // namespace op
 
+// Math dispatch for apply(): wrappers and builtins go through Kokkos::, the
+// fast-tier xp types (which have no Kokkos:: forwards) through their xp:: overloads.
+namespace fwd {
+using Kokkos::abs;
+using Kokkos::atan2;
+using Kokkos::exp;
+using Kokkos::log;
+using Kokkos::sin;
+using Kokkos::sqrt;
+#if defined(XPMATH_HAS_TIERS)
+template <class T>
+struct is_fast : std::false_type {};
+template <> struct is_fast<DD_fast> : std::true_type {};
+template <> struct is_fast<FF_fast> : std::true_type {};
+template <> struct is_fast<TF_fast> : std::true_type {};
+template <> struct is_fast<QF_fast> : std::true_type {};
+template <> struct is_fast<DDC_fast> : std::true_type {};
+template <> struct is_fast<FFC_fast> : std::true_type {};
+template <> struct is_fast<TFC_fast> : std::true_type {};
+template <> struct is_fast<QFC_fast> : std::true_type {};
+#define XPK_FAST_FWD1(name)                                                   \
+  template <class T, std::enable_if_t<is_fast<T>::value, int> = 0>            \
+  KOKKOS_INLINE_FUNCTION auto name(const T& a) { return xp::name(a); }
+XPK_FAST_FWD1(abs)
+XPK_FAST_FWD1(exp)
+XPK_FAST_FWD1(log)
+XPK_FAST_FWD1(sin)
+XPK_FAST_FWD1(sqrt)
+#undef XPK_FAST_FWD1
+template <class T, std::enable_if_t<is_fast<T>::value, int> = 0>
+KOKKOS_INLINE_FUNCTION T atan2(const T& a, const T& b) { return xp::atan2(a, b); }
+#endif
+}  // namespace fwd
+
 template <class T>
 KOKKOS_INLINE_FUNCTION auto apply(op::Add, const T& a, const T& b) { return a + b; }
 template <class T>
@@ -116,17 +179,17 @@ KOKKOS_INLINE_FUNCTION auto apply(op::Mul, const T& a, const T& b) { return a * 
 template <class T>
 KOKKOS_INLINE_FUNCTION auto apply(op::Div, const T& a, const T& b) { return a / b; }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Sqrt, const T& a, const T&) { return Kokkos::sqrt(a); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Sqrt, const T& a, const T&) { return fwd::sqrt(a); }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Exp, const T& a, const T&) { return Kokkos::exp(a); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Exp, const T& a, const T&) { return fwd::exp(a); }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Log, const T& a, const T&) { return Kokkos::log(a); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Log, const T& a, const T&) { return fwd::log(a); }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Sin, const T& a, const T&) { return Kokkos::sin(a); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Sin, const T& a, const T&) { return fwd::sin(a); }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Atan2, const T& a, const T& b) { return Kokkos::atan2(a, b); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Atan2, const T& a, const T& b) { return fwd::atan2(a, b); }
 template <class T>
-KOKKOS_INLINE_FUNCTION auto apply(op::Abs, const T& a, const T&) { return Kokkos::abs(a); }
+KOKKOS_INLINE_FUNCTION auto apply(op::Abs, const T& a, const T&) { return fwd::abs(a); }
 
 using RealOps = std::tuple<op::Add, op::Mul, op::Div, op::Sqrt, op::Exp, op::Log, op::Sin, op::Atan2>;
 using ComplexOps = std::tuple<op::Add, op::Mul, op::Div, op::Abs, op::Sqrt, op::Log, op::Exp>;
