@@ -58,7 +58,8 @@ one task, records the result, and stops.
 | ~~P2.3[b]~~ | DROPPED 2026-11-11 (user): complex fast/slow split | — | — | — |
 | ~~P2.4~~ | DROPPED 2026-11-11 (user): expansion arrays | — | — | — |
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.2[dd] |
-| P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0 |
+| P3.0b | Two-tier setup: tier switch, fast baselines, frozen Reference, gate script (added retroactively; done 2026-11-12, see status) | xpmath (staging) | login | P3.0 |
+| P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0b |
 | P4.0 | Generic-core design (STOP) | xpmath | login | R (v0.4.0 released) |
 | C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
 | R | Release v0.4.0, re-vendor, re-measure (after Phase 3, before Phase 4) | xpmath-kokkos | all 5 GPUs | Phase 3 done, ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
@@ -323,7 +324,8 @@ lists only if all of these hold:
    this task (NVIDIA: A100, B200, GB300; AMD: MI250, MI300);
 3. CHECK-HOST passed (it can never be deferred).
 
-**B200 standing deferral (user, 2026-11-11).** Through the end of Phase 2,
+**B200 standing deferral (user, 2026-11-11; extended through the end of
+Phase 3, 2026-11-12).** Through the end of Phase 3,
 B200 counts as unavailable for every task: condition 1 above holds without
 asking. Do not request a B200; defer it with a ledger row (conditions 2 and
 3 still apply). B200 rows are settled in batches by `C-b200` when the user
@@ -907,6 +909,110 @@ Each task is one row below, applied to one backend (dd first). For each:
 | P3.3[b] | `sincos` | Same series change as P3.2. Add a cheap multi-part pi/2 reduction for moderate arguments; keep Payne-Hanek only above a threshold the session measures. |
 | P3.4[b] | `multiply` | FMA-based double-word multiply (Joldes–Muller–Popescu) in place of the current full accumulation. |
 | P3.5[b] | complex `operator/` | Replace the 5-word expansion in `*_cross` with Kahan's FMA determinant for `a*b − c*d`. Also report local-memory traffic and scratch bytes before/after (P2.4 dropped in its favour). |
+
+> **Plan: gate rule for P3.1–P3.5 (amended 2026-11-12, orchestrator; policy
+> (c) chosen by the user in P3.0, tools built by P3.0b).** This replaces
+> steps 1–5 above. Every step is mechanical. Anything not covered here:
+> **stop and ask the user**.
+>
+> **Base.** xpmath `gpu-perf-staging` at e3ee1f1 or later. The policy file is
+> already on staging (edb4c6f), so there is no "copy from wip/P3.0" step.
+> Read `docs/PERF_ACCURACY_POLICY.md` and the header comment of
+> `include/xp/tier.hpp` (it shows how to override one function in the fast
+> tier). Work on `wip/<ID>` branched from staging.
+>
+> **Step 0 (P3.1[dd] only): prove P3.0b left the device bits alone.** P3.0b
+> landed on staging with no GPU checks (user decision). On every GPU this
+> session uses, at the session's starting staging commit:
+> - (a) `TIER=strict` sweep. CHECK-DEVICE-IDENTICAL against the 4d597fd
+>   limbs already in scratch: `$HOME/gpuperf-scratch/P2.2[tf]/<arch>/before.nc.csv`
+>   (a100, gb300, mi250, mi300; header/timing already stripped).
+> - (b) `TIER=fast` sweep. Its limbs must be identical to (a)'s, because fast
+>   forwards to strict until a task overrides something.
+> - (c) CUDA only: CHECK-SANITIZER on `sweep_device` and `sweep_device_fast`.
+> Any failure or device fault in (a)–(c): **stop**; it is a P3.0b defect.
+> These same runs are the task's "before" sweeps.
+>
+> **Candidate.** Put the change in `include/xp/<b>_fast.hpp` only (tier.hpp
+> pattern 1). If the row names several variants (P3.1[dd]: 1 and 2 Newton
+> steps), pre-screen each on the host, cheapest first: run the fast host
+> scorer (commands below). A variant passes the pre-screen if
+> absolute=0 and monotone=0. Carry forward only the **cheapest** passing
+> variant (fewest steps). If none passes: outcome **reject**; push
+> `wip/<ID>`, write the numbers, no GPU needed.
+>
+> **Fresh files for the gate.** Directory `$HOME/gpuperf-scratch/<ID>/fresh/`:
+> - Host (login node, candidate tree build):
+>   `sweep_accuracy --tier fast --ulp --register validation/sweep/open_defects.txt --out fresh/host.csv; echo "absolute=$?" > fresh/host.exits`
+>   then `sweep_accuracy --tier fast --baseline validation/sweep/sweep_baseline_fast.csv.gz; echo "monotone=$?" >> fresh/host.exits`.
+> - Each GPU: `TIER=fast` run of `validation/<arch>/run_<arch>_sweep.sh` with
+>   explicit `RAW_OUT`, `SCORED_OUT` and `BUILD_DIR` under scratch. The script
+>   writes `<RAW_OUT minus .csv>_fast.csv`, `<SCORED_OUT minus .csv>_fast.csv`
+>   and `<raw_fast>.csv.exits`. Copy the scored fast CSV to `fresh/<arch>.csv`
+>   and the `.exits` file to `fresh/<arch>.exits`.
+>
+> **Perf.** CHECK-PERF on each GPU: harness built against the start commit
+> (before) and the candidate tree (after); both have tiers, so `DD_fast` /
+> `cDD_fast` rows exist. Three interleaved repeats (b1 a1 b2 a2 b3 a3), then
+> `python3 -I ~/xpmath-kokkos/perf/perf_ratios.py --arch <arch> --out $HOME/gpuperf-scratch/<ID>/perf/ratios_<arch>.csv --before b1 b2 b3 --after a1 a2 a3`
+> (arch names: sm_80, sm_103, gfx90a, gfx942).
+>
+> **Gate.** In the candidate worktree:
+> `python3 -I scripts/p3_tier_gate.py --backend <DD|FF|TF|QF> --ops <op> --base <start SHA> --fresh <fresh dir> --perf <perf dir> --deferred b200[,<other deferred GPUs>] > $HOME/gpuperf-scratch/<ID>/gate.log 2>&1; echo "gate exit $?"`
+> `--ops` is the op the row names, as the sweep spells it (P3.1: `log`;
+> P3.2: `exp`; P3.3: the sweep's sin and cos op names; P3.4: the multiply op;
+> P3.5: the complex divide op). Accuracy rules already apply to **every** row
+> of the backend; `--ops` only picks which ops report stats and need the
+> speedup. If the gate says an op has no rows or no perf row: stop and ask.
+>
+> | Gate exit | Action |
+> |---|---|
+> | 0 | Promote: move the code into strict, delete the fast override, commit. Re-run `TIER=both` on host and every GPU run. The strict limbs must equal the candidate's fast limbs (`compare_sweep_limbs.py`); any difference: stop. Re-baseline strict **and** fast. |
+> | 1 | Keep fast-only (strict unchanged). Re-baseline fast only. |
+> | 2 | Reject. Nothing lands on staging. Push `wip/<ID>` with the candidate; status block gives the numbers. |
+> | 3, or any other code | Stop and ask. Quote `gate.log` in full. |
+>
+> **Re-baseline commit** (exits 0 and 1), its own commit after the code
+> commit, per `docs/CORRECTNESS.md` §5: host .gz from the `--out` command
+> there (with `--tier fast` for the fast file), device .gz =
+> `gzip -9 -c <scored CSV>` for each GPU run, then `scripts/gen_domains.py`
+> for `docs/DOMAINS.md` and `docs/DEVICE_PRECISION.md` (commit them if they
+> changed). Never touch `sweep_baseline*_b200.csv.gz` or any deferred GPU's
+> file; its ledger row owes it. Subject:
+> `P3.<n>[<b>]: re-baseline strict after <function>` (exit 0; covers strict
+> and fast files) or `P3.<n>[<b>]: re-baseline fast after <function>`
+> (exit 1). Body: the gate's per-op lines, its speed lines, and the RESULT
+> line, copied verbatim from `gate.log`.
+>
+> **Other checks, at the final commit** (after re-baseline; exits 0 and 1
+> only): CHECK-HOST 100% (it includes the fast gates);
+> CHECK-SANITIZER on A100 and GB300 for both binaries; CHECK-GFX90A-LINT for
+> strict and fast `.s` files. Any failure: stop and ask.
+>
+> **Landing.** Only on exit 0 or 1 with every check above passed: fast-forward
+> `gpu-perf-staging` to `wip/<ID>` (ancestor check first). Never move
+> `gpu-perf`. B200 is always deferred (§1.9, through Phase 3): one ledger row
+> per landed task, not bit-preserving, owing: `TIER=<accepted tier>` device
+> sweep scored and gated as in the policy's "Deferred GPU" paragraph,
+> CHECK-SANITIZER (both binaries), CHECK-PERF, and the b200 re-baseline.
+> Any other GPU the user says is unavailable: §1.9 rules, add it to
+> `--deferred`, one more ledger row.
+>
+> **GPUs, two at a time (user limit).** Fixed order, each pair released
+> before the next is requested:
+> 1. A100 + MI250: step 0 (P3.1[dd]), candidate `TIER=fast` sweep, perf.
+> 2. GB300 + MI300: the same.
+> 3. Login node: the gate.
+> 4. Exit 0 only: A100 + MI250 again (`TIER=both`, A100 sanitizer), then
+>    GB300 + MI300 again (`TIER=both`, GB300 sanitizer). Exit 1: the same
+>    pairs for the sanitizer only (fast binaries already ran).
+> If the user says a GPU is unavailable, continue with the rest (§1.9).
+>
+> **Report** (status block): per op, the gate's lines verbatim; tier
+> accepted into (or reject); every GPU's speed line with GB300 marked
+> report-only; step 0 results (P3.1[dd]); evidence paths. P3.4[tf] and
+> P3.4[qf] also owe the parked A/B (§1.10, GPU_PERF_PARKED.md rows 1–2);
+> P3.4[qf]'s must also pass CHECK-GFX90A-LINT.
 
 ---
 
