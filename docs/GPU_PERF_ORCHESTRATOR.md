@@ -54,13 +54,13 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-12, after P3.1[dd] review)
+## Current state (updated 2026-11-12, after P3.0c review)
 
 Verify these against the files and branches before relying on them.
 
-- **Branches.** xpmath `gpu-perf` = 4d597fd. `gpu-perf-staging` = e3ee1f1
-  (P3.0b: tiers, gate, fast baselines, frozen Reference; landed with NO GPU
-  checks, by user decision). xpmath-kokkos `gpu-perf` holds every
+- **Branches.** xpmath `gpu-perf` = 4d597fd. `gpu-perf-staging` = 9219ffa
+  (P3.0c on top of e3ee1f1 = P3.0b: tiers, gate, fast baselines, frozen
+  Reference; landed with NO GPU checks, by user decision). xpmath-kokkos `gpu-perf` holds every
   plan/status/ledger commit plus the P3.0b perf-harness fast types.
 - **P3.0 done:** policy (c) strict + fast tiers (wip/P3.0 = 19b6d8f).
   **P3.0b done** (not originally in the plan; index row added). Gate rule
@@ -85,9 +85,15 @@ Verify these against the files and branches before relying on them.
   f <= max(4, r+1) vs Reference only; bound rule for both; speed rules
   unchanged; K = 4 uniform. Dominance column in a P0.7 re-run after
   P3.5[qf], reported only.
-- **Next:** P3.0c (Muse-spark-bf16, prompt given 2026-11-12). Then resume
-  P3.1[dd] (re-screen 1-step first under the ulp rule, then 2-step), then
-  P3.1[ff]. The P3.1[ff] prompt given earlier is VOID (old pre-screen).
+- **P3.0c done** (Muse-spark-bf16): staging -> 9219ffa, gate code and
+  selftest (66/0, re-run by orchestrator) accepted. Its CHECK-HOST was NOT
+  clean (host ctest killed at 47/49; #26, #32 never finished). The P3.1[dd]
+  resume runs CHECK-HOST at 9219ffa first. Sanity: DD log 2-step on host is
+  exit 1 (fast only), worst point 0.573 -> 3.18 ulps.
+- **Next:** P3.1[dd] RESUME (prompt given 2026-11-12): new branch
+  wip/P3.1-dd-2 from 9219ffa, CHECK-HOST first, host-only pre-screen 1-step
+  then 2-step, GPU flow only if one passes. Then P3.1[ff] (new prompt; the
+  earlier one is VOID).
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
