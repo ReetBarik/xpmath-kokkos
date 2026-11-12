@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-12, after P3.0c review)
+## Current state (updated 2026-11-12, after P3.1[dd] resume stage A review)
 
 Verify these against the files and branches before relying on them.
 
@@ -97,12 +97,17 @@ Verify these against the files and branches before relying on them.
   block. Split tasks into stages ending in a hard STOP; the orchestrator
   writes the next stage. Note: xpm_build.sh builds with -j$(nproc); run it
   under `taskset -c 0-7` so nproc = 8.
-- **Next:** P3.1[dd] RESUME stage A (login only; prompt given 2026-11-12,
-  supersedes the first resume prompt): new branch wip/P3.1-dd-2 from
-  9219ffa, CHECK-HOST first, host-only pre-screen 1-step then 2-step, push,
-  status block, STOP. Stage B (GPU flow) is written after stage A reports,
-  only if a variant passed. Then P3.1[ff] (new prompt; the
-  earlier one is VOID).
+- **P3.1[dd] resume stage A done (Muse-spark-bf16), reviewed: PASS 2-step,
+  fast only** (host pre-screen exit 1; 1-step exit 2). CHECK-HOST at 9219ffa
+  clean ($HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost.log, 49/49 + 24/24).
+  origin/wip/P3.1-dd-2 = 3ab255a (62c1865 1-step, 3ab255a 2-step; only
+  dd_fast.hpp). Fresh host files: $HOME/gpuperf-scratch/P3.1[dd]/r2/fresh/.
+- **Next:** P3.1[dd] stage B (GPU flow, prompt in chat), split B1 (A100 +
+  MI250 TIER=fast sweep + perf), B2 (GB300 + MI300), B3 (login: gate +
+  re-baseline), B4 (sanitizer / TIER=both pairs, final checks, staging
+  fast-forward, B200 ledger row). Expected path: gate exit 1 if the fast
+  speed rule (>= 10% on one gated GPU, nothing > 3% slower) holds, else
+  exit 2. Then P3.1[ff] stage A.
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
