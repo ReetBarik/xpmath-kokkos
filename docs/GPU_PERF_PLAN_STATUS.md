@@ -801,3 +801,19 @@ Next session must know:
 - Fast device binaries (sweep_device_fast) are first run in P3.1[dd]; a fast device fault there is a P3.0b defect.
 - Medium code review findings deferred (not fixed): run scripts score 3x per run; scored CSV carries no tier header; check_tier_mix oracle is loose; --tier not validated in early-exit modes.
 Orchestrator review (2026-11-12): origin/gpu-perf-staging moved 4d597fd -> e3ee1f1 as a fast-forward (edb4c6f policy copy, 409924d, 464cdd2, e3ee1f1); 4d597fd is an ancestor, no force-push. gpu-perf still 4d597fd. CHECK-HOST 49/49 confirmed in /tmp/P30b-host.log; lint/{strict,fast} present. Gaps: (1) P3.0b had no plan section; index row added retroactively (36137a6). (2) Staging moved with no device checks and no ledger row. User decision 2026-11-12: no math changed, treat strict and fast as bit-identical to 4d597fd on all GPUs; no validation, no ledger row. A fast device fault in P3.1[dd] is a P3.0b defect. (3) The P3.0b note says to include chained callers in --ops, but the gate stops if an op has no perf row and requires every listed op to speed up. The plan uses only the op the row names; accuracy rules already cover every row of the backend. (4) ci.yml count change 67->72 / 44->49 still needs the user's review. Ran on: Sonnet / Claude Code.
+
+## P3.1[dd] — DD log: 3 -> 1/2 Newton steps
+Date: 2026-11-13   Outcome: Done (rejected; pre-screen failed, no GPU)
+Commits: xpmath@25f0411 on wip/P3.1-dd only (gpu-perf-staging and gpu-perf NOT moved, both still e3ee1f1 / 4d597fd). xpmath-kokkos: this block only.
+Changed: xpmath include/xp/dd_fast.hpp — detail::dd_log_fast_impl with 2-step loop (1-step also measured, then replaced) and fast log forwarder.
+Checks: CHECK-HOST 49/49 pre-screen via sweep gates on wip/P3.1-dd:
+  1-step (k<1): sweep_absolute_gate_fast PASS (0 defects), sweep_monotone_gate_fast FAIL — 384 decreased, worst drop 3.04 digits, 22 digit-record drift; log $HOME/gpuperf-scratch/P3.1[dd]/build_host_1step/host/Testing/Temporary/LastTest.log
+  2-step (k<2): sweep_absolute_gate_fast PASS (0 defects), sweep_monotone_gate_fast FAIL — 22 decreased, worst drop 1.23 digits; log $HOME/gpuperf-scratch/P3.1[dd]/build_host_2step/host/Testing/Temporary/LastTest.log
+  Fresh files per plan: $HOME/gpuperf-scratch/P3.1[dd]/fresh/host.csv + host.exits (absolute=0 monotone=2 for 2-step) + host_absolute.log + host_monotone.log
+  NOT RUN (not needed on reject): CHECK-DEVICE-IDENTICAL, CHECK-SANITIZER, CHECK-PERF, CHECK-GFX90A-LINT, sweep_device_fast on any GPU; p3_tier_gate.py not invoked (pre-screen already reject, exit 2 path).
+Measured: n/a — no GPU perf; host-only gate would be exit 2 (strict fail and fast fail). 3-step baseline remains at e3ee1f1 (DD log mean 30.93 digits cap 31.00, 0 defects, see $HOME/gpuperf-scratch/P3.1[dd]/fresh/host_absolute.log).
+Next session must know:
+- 1-step fails badly (384 worse); 2-step fixes most but still 22 Worse vs Current (points 371-433, 1604-1647 near a~1 and linear/ulp anchors). So 3 steps are still needed for DD log under the strict monotone rule (10^0.1 = 1.258x >1 ulp).
+- Branch wip/P3.1-dd = 25f0411 holds the 2-step override (cheapest failing evidence); 1-step evidence in build_host_1step logs.
+- Parked rows 1-2 still Re-test at P3.4[tf]/[qf]; no new parked row (reject, not neutral).
+- B200 deferred standing deferral still holds; no ledger row added (nothing landed).
