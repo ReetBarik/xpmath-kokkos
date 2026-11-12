@@ -77,10 +77,17 @@ Verify these against the files and branches before relying on them.
   fast Current" with fast Current == Reference means a first change gets
   no more accuracy room in fast than in strict; the 4x cap is reachable
   only cumulatively (P3.0b noted exit 1 is unreachable for now).
-- **Policy rethink (user, 2026-11-12):** after P3.1[dd], the user wants the
-  tier rules expressed in ulps, not ratios (DD log 2-step: worst point
-  0.089 -> 1.51 ulps, max 2.78 ulps, read as "-1.23 digits"). P3.1[ff]
-  prompt is ON HOLD until the new rule is decided and built (P3.0c).
+- **Precision-ladder policy (user, 2026-11-12; don't re-litigate).** The
+  backends fill the precision ladder between native types (float 24, FF ~46,
+  double 53, TF ~72, QF ~96, DD ~103-106, fp128 113 host). A fast tier is
+  its own rung: close to strict, above the next rung, cheaper. Rules in
+  ulps (plan P3.0c): strict f <= max(1, r+0.5) and <= max(1, c+0.5); fast
+  f <= max(4, r+1) vs Reference only; bound rule for both; speed rules
+  unchanged; K = 4 uniform. Dominance column in a P0.7 re-run after
+  P3.5[qf], reported only.
+- **Next:** P3.0c (Muse-spark-bf16, prompt given 2026-11-12). Then resume
+  P3.1[dd] (re-screen 1-step first under the ulp rule, then 2-step), then
+  P3.1[ff]. The P3.1[ff] prompt given earlier is VOID (old pre-screen).
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +

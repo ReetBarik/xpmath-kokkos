@@ -59,7 +59,8 @@ one task, records the result, and stops.
 | ~~P2.4~~ | DROPPED 2026-11-11 (user): expansion arrays | — | — | — |
 | P3.0 | Accuracy-vs-speed decision memo (STOP) | xpmath | login | P2.2[dd] |
 | P3.0b | Two-tier setup: tier switch, fast baselines, frozen Reference, gate script (added retroactively; done 2026-11-12, see status) | xpmath (staging) | login | P3.0 |
-| P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0b |
+| P3.0c | Tier rules in ulps (precision-ladder policy) + gate `--host-only` (added 2026-11-12) | xpmath (staging) | login | P3.0b, P3.1[dd] (reject, to be resumed) |
+| P3.1–P3.5[b] | Cheaper algorithms, one per task | xpmath | login + all 5 GPUs | P3.0c |
 | P4.0 | Generic-core design (STOP) | xpmath | login | R (v0.4.0 released) |
 | C-&lt;arch&gt; | Catch-up for a deferred GPU (e.g. C-a100) | xpmath | that GPU | open rows in the deferral ledger; for C-a100 also P0.5b |
 | R | Release v0.4.0, re-vendor, re-measure (after Phase 3, before Phase 4) | xpmath-kokkos | all 5 GPUs | Phase 3 done, ledger empty, xpmath `gpu-perf` == `gpu-perf-staging`, user merged and tagged |
@@ -630,6 +631,15 @@ generated file.
 **Done when:** `docs/PERF_TABLE.md` exists. This is the table users choose
 a type from, and the baseline every later task compares against.
 
+> **Plan: P0.7 re-run after Phase 3 (user, 2026-11-12).** After P3.5[qf]
+> and before the C-* catch-ups, re-run P0.7 with a row per backend **and
+> tier** (strict, fast) and a **dominance** column per GPU: for each
+> backend-tier, name any other backend-tier that is both faster and at
+> least as many working bits on that GPU (bits from xpmath's DOMAINS.md;
+> xpmath-kokkos only copies them, no accuracy verdict). Reported only,
+> never gated. If the inputs (fast-tier ns/op per GPU) are missing, stop
+> and ask.
+
 ---
 
 ## Phase 1 — Stop hiding operations from the compiler (bit-preserving)
@@ -888,9 +898,72 @@ For example:
 
 Push `gpu-perf` and **stop**. No P3.1+ task starts until the user has chosen.
 
+### P3.0c — Tier rules in ulps (added 2026-11-12, user)
+
+**Repo** xpmath (staging) · **Needs** login node · **Depends on** P3.0b; P3.1[dd] (rejected under the old rule, resumed after this task)
+
+**Why.** P3.1[dd] rejected DD log at 2 Newton steps, although its worst
+point went only from 0.089 to 1.51 ulps (max 2.78 ulps; the ratio rule
+read it as "−1.23 digits"). User's philosophy: the backends fill the
+precision ladder between native types (float 24 bits, FF ~46, double 53,
+TF ~72, QF ~96, DD ~103–106, fp128 113 on host). A fast tier is its own
+rung: close to strict (at most 2 bits lost), well above the next rung
+down, and cheaper. So the tier rules are stated in ulps, and the fast tier
+is capped against the frozen Reference only.
+
+**New rules (user, 2026-11-12), per scored point of the backend, at every
+gated location.** `f` fresh ulps, `r` Reference ulps, `c` strict Current
+ulps, `b` bound. State handling, row-set checks, bound-moved and
+other-backend checks are unchanged.
+
+| Rule | strict | fast |
+|---|---|---|
+| Bound rule | `f <= b` or `r > b` | `f <= b` or `r > b` |
+| vs Reference | `f <= max(1, r + 0.5)` | `f <= max(4, r + 1)` |
+| vs Current | `f <= max(1, c + 0.5)` | none (the Reference cap is absolute, so chained overrides cannot drift past it) |
+| Speed | unchanged (>= 3% on >= 1 gated GPU; no op > 3% slower) | unchanged (>= 10%; no op > 3% slower) |
+
+K = 4 ulps (2 bits) for every backend and op; the bound rule keeps
+multiply/divide at their bound of 3. The old ratio `worse()` is no longer
+used for any accept decision. Report lines keep max/med/p99, and replace
+the three "Worse" counts with counts of points failing each rule above,
+plus worst bits lost vs Reference (unchanged).
+
+**Steps.**
+1. Branch `wip/P3.0c` from `gpu-perf-staging`.
+2. `scripts/p3_tier_gate.py`: implement the table in `judge_location`
+   (replace `ok_bound`, `strict_ok`, `fast_ok`; constants `STRICT_SLACK = 0.5`,
+   `FAST_CAP = 4.0`, `FAST_SLACK = 1.0`). Add `--host-only`: needs only
+   `--backend --ops --base --fresh` (with `host.csv[.gz]` + `host.exits`),
+   no `--perf`, no GPUs; applies the accuracy rules at host only; exit 0 =
+   strict accuracy passes, 1 = fast accuracy passes only, 2 = neither,
+   3 = stop. It must print `HOST-ONLY: accuracy pre-screen, no speed
+   verdict` on its RESULT line. Normal mode unchanged otherwise.
+3. `scripts/p3_tier_gate_selftest.py`: update cases for the new rules and
+   add at least: fast pass/strict fail at r=0.089, f=1.51; strict pass at
+   r=0.6, f=1.0; strict fail at r=1.2, f=1.8; strict pass at r=1.2, f=1.7;
+   fast fail at r=3.0, f=4.2 with b=90; fast pass at r=10, f=10.9 with
+   b=20; fast fail at r=10, f=11.1 with b=20; bound fail at r=2.5, f=3.4,
+   b=3; bound pass at r=5, f=5.4, b=3 (fast; strict pass too: 5.4 <= 5.5);
+   strict fail via Current only (c=0.2, r=1.5, f=1.6 passes Ref, fails
+   Current? no: max(1, 0.7)=1 < 1.6, fails); `--host-only` exit codes 0/1/2/3.
+4. `docs/PERF_ACCURACY_POLICY.md`: replace the Worse-based definitions and
+   table with the table above, add the precision-ladder paragraph, and
+   change the pre-screen step to the `--host-only` gate.
+5. CHECK-HOST 100% (includes the selftests). Do not edit `sweep_accuracy.cpp`,
+   the bound, `kUlpAllowance`, the register, the Reference, CORRECTNESS.md,
+   or any baseline. The C++ monotone gates stay as they are (strict ctest
+   gates and the fast one in CHECK-HOST; fast is re-baselined on acceptance).
+6. Push `wip/P3.0c`; fast-forward `gpu-perf-staging` to it (ancestor check
+   first). No math changes, so no GPU checks and no ledger row. Never move
+   `gpu-perf`.
+
+**Done when:** the selftest passes the cases above, CHECK-HOST is 100%,
+staging holds the commit, and the status block quotes the selftest summary.
+
 ### P3.1–P3.5[b] — One algorithm change per task
 
-**Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P3.0 decided, and the same task for the previous backend
+**Repo** xpmath · **Needs** login + all 5 GPUs · **Depends on** P3.0c, and the same task for the previous backend
 
 Each task is one row below, applied to one backend (dd first). For each:
 1. Read only the function named.
@@ -928,12 +1001,19 @@ Each task is one row below, applied to one backend (dd first). For each:
 > is a P3.0b defect.
 >
 > **Candidate.** Put the change in `include/xp/<b>_fast.hpp` only (tier.hpp
-> pattern 1). If the row names several variants (P3.1[dd]: 1 and 2 Newton
-> steps), pre-screen each on the host, cheapest first: run the fast host
-> scorer (commands below). A variant passes the pre-screen if
-> absolute=0 and monotone=0. Carry forward only the **cheapest** passing
-> variant (fewest steps). If none passes: outcome **reject**; push
-> `wip/<ID>`, write the numbers, no GPU needed.
+> pattern 1). **Pre-screen (amended 2026-11-12, P3.0c: ulp rules).** If the
+> row names several variants (P3.1: 1 and 2 Newton steps), pre-screen each
+> on the host, cheapest first: write `fresh/host.csv` + `fresh/host.exits`
+> with the host commands below, then run
+> `python3 -I scripts/p3_tier_gate.py --host-only --backend <B> --ops <op> --base <start SHA> --fresh <fresh dir> > <scratch>/prescreen_<variant>.log 2>&1; echo "prescreen exit $?"`.
+> A variant passes if `absolute=0` in host.exits and the exit is 0 or 1
+> (the `monotone=` value is informational; the C++ ratio gate no longer
+> decides). Carry forward only the **cheapest** passing variant; stop
+> screening at the first pass. Exit 3: stop and ask. If none passes:
+> outcome **reject**; push `wip/<ID>`, write the numbers, no GPU needed.
+> Keep each variant's fresh files in `fresh_<variant>/` and copy the
+> carried-forward one to `fresh/`. Never use `--score-results` on a host
+> CSV (that mode is for raw device files).
 >
 > **Fresh files for the gate.** Directory `$HOME/gpuperf-scratch/<ID>/fresh/`:
 > - Host (login node, candidate tree build):
