@@ -65,9 +65,13 @@ Verify these against the files and branches before relying on them.
 - **P3.0 done:** policy (c) strict + fast tiers (wip/P3.0 = 19b6d8f).
   **P3.0b done** (not originally in the plan; index row added). Gate rule
   is in the plan as a `Plan:` amendment under P3.1–P3.5 (36137a6), with
-  P3.1[dd] step 0 proving P3.0b's device identity. B200 standing deferral
+  no P3.0b device validation (user: no math changed, assume bit-identical). B200 standing deferral
   extended through Phase 3.
-- **Next:** P3.1[dd]. Prompt blocked on the open ssh question below.
+- **Next:** P3.1[dd] (prompt given 2026-11-12).
+- **Workers (user, 2026-11-12):** open models in Claude Code from now on;
+  workflow unchanged (they ssh to GPU nodes themselves). Prompts still
+  spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
+  done-marker for long runs, mandatory checklist. Review harder.
 - **Ledger.** Rows 1-7 all CLOSED. No open rows.
 - **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
   Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
@@ -132,13 +136,11 @@ Verify these against the files and branches before relying on them.
 
 ## Open questions for the user (raise them; don't decide them)
 
-- (2026-11-12, unanswered) Can the Cursor / open-model workers ssh into GPU
-  nodes and keep a session alive through multi-hour runs? If not, P3.x
-  prompts must have the user launch sweeps and paste back log paths. Ask
-  before writing the P3.1[dd] prompt if the user hasn't answered.
+None open.
 
 Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
-probe NO-GO.
+probe NO-GO; workers = open models in Claude Code, ssh as before; no P3.0b
+GPU validation.
 
 ## Lessons from Phase 2 (put them in prompts when relevant)
 

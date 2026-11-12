@@ -921,17 +921,11 @@ Each task is one row below, applied to one backend (dd first). For each:
 > `include/xp/tier.hpp` (it shows how to override one function in the fast
 > tier). Work on `wip/<ID>` branched from staging.
 >
-> **Step 0 (P3.1[dd] only): prove P3.0b left the device bits alone.** P3.0b
-> landed on staging with no GPU checks (user decision). On every GPU this
-> session uses, at the session's starting staging commit:
-> - (a) `TIER=strict` sweep. CHECK-DEVICE-IDENTICAL against the 4d597fd
->   limbs already in scratch: `$HOME/gpuperf-scratch/P2.2[tf]/<arch>/before.nc.csv`
->   (a100, gb300, mi250, mi300; header/timing already stripped).
-> - (b) `TIER=fast` sweep. Its limbs must be identical to (a)'s, because fast
->   forwards to strict until a task overrides something.
-> - (c) CUDA only: CHECK-SANITIZER on `sweep_device` and `sweep_device_fast`.
-> Any failure or device fault in (a)–(c): **stop**; it is a P3.0b defect.
-> These same runs are the task's "before" sweeps.
+> **No P3.0b validation (user, 2026-11-12).** P3.0b changed no math; strict
+> and fast are taken as bit-identical to 4d597fd on every GPU. Do not spend
+> GPU time proving it. But P3.1[dd] is the first to run `sweep_device_fast`
+> on a GPU: if it faults (crash, error 700, `last_error() != 0`), stop; that
+> is a P3.0b defect.
 >
 > **Candidate.** Put the change in `include/xp/<b>_fast.hpp` only (tier.hpp
 > pattern 1). If the row names several variants (P3.1[dd]: 1 and 2 Newton
@@ -1000,7 +994,7 @@ Each task is one row below, applied to one backend (dd first). For each:
 >
 > **GPUs, two at a time (user limit).** Fixed order, each pair released
 > before the next is requested:
-> 1. A100 + MI250: step 0 (P3.1[dd]), candidate `TIER=fast` sweep, perf.
+> 1. A100 + MI250: candidate `TIER=fast` sweep, perf.
 > 2. GB300 + MI300: the same.
 > 3. Login node: the gate.
 > 4. Exit 0 only: A100 + MI250 again (`TIER=both`, A100 sanitizer), then
@@ -1010,7 +1004,7 @@ Each task is one row below, applied to one backend (dd first). For each:
 >
 > **Report** (status block): per op, the gate's lines verbatim; tier
 > accepted into (or reject); every GPU's speed line with GB300 marked
-> report-only; step 0 results (P3.1[dd]); evidence paths. P3.4[tf] and
+> report-only; evidence paths. P3.4[tf] and
 > P3.4[qf] also owe the parked A/B (§1.10, GPU_PERF_PARKED.md rows 1–2);
 > P3.4[qf]'s must also pass CHECK-GFX90A-LINT.
 
