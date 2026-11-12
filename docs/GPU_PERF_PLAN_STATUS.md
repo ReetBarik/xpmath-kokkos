@@ -785,3 +785,17 @@ Next session must know:
 - NEW TASK NEEDED before P3.1: P3.0b (user chose a dedicated setup task, run by a stronger model with the user) builds the tier switch, the fast baselines (copies of strict), the frozen reference, the per-point compare script that applies the table, and xpmath-kokkos two-tier bit-identity tests. The orchestrator must add P3.0b to GPU_PERF_PLAN.md; P3.1+ depends on it.
 - CORRECTNESS.md §3 says "no point above its bound" but sweep_accuracy.cpp:2097 kUlpAllowance = 8.0; 109 host rows are above 1x. Flagged for a separate fix; P3 does not touch it.
 - P3.4 caveat (unverified, from memory): JMP FMA mul may reach ~4-5 ulps vs mul bound 3, which would fail both tiers. P3.4 must measure it.
+
+## P3.0b — Two-tier setup (strict/fast switch, fast baselines, frozen reference, gate)
+Date: 2026-11-12   Outcome: Done (device checks skipped by the user's decision)
+Commits: xpmath@e3ee1f1 on gpu-perf-staging and wip/P3.0b (3 commits on top of edb4c6f; gpu-perf NOT moved, still 4d597fd). xpmath-kokkos: harness + this block on gpu-perf.
+Changed: xpmath include/xp/tier.hpp, {dd,ff,tf,qf}_fast.hpp, one #include per *_complex.hpp; scripts/sweep_accuracy.cpp (--tier, tier-header refusal exit 2), sweep_device.cpp (# tier: header); validation/*/run_*_sweep.sh (TIER=strict|fast|both, writes <raw>.exits); scripts/p3_tier_gate.py + selftest; tests/tier_mix_compile_fail.cpp; validation/check_{tier_mix,reference_frozen}.sh; 5 fast baselines (byte copies of strict); validation/sweep/reference_4d597fd/; ci.yml counts 67->72 suite, 44->49 host (user to review); NOTICE.md; CORRECTNESS.md count; PERF_ACCURACY_POLICY.md. xpmath-kokkos perf/*: *_fast types behind XPMATH_HAS_TIERS, throughput unit ids 6-9, perf/perf_ratios.py.
+Checks: CHECK-HOST 49/49 pass (/tmp/P30b-host.log, may be gone). Gate selftest 58 cases pass. Harness builds against wt and 4d597fd, 13 ctests each. GFX90A lint (not required, no inlining changed) strict and fast rc=0 ($HOME/gpuperf-scratch/P3.0b/lint/). NOT RUN, by user decision: CHECK-DEVICE-IDENTICAL, CHECK-PERF, CHECK-SANITIZER on any GPU; no fast GPU runs. Strict device unchanged is therefore UNPROVEN until P3.1[dd].
+Measured: n/a. xpmath-kokkos issues no accuracy verdict.
+Decisions (user): option F with per-function chaining; fast baselines copied from strict; device fast identity dropped; rest of xpmath-kokkos deferred to R.1.
+Next session must know:
+- Gate: python3 -I scripts/p3_tier_gate.py --backend --ops --base --fresh <dir with <loc>.csv[.gz] + <loc>.exits, locs host a100 b200 mi250 mi300 gb300> --perf <dir with ratios_{sm_80,sm_100,gfx90a,gfx942,sm_103}.csv from xpmath-kokkos perf/perf_ratios.py>. Exits: 0 strict pass, 1 fast-only, 2 reject, 3 tool error stop.
+- Flow: change in fast first; on exit 0 promote to strict and re-run TIER=both. Exit 1 is unreachable until strict and the Reference diverge.
+- .exits holds absolute= and monotone=; monotone=-1 means skipped (no baseline file).
+- Fast device binaries (sweep_device_fast) are first run in P3.1[dd]; a fast device fault there is a P3.0b defect.
+- Medium code review findings deferred (not fixed): run scripts score 3x per run; scored CSV carries no tier header; check_tier_mix oracle is loose; --tier not validated in early-exit modes.
