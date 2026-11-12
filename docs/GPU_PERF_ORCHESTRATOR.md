@@ -102,6 +102,11 @@ Verify these against the files and branches before relying on them.
   clean ($HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost.log, 49/49 + 24/24).
   origin/wip/P3.1-dd-2 = 3ab255a (62c1865 1-step, 3ab255a 2-step; only
   dd_fast.hpp). Fresh host files: $HOME/gpuperf-scratch/P3.1[dd]/r2/fresh/.
+- **Stage B1 prompt given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
+  commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
+  worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
+  impossible for this candidate (host strict already fails); B4 needs only
+  A100 + GB300 (sanitizer is CUDA-only).
 - **Next:** P3.1[dd] stage B (GPU flow, prompt in chat), split B1 (A100 +
   MI250 TIER=fast sweep + perf), B2 (GB300 + MI300), B3 (login: gate +
   re-baseline), B4 (sanitizer / TIER=both pairs, final checks, staging
