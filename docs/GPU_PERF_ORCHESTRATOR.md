@@ -77,7 +77,10 @@ Verify these against the files and branches before relying on them.
   fast Current" with fast Current == Reference means a first change gets
   no more accuracy room in fast than in strict; the 4x cap is reachable
   only cumulatively (P3.0b noted exit 1 is unreachable for now).
-- **Next:** P3.1[ff] (prompt given 2026-11-12).
+- **Policy rethink (user, 2026-11-12):** after P3.1[dd], the user wants the
+  tier rules expressed in ulps, not ratios (DD log 2-step: worst point
+  0.089 -> 1.51 ulps, max 2.78 ulps, read as "-1.23 digits"). P3.1[ff]
+  prompt is ON HOLD until the new rule is decided and built (P3.0c).
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
