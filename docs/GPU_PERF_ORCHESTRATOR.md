@@ -90,9 +90,18 @@ Verify these against the files and branches before relying on them.
   clean (host ctest killed at 47/49; #26, #32 never finished). The P3.1[dd]
   resume runs CHECK-HOST at 9219ffa first. Sanity: DD log 2-step on host is
   exit 1 (fast only), worst point 0.573 -> 3.18 ulps.
-- **Next:** P3.1[dd] RESUME (prompt given 2026-11-12): new branch
-  wip/P3.1-dd-2 from 9219ffa, CHECK-HOST first, host-only pre-screen 1-step
-  then 2-step, GPU flow only if one passes. Then P3.1[ff] (new prompt; the
+- **Prompts must be mechanical (user, 2026-11-12).** The open model
+  struggled through P3.0c. Every prompt: literal copy-paste commands (no
+  variables carried between steps), an expected-output check after each
+  step ("else STOP and paste X"), decision tables, a pre-filled status
+  block. Split tasks into stages ending in a hard STOP; the orchestrator
+  writes the next stage. Note: xpm_build.sh builds with -j$(nproc); run it
+  under `taskset -c 0-7` so nproc = 8.
+- **Next:** P3.1[dd] RESUME stage A (login only; prompt given 2026-11-12,
+  supersedes the first resume prompt): new branch wip/P3.1-dd-2 from
+  9219ffa, CHECK-HOST first, host-only pre-screen 1-step then 2-step, push,
+  status block, STOP. Stage B (GPU flow) is written after stage A reports,
+  only if a variant passed. Then P3.1[ff] (new prompt; the
   earlier one is VOID).
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
