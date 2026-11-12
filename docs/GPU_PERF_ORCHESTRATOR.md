@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-12, after P3.0/P3.0b review)
+## Current state (updated 2026-11-12, after P3.1[dd] review)
 
 Verify these against the files and branches before relying on them.
 
@@ -67,7 +67,17 @@ Verify these against the files and branches before relying on them.
   is in the plan as a `Plan:` amendment under P3.1–P3.5 (36137a6), with
   no P3.0b device validation (user: no math changed, assume bit-identical). B200 standing deferral
   extended through Phase 3.
-- **Next:** P3.1[dd] (prompt given 2026-11-12).
+- **P3.1[dd] done: REJECT** (host pre-screen; no GPU). DD log 1-step:
+  384 points Worse, worst 3.04 digits; 2-step: 22 Worse, worst 1.23 digits.
+  3 Newton steps stay. wip/P3.1-dd = 25f0411 (2-step override). Its
+  fresh/host.exits monotone=2 is a misuse of `--score-results` on a host
+  CSV, not a result; prompts now say to use the plan's commands verbatim.
+  Branch names use `-<b>` (git refs can't contain `[`).
+- **Policy observation (raised with user 2026-11-12):** fast "not Worse vs
+  fast Current" with fast Current == Reference means a first change gets
+  no more accuracy room in fast than in strict; the 4x cap is reachable
+  only cumulatively (P3.0b noted exit 1 is unreachable for now).
+- **Next:** P3.1[ff] (prompt given 2026-11-12).
 - **Workers (user, 2026-11-12):** open models in Claude Code from now on;
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
