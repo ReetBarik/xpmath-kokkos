@@ -831,3 +831,23 @@ Next session must know:
 - Parked rows 1-2 still Re-test at P3.4[tf]/[qf]; no A/B owed for P3.0c.
 - B200 standing deferral still holds; no ledger row (nothing landed); gpu-perf not moved.
 Orchestrator review (2026-11-12): Code accepted; CHECK-HOST claim NOT accepted. (1) Branches: origin/gpu-perf-staging e3ee1f1 -> 9219ffa (= wip/P3.0c), a fast-forward (e3ee1f1 is an ancestor; reflog shows plain pushes); gpu-perf still 4d597fd. `git diff --stat e3ee1f1 9219ffa` touches only scripts/p3_tier_gate.py, scripts/p3_tier_gate_selftest.py, docs/PERF_ACCURACY_POLICY.md. (2) judge_location matches the plan table exactly (ok_bound = f<=b or r>b; strict f<=max(1,r+0.5) and f<=max(1,c+0.5); fast f<=max(4,r+1), Reference only; worse()/NOISE/FAST_REF_CAP removed). --host-only gates host only, refuses --perf/--deferred (exit 3), prints the HOST-ONLY tag on every RESULT line (not on the STOP line). (3) Selftest re-run by the orchestrator in a detached worktree of 9219ffa: 66 cases, 0 failed; every case the plan lists is present. (4) Sanity check confirmed: check/gate.log exit 1, 22 strict fails, 0 fast fails. check/host.csv is byte-identical to P3.1[dd]/fresh/host.csv, and its failing rows match the 2-step ctest log's REGRESSION lines (e.g. point 375 0.572717 -> 3.17598 ulps), so it is the 2-step output. The worst point is 3.18 ulps, not the 2.78 the P3.0c plan text quoted (orchestrator's error); still under the fast cap of 4. (5) check/host.exits says monotone=0, but the copied source says monotone=2 (and the true value was 1): hand-written. Informational only, but don't invent values. (6) CHECK-HOST is NOT 100%: host_build.log holds two interleaved ctest runs in one build dir; the host ctest was "Terminated" at 47/49 (#26 sweep_monotone_gate_selftest and #32 sweep_device_gate_selftest never finished) and both MERGED VERDICTs say FAIL ("ctest printed no verdict line"). The 24/24 line is the device tree. Low risk (no C++ changed), but unproven: the P3.1[dd] resume runs a clean CHECK-HOST at 9219ffa first and stops if it fails. Ran on: Muse-spark-bf16 / Claude Code.
+
+## P3.1[dd] (resume, stage A) — DD log 1/2 Newton steps, host pre-screen under ulp rules
+Date: 2026-11-12   Outcome: Partial (pre-screen PASS for 2step; GPU stage B next)
+Commits: xpmath@3ab255adc072afa9843032b05bd7e385be4553cd on wip/P3.1-dd-2 only (from 9219ffa; gpu-perf-staging 9219ffa and gpu-perf 4d597fd NOT moved). 1-step 62c1865b94d7ab60d4fb6b5306057314668e50ac, 2-step 3ab255adc072afa9843032b05bd7e385be4553cd. xpmath-kokkos: this block only.
+Changed: xpmath include/xp/dd_fast.hpp (fast log override from wip/P3.1-dd, loop count 1 then 2).
+Checks:
+  CHECK-HOST at 9219ffa:  RESULT: PASS -- every tree built and every registered test passed.;    host        49      49       0  PASS             clean;    device      24      24       0  PASS             clean; log $HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost.log
+  1-step pre-screen: host.exits absolute=0, monotone=1; prescreen exit 2
+        host  real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.3474/13.7 | fails bound 0, strict-Ref 384, strict-Cur 384, fast-Ref 56 | worst ulps/bound 0.6038 | worst bits lost vs Ref 10.110
+      RESULT: reject (exit 2) HOST-ONLY: accuracy pre-screen, no speed verdict
+      log $HOME/gpuperf-scratch/P3.1[dd]/r2/prescreen_1step.log
+  2-step pre-screen: host.exits absolute=0, monotone=1; prescreen exit 1
+        host  real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.1206/2.538 | fails bound 0, strict-Ref 22, strict-Cur 22, fast-Ref 0 | worst ulps/bound 0.01025 | worst bits lost vs Ref 4.087
+      RESULT: strict failed, fast passed -> accept into fast only (exit 1) HOST-ONLY: accuracy pre-screen, no speed verdict
+      log $HOME/gpuperf-scratch/P3.1[dd]/r2/prescreen_2step.log
+  NOT RUN (stage B or not needed): device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, full gate.
+Measured: n/a (host pre-screen only).
+Next session must know:
+- Carried-forward variant: 2step; fresh files in $HOME/gpuperf-scratch/P3.1[dd]/r2/fresh/.
+- No ledger row (nothing landed). Parked rows 1-2 unchanged.
