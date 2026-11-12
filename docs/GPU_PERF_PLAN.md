@@ -945,8 +945,9 @@ plus worst bits lost vs Reference (unchanged).
    fast fail at r=3.0, f=4.2 with b=90; fast pass at r=10, f=10.9 with
    b=20; fast fail at r=10, f=11.1 with b=20; bound fail at r=2.5, f=3.4,
    b=3; bound pass at r=5, f=5.4, b=3 (fast; strict pass too: 5.4 <= 5.5);
-   strict fail via Current only (c=0.2, r=1.5, f=1.6 passes Ref, fails
-   Current? no: max(1, 0.7)=1 < 1.6, fails); `--host-only` exit codes 0/1/2/3.
+   strict fail via Current only (c=0.2, r=1.5, f=1.6: Ref limit 2.0 passes,
+   Current limit 1.0 fails; fast passes); `--host-only` exit codes 0/1/2/3.
+   Unless stated, c = r.
 4. `docs/PERF_ACCURACY_POLICY.md`: replace the Worse-based definitions and
    table with the table above, add the precision-ladder paragraph, and
    change the pre-screen step to the `--host-only` gate.
