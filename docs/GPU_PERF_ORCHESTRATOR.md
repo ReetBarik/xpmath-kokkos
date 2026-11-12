@@ -54,13 +54,20 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-12)
+## Current state (updated 2026-11-12, after P3.0/P3.0b review)
 
 Verify these against the files and branches before relying on them.
 
-- **Branches.** xpmath `gpu-perf` = `gpu-perf-staging` = 4d597fd (P2.2[dd]
-  landed 2026-11-11, block "P2.2[dd] (final)"). Nothing has landed since.
-  xpmath-kokkos `gpu-perf` holds every plan/status/ledger commit.
+- **Branches.** xpmath `gpu-perf` = 4d597fd. `gpu-perf-staging` = e3ee1f1
+  (P3.0b: tiers, gate, fast baselines, frozen Reference; landed with NO GPU
+  checks, by user decision). xpmath-kokkos `gpu-perf` holds every
+  plan/status/ledger commit plus the P3.0b perf-harness fast types.
+- **P3.0 done:** policy (c) strict + fast tiers (wip/P3.0 = 19b6d8f).
+  **P3.0b done** (not originally in the plan; index row added). Gate rule
+  is in the plan as a `Plan:` amendment under P3.1–P3.5 (36137a6), with
+  P3.1[dd] step 0 proving P3.0b's device identity. B200 standing deferral
+  extended through Phase 3.
+- **Next:** P3.1[dd]. Prompt blocked on the open ssh question below.
 - **Ledger.** Rows 1-7 all CLOSED. No open rows.
 - **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
   Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
@@ -85,17 +92,6 @@ Verify these against the files and branches before relying on them.
     not run. Parked row 2, Re-test at P3.4[qf] (must pass lint too).
     Status block "P2.2[qf] ... (probe)" + orchestrator review. Phase 2 is
     finished.
-- **In flight.**
-  - `P3.0` (Opus, interactive with the user; no GPU). Worktree
-    $HOME/gpuperf-scratch/P3.0/wt on xpmath `wip/P3.0` (local only, still at
-    4d597fd with no commits as of 2026-11-12; not on origin). Pushes only
-    wip/P3.0 + a status block; checklist line "Policy decided:
-    (a)/(b)/(c)/other/Undecided".
-- **After P3.0 reports:** if the user chose a policy, write its gate rule
-  into the P3.1-P3.5 section (`Plan: ...`). P3.1[dd]'s first commit copies
-  docs/PERF_ACCURACY_POLICY.md onto staging from origin/wip/P3.0. P3.4[tf]
-  (and P3.4[qf] if parked) owes the parked A/B (§1.10); mention it in
-  those prompts.
 - **Order to v0.4.0 (user, 2026-11-11):** Phase 2 (done) -> P3.0 ->
   P3.1-P3.5 [dd,ff,tf,qf] -> C-<arch> for open rows (one C-b200 needs a
   B200 window) -> user merges and tags v0.4.0 -> R. Then Phase 4. Reason:
