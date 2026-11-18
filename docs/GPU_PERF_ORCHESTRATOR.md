@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-12, after P3.1[dd] resume stage A review)
+## Current state (updated 2026-11-18, B1 found not run; re-issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -102,7 +102,12 @@ Verify these against the files and branches before relying on them.
   clean ($HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost.log, 49/49 + 24/24).
   origin/wip/P3.1-dd-2 = 3ab255a (62c1865 1-step, 3ab255a 2-step; only
   dd_fast.hpp). Fresh host files: $HOME/gpuperf-scratch/P3.1[dd]/r2/fresh/.
-- **Stage B1 prompt given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
+- **Stage B1 never ran (checked 2026-11-18):** no worktrees, no
+  run-node.sh, no a100/mi250/perf dirs in r2; no branch moved; r2/fresh
+  still holds only stage A's host files (Nov 12 03:36). User was on a break.
+  **B1 re-issued 2026-11-18 for Sonnet 5.5 / Claude Code** (same content as
+  below; adds pre-launch file checks and a 4 h wait limit).
+- **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
   impossible for this candidate (host strict already fails); B4 needs only
