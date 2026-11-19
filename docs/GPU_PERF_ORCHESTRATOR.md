@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf] stage A issued)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf] REJECTED; P3.1[qf] next)
 
 Verify these against the files and branches before relying on them.
 
@@ -278,6 +278,24 @@ Verify these against the files and branches before relying on them.
   41f4cf7546269ae5d967e73d931dbf5b (16 lines; reject -> Next P3.1[qf]).
   Pre-screen `--host-only --backend TF --ops log --base c9e342e` ->
   prescreen_2step.log. Link p31tf-link for stage B.
+- **P3.1[tf] stage A verified 2026-11-19: REJECT, P3.1[tf] CLOSED.**
+  (Ran on: Sonnet 5.5 / Claude Code.) Candidate xpmath 92b4580 (parent
+  c9e342e, tf_fast.hpp +21/-1) on wip/P3.1-tf only; staging c9e342e and
+  gpu-perf 4d597fd unmoved. Script md5s, status-a.log (one START, build
+  rc=0), host.exits absolute=0 monotone=1, 436080 rows, nohup-a.out
+  empty, prescreen exit 2 all checked from scratch by orchestrator.
+  Real log 2 steps: 20 strict / 18 fast-rule failures, worst 24.6 bits
+  lost vs Ref (row 1618: 606446 ulps vs Ref 0.024, bound 6.4e9, i.e.
+  ill-conditioned inputs near 1); ulp-bound fails 0. Complex log
+  unchanged. TF log stays at 3 steps. Status block e003cc8. No GPU, no
+  ledger row. Cleanup given to user: remove P3.1[tf]/wt worktree and
+  build_2step (logs, scripts, fresh_2step kept).
+  Orchestrator probe for QF (sample points, scratch-free, deleted after):
+  QF 2 steps vs strict 3 differs by up to 3.2e-23 relative at 1+1e-7
+  (~20 bits of a ~2^-96 ulp), and by 1.9e-27 at 3e7; TF 2 vs 3 at
+  1+1e-6 differs 5.3e-17 (~18 bits), matching the gate's TF finding.
+  So a QF 2-step pre-screen is expected to reject. User asked whether to
+  run P3.1[qf] stage A anyway or close it on this evidence.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
