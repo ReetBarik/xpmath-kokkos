@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] stage A issued)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED at stage A; next P3.1[tf])
 
 Verify these against the files and branches before relying on them.
 
@@ -252,6 +252,18 @@ Verify these against the files and branches before relying on them.
   c9e342e` -> prescreen_1step.log. Status block via adocs.py md5
   1b2b2bd49c4f2d0b26948795f4c95d48 (16 lines). Base CHECK-HOST reused
   from P3.1[dd] B3 (same commit). Link p31ff-link for stage B.
+- **P3.1[ff] stage A verified 2026-11-19: REJECT, P3.1[ff] CLOSED.**
+  Candidate xpmath f6c3a4f (parent c9e342e) on wip/P3.1-ff only; staging
+  c9e342e and gpu-perf 4d597fd unmoved. Script md5s, status-a.log (one
+  START, build rc=0), host.exits absolute=0 monotone=1, 436080 rows,
+  prescreen exit 2 all checked from scratch by orchestrator. Real log
+  1 step: 488 strict / 72 fast-rule failures, worst 9.0 bits lost vs
+  Ref, ulp-bound fails 4 (gate rule f>bound && Ref<=bound; the
+  scorer's absolute gate still passed). Complex log unchanged. FF log
+  stays at 2 steps. Status block 02dea4b. No GPU used, no ledger row.
+  Scratch P3.1[ff] (wt, build_1step) can be removed once wip/P3.1-ff
+  is no longer needed. **Next: P3.1[tf]** (plan row: measure whether
+  TF log still needs 3 steps; read tf log first).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
