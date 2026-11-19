@@ -917,3 +917,22 @@ Next session must know:
 - B200 owes ledger row 8 (C-b200 when there is a window).
 - Slow-check scope and the ratio input check are on staging and
   apply from P3.1[ff] on.
+
+Orchestrator review (2026-11-19, B4; Ran on: Sonnet 5.5 / Claude
+Code): verified against files. r2/run-b4.sh md5 0c302d70... and
+r2/b4docs.py md5 ac070d14... match. First run-b4.sh write had
+trailing spaces (md5 mismatch); with user approval the worker
+stripped trailing whitespace only (via a /tmp copy) before starting;
+file mtime 02:43:52 < START 02:43:58. node-b4.txt: gpu06 x86_64 (A100),
+graceblackwell01 aarch64 (GB300). Both status-b4.log: one START
+<D> c9e342e, build rc=0, build fast rc=0, san strict/fast rc=0,
+ALLDONE. All four san-*.log: where=cuda, "wrote 436080 rows" once,
+"ERROR SUMMARY: 0 errors". san-fast.csv data rows are byte-identical
+to the B1/B2 fast sweeps (a100-raw_fast.csv, gb300-raw_fast.csv;
+headers differ only in the worktree path). ls-remote: gpu-perf
+4d597fd (unmoved), staging and wip c9e342e; staging reflog 9219ffa ->
+c9e342e, ancestor OK. eb80ad1 parent ce64044, 2 files +66;
+re-running b4docs.py on a copy of the ce64044 docs reproduces both
+files byte for byte. Evidence timestamps unchanged; wt-final c9e342e.
+Cosmetic: the commit subject wrapped onto two lines. P3.1[dd] CLOSED:
+fast tier, staging c9e342e, ledger row 8 open (B200).

@@ -54,12 +54,13 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B3b+B3 verified (gate exit 1, fast); B4 issued)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED (fast tier, staging c9e342e); next P3.1[ff] stage A)
 
 Verify these against the files and branches before relying on them.
 
-- **Branches.** xpmath `gpu-perf` = 4d597fd. `gpu-perf-staging` = 9219ffa
-  (P3.0c on top of e3ee1f1 = P3.0b: tiers, gate, fast baselines, frozen
+- **Branches.** xpmath `gpu-perf` = 4d597fd. `gpu-perf-staging` =
+  c9e342e (P3.1[dd] FINAL, fast-forwarded from 9219ffa by B4; 9219ffa =
+  P3.0c on top of e3ee1f1 = P3.0b: tiers, gate, fast baselines, frozen
   Reference; landed with NO GPU checks, by user decision). xpmath-kokkos `gpu-perf` holds every
   plan/status/ledger commit plus the P3.0b perf-harness fast types.
 - **P3.0 done:** policy (c) strict + fast tiers (wip/P3.0 = 19b6d8f).
@@ -232,6 +233,14 @@ Verify these against the files and branches before relying on them.
   intact. 1.3G perf copy already gone. **B4 issued** (A100 + GB300
   sanitizer on wt-final, runner r2/run-b4.sh; then staging -> c9e342e,
   ledger row 8, final status block via md5-checked r2/b4docs.py).
+- **B4 DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 / Claude Code).
+  P3.1[dd] CLOSED: accepted into the FAST tier only.** Sanitizer clean
+  on gpu06 (A100) + graceblackwell01 (GB300), both binaries, 436080
+  rows each; san-fast data == B1/B2 fast sweeps. Staging 9219ffa ->
+  c9e342e (ff). Worker docs commit eb80ad1 (ledger row 8 = B200, OPEN;
+  status block "P3.1[dd] (final)"), reproduced by re-running b4docs.py.
+  Cleanup lines given to the user. **Next: P3.1[ff] stage A** (host
+  pre-screen, branch wip/P3.1-ff from c9e342e).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -247,7 +256,7 @@ Verify these against the files and branches before relying on them.
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
   done-marker for long runs, mandatory checklist. Review harder.
-- **Ledger.** Rows 1-7 all CLOSED. No open rows.
+- **Ledger.** Rows 1-7 CLOSED. Row 8 OPEN (P3.1[dd] b200, §1.9).
 - **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
   Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
   Re-test at `P3.4[tf]`. Parked by explicit user exception to §1.10's
