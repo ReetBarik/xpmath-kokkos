@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B2b verified; B3 issued)
+## Current state (updated 2026-11-19, P3.1[dd] B2b verified; slow-check scope amended; B3a issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -166,8 +166,17 @@ Verify these against the files and branches before relying on them.
   (reject) at B3. The user's verdict-stands rule applies. Policy thought
   (3% check catches MI300 drift on unchanged ops) has now recurred:
   raised with the user for P3.1[ff] onward, not for this verdict.
-- **B3 issued 2026-11-19** (gate with --perf r2/perf6; exit 1 ->
-  re-baseline + CHECK-HOST + lint; exit 2 -> reject status block).
+- **B3 (first version) WITHDRAWN before it ran.** User decision
+  2026-11-19 (option A): narrow the 3% slow check to changed ops (real +
+  complex) + science; other rows report only. Applied to P3.1[dd] too,
+  disclosed in its status block (rule changed after MI300 numbers were
+  known). Plan amendment "slow-check scope". Orchestrator could not test
+  the patch itself (writes to /vast and /tmp blocked by auto mode).
+  Stage **B3a** issued: worker edits scripts/p3_tier_gate.py, selftest
+  (66 -> 67 cases) and docs/PERF_ACCURACY_POLICY.md on wip/P3.1-dd-2
+  (one commit after 3ab255a), pushes, STOPs. Orchestrator reviews the
+  diff, then issues revised B3 (gate run in the main clone at the B3a
+  commit, --perf r2/perf6; expected exit 1 under the new rule).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

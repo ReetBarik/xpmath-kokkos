@@ -923,6 +923,9 @@ other-backend checks are unchanged.
 | vs Current | `f <= max(1, c + 0.5)` | none (the Reference cap is absolute, so chained overrides cannot drift past it) |
 | Speed | unchanged (>= 3% on >= 1 gated GPU; no op > 3% slower) | unchanged (>= 10%; no op > 3% slower) |
 
+(The "no op > 3% slower" part is narrowed by the 2026-11-19 amendment
+at the end of this section: changed ops and the science kernel only.)
+
 K = 4 ulps (2 bits) for every backend and op; the bound rule keeps
 multiply/divide at their bound of 3. The old ratio `worse()` is no longer
 used for any accept decision. Report lines keep max/med/p99, and replace
@@ -1088,6 +1091,23 @@ Each task is one row below, applied to one backend (dd first). For each:
 > report-only; evidence paths. P3.4[tf] and
 > P3.4[qf] also owe the parked A/B (§1.10, GPU_PERF_PARKED.md rows 1–2);
 > P3.4[qf]'s must also pass CHECK-GFX90A-LINT.
+
+> **Plan: slow-check scope (amended 2026-11-19, user).** The "no more
+> than 3% slower" rule applies on gated GPUs only to (a) the ops named
+> in `--ops`, in both the real and complex fast types, and (b) the
+> science kernel row. Every other row of the backend more than 3%
+> slower is printed by the gate, report only. Reason: MI300 timing
+> drifts by a few percent on code that did not change; in P3.1[dd]
+> it flagged DD_fast div (1.035, 3 pairs) and then DD_fast sqrt
+> (1.0365, 6 pairs pooled), neither of which the candidate touched.
+> The science row stays gated to catch knock-on effects (code size,
+> instruction fetch: the P2.2[tf] lesson). `--ops` must list every op
+> whose code the change touches, chained callers included (the gate's
+> docstring already says so). Implemented in `scripts/p3_tier_gate.py`
+> + selftest + `docs/PERF_ACCURACY_POLICY.md` by a commit on
+> `wip/P3.1-dd-2` (lands on staging with P3.1[dd]). Applied to
+> P3.1[dd] itself by user choice, after its MI300 numbers were known;
+> the P3.1[dd] status block must say so.
 
 ---
 
