@@ -936,3 +936,20 @@ re-running b4docs.py on a copy of the ce64044 docs reproduces both
 files byte for byte. Evidence timestamps unchanged; wt-final c9e342e.
 Cosmetic: the commit subject wrapped onto two lines. P3.1[dd] CLOSED:
 fast tier, staging c9e342e, ledger row 8 open (B200).
+
+## P3.1[ff] (stage A) — FF fast log 1 Newton step, host pre-screen
+Date: 2026-11-19   Outcome: Done (rejected; pre-screen failed, no GPU)
+Commits: xpmath@f6c3a4f4a2e319ddb4acd20e2e39fbcd75d81957 on wip/P3.1-ff only (from c9e342e; gpu-perf-staging c9e342e and gpu-perf 4d597fd NOT moved). xpmath-kokkos: this block only.
+Changed: xpmath include/xp/ff_fast.hpp (fast log override detail::ff_log_fast_impl, 1 Newton step from a float seed). Strict FF log already uses 2 steps, so 2 was not tested (Plan: P3.1[ff] variants, b0388b9).
+Checks:
+  CHECK-HOST at c9e342e: reused from P3.1[dd] B3 (same commit, RESULT: PASS, 49/49 + 24/24); log $HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost-final.log
+  1-step pre-screen: host.exits absolute=0, monotone=1; prescreen exit 2
+    host  cplx log       n=1729  ulps max/med/p99 4.532e+06/0.181/1.929e+04 -> 4.532e+06/0.181/1.929e+04 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.06485 | worst bits lost vs Ref 0.000
+    host  real log       n=1658  ulps max/med/p99 1.407e+06/0.1562/1.407e+04 -> 1.407e+06/0.4916/1.407e+04 | fails bound 4, strict-Ref 488, strict-Cur 488, fast-Ref 72 | worst ulps/bound 1.433 | worst bits lost vs Ref 9.004
+    RESULT: reject (exit 2) HOST-ONLY: accuracy pre-screen, no speed verdict
+    log $HOME/gpuperf-scratch/P3.1[ff]/prescreen_1step.log
+  NOT RUN (stage B or not needed): device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, full gate.
+Measured: n/a (host pre-screen only).
+Next session must know:
+- Reject: FF log stays at 2 Newton steps (strict). Next: P3.1[tf].
+- No ledger row (nothing landed). Parked rows 1-2 unchanged.
