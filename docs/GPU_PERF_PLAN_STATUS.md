@@ -970,3 +970,19 @@ Measured: n/a (host pre-screen only).
 Next session must know:
 - Reject: TF log stays at 3 Newton steps (strict). Next: P3.1[qf].
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
+
+## P3.1[qf] — QF fast log 2 Newton steps (closed without a run)
+Date: 2026-11-19   Outcome: Done (rejected by user decision; no sweep, no GPU)
+Commits: none in xpmath (no candidate branch; gpu-perf-staging c9e342e and gpu-perf 4d597fd NOT moved). xpmath-kokkos: this block + `Plan:` amendment.
+Changed: nothing. Strict QF log (qf_math.hpp, 3 Newton steps from a float seed) unchanged.
+Checks:
+  Not run: host pre-screen, device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, gate.
+  Evidence used instead: P3.1[tf] stage A gate reject (e003cc8; 2 steps, worst 24.6 bits lost vs Ref near 1),
+  and an orchestrator sample-point probe at c9e342e (g++ 13.3, -O2 -ffp-contract=off; scratch deleted):
+    QF 2 vs 3 steps relative difference: 3.2e-23 at 1+1e-7, 6.3e-24 at 1-1e-6, 1.9e-27 at 3e7, 7.1e-27 at 1e20.
+    TF 2 vs 3 steps at 1+1e-6: 5.3e-17 (consistent with the TF gate result).
+  This is not a gate verdict; the user judged rejection certain (fast cap 4 ulps).
+Measured: n/a.
+Next session must know:
+- QF log stays at 3 Newton steps. P3.1 is complete for all four backends (dd landed fast-only at c9e342e; ff, tf, qf rejected).
+- Next: P3.2[dd] (exp). No ledger row (nothing landed). Parked rows 1-2 unchanged.

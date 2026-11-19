@@ -1119,6 +1119,17 @@ Each task is one row below, applied to one backend (dd first). For each:
 > The base CHECK-HOST at c9e342e is the one already run by P3.1[dd]
 > B3 (`r2/checkhost-final.log`, same commit); not re-run.
 
+> **Plan: P3.1[qf] closed without a run (amended 2026-11-19, user).**
+> P3.1[tf] stage A rejected TF log at 2 Newton steps (gate exit 2, worst
+> 24.6 bits lost vs Reference, inputs near 1; status block e003cc8).
+> Strict QF `log` (`include/xp/qf_math.hpp`) uses the same float seed and
+> 3 steps. An orchestrator sample-point probe at c9e342e (not the gate)
+> found QF 2 steps differing from strict by up to 3.2e-23 relative at
+> 1+1e-7 (~20 bits of QF's ~2^-96 ulp) and 1.9e-27 at 3e7; the fast cap is
+> 4 ulps. The user judged rejection certain and chose not to spend a run.
+> Outcome: reject, QF log stays at 3 steps, nothing pushed, no GPU. Next
+> task: P3.2[dd].
+
 ---
 
 ## Phase 4 — One generic core

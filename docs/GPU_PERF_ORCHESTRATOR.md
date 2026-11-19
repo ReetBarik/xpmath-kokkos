@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf] REJECTED; P3.1[qf] next)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] next)
 
 Verify these against the files and branches before relying on them.
 
@@ -296,6 +296,12 @@ Verify these against the files and branches before relying on them.
   1+1e-6 differs 5.3e-17 (~18 bits), matching the gate's TF finding.
   So a QF 2-step pre-screen is expected to reject. User asked whether to
   run P3.1[qf] stage A anyway or close it on this evidence.
+- **P3.1[qf] CLOSED without a run (user, 2026-11-19):** rejection judged
+  certain from the TF gate result + the probe above. `Plan:` amendment and
+  an orchestrator-written status block. QF log stays at 3 steps. P3.1 is
+  done for all backends. **Next: P3.2[dd]** (exp: native-multiply
+  reduction integer, reciprocal-factorial Taylor constants, fixed term
+  count). Not yet designed; read dd exp and dd_fast.hpp first.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
