@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B2 verified; B3 waits on a user decision)
+## Current state (updated 2026-11-19, P3.1[dd] B2 verified; B2b MI300 pooled re-run issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -144,6 +144,15 @@ Verify these against the files and branches before relying on them.
   log in dd_fast.hpp); unrelated unchanged rows drifted too on MI300 (FF
   log 1.043, double log 1.117). This is the B3 table's "STOP, user decides"
   case; raised with the user before issuing B3.
+- **User decision 2026-11-19 (MI300 div): pooled re-run, rule fixed in
+  advance.** Stage B2b: one MI300 node runs 3 more interleaved pairs
+  (before4..after6) with the SAME B2 binaries (r2/perf/mi300/build-*),
+  runner r2/run-node-b2b.sh md5 81a7c1116a442b9ddaea371925dff5c4.
+  perf_ratios over all 6 pairs -> r2/perf6/ratios_gfx942.csv; r2/perf6
+  also gets byte copies of ratios_{sm_80,gfx90a,sm_103}.csv. Original
+  r2/perf/ratios_gfx942.csv is kept as evidence. B3's gate uses
+  --perf r2/perf6 and its verdict stands, whatever it is. No more
+  re-runs.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
