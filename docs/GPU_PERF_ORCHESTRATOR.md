@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-18, B1 found not run; re-issued)
+## Current state (updated 2026-11-19, P3.1[dd] B1 verified; B2 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -107,6 +107,25 @@ Verify these against the files and branches before relying on them.
   still holds only stage A's host files (Nov 12 03:36). User was on a break.
   **B1 re-issued 2026-11-18 for Sonnet 5.5 / Claude Code** (same content as
   below; adds pre-launch file checks and a 4 h wait limit).
+- **P3.1[dd] stage B1 DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 /
+  Claude Code).** gpu07 (A100) + amdgpu04 (MI250), released. Both TIER=fast
+  sweeps: sweep rc=1 (expected: monotone vs old fast baseline), FATAL 0, no
+  last_error, 436080 rows, exits absolute=0 monotone=1 (match sweep.log),
+  fresh/{a100,mi250}.{csv,exits} byte-equal to scored_fast. Perf: 4 builds +
+  12 runs rc=0. Orchestrator re-ran perf_ratios: byte-identical to
+  r2/perf/ratios_{sm_80,gfx90a}.csv. Preview (gate in B3 decides): DD_fast
+  log 0.667 A100, 0.668 MI250 (fast needs <= 0.909); cDD_fast log 1.000 /
+  1.001; DD_fast science 1.000 / 1.002; no DD_fast/cDD_fast row > 1.03.
+  A100 rows > 1.03 are strict cDD add/mul chain 1.14 and native types
+  (bimodal; strict code unchanged; the gate's slow check reads only the
+  tier's types). Branches unmoved; host.* untouched. Deviations, harmless:
+  (1) perf_ratios.py globs, so the `[dd]` in the path breaks it; the worker
+  made a 1.3G copy ~/gpuperf-scratch/P3_1_dd_r2_perf_copy (user to rm).
+  Fix from B2 on: run perf_ratios through a bracket-free symlink.
+  p3_tier_gate.py has no glob. (2) amdgpu04 has no `nproc` on PATH in the
+  ssh shell, so node.txt lacks the count and xpm_build.sh ran `-j` (unbounded,
+  but pinned to 8 cores by taskset). B2 runner shims nproc. (3) A stray
+  `rm -rf /dev/null` in the worker's copy command (no effect).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
