@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B2 verified; B2b MI300 pooled re-run issued)
+## Current state (updated 2026-11-19, P3.1[dd] B2b verified; B3 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -153,6 +153,21 @@ Verify these against the files and branches before relying on them.
   r2/perf/ratios_gfx942.csv is kept as evidence. B3's gate uses
   --perf r2/perf6 and its verdict stands, whatever it is. No more
   re-runs.
+- **P3.1[dd] stage B2b DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 /
+  Claude Code).** amdgpu00 (MI300), released. Runner md5 81a7c111... (=
+  orch copy; worker overwrote the orchestrator's leftover copy, same
+  bytes). status-b2b.log: one START, 6 runs rc=0, ALLDONE (01:33-01:36Z).
+  r2/perf6 = 4 files, 3 copies cmp-equal; orchestrator re-ran the 6-pair
+  perf_ratios: byte-identical. B1/B2 evidence untouched; branches unmoved.
+  Pooled MI300: DD_fast div 1.029 (now under 1.03), DD_fast log 0.636,
+  cDD_fast log 1.000, DD_fast science 1.000. **But DD_fast sqrt 1.0365**
+  (B2 alone: 0.990; per pair 0.990 0.875 1.032 1.057 1.041 1.052; sqrt
+  code unchanged), so the gate's slow check will very likely give exit 2
+  (reject) at B3. The user's verdict-stands rule applies. Policy thought
+  (3% check catches MI300 drift on unchanged ops) has now recurred:
+  raised with the user for P3.1[ff] onward, not for this verdict.
+- **B3 issued 2026-11-19** (gate with --perf r2/perf6; exit 1 ->
+  re-baseline + CHECK-HOST + lint; exit 2 -> reject status block).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
