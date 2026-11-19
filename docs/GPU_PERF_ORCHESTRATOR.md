@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B3 stopped at exit 3; user chose fix; B3b+B3 issued)
+## Current state (updated 2026-11-19, P3.1[dd] B3b+B3 verified (gate exit 1, fast); B4 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -214,6 +214,24 @@ Verify these against the files and branches before relying on them.
   1; speed log a100 0.667, mi250 0.668, mi300 0.636, gb300 0.668
   (report only); slower 0; report-only drift 1 (mi300 DD_fast sqrt
   1.036; div 1.029 is under 3%).
+- **B3b + B3 DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 / Claude
+  Code).** origin/wip/P3.1-dd-2 reflog 3ab255a -> 3f517c3 -> a8c95e1
+  (GATEFIX, 3 files +38/-9, diff matches the 8 edits; ratiocheck.py md5
+  OK; selftest-b3b.log 69 cases, 0 failed) -> c9e342e (FINAL, "re-baseline
+  fast after log", 4 fast .gz only, each zcat == r2/fresh/<loc>.csv; body
+  = the extract; DOMAINS/DEVICE_PRECISION/b200 untouched). No force-push.
+  r2/gate2.log (02:12Z, 29 lines) == orchestrator prediction exactly:
+  exit 1, fast only; speed log a100 0.667, mi250 0.668, mi300 0.636,
+  gb300 0.668 (report only); slower 0; report-only 1 (mi300 DD_fast
+  sqrt 1.036). r2/gate.log (exit-3) untouched. r2/wt-final = c9e342e.
+  run-b3-final.sh md5 OK; status-b3.log START c9e342e..ALLDONE
+  (02:14-02:34Z): CHECK-HOST done=0, one PASS line, 49/49 + 24/24, no
+  Terminated (log read by orchestrator); lint strict + fast hipcc_rc=0,
+  TIER2-4 ok, 252 kernels, lint_rc=0 (1 amdgcn .s each). Staging
+  9219ffa, gpu-perf 4d597fd unmoved. B1/B2/B2b evidence timestamps
+  intact. 1.3G perf copy already gone. **B4 issued** (A100 + GB300
+  sanitizer on wt-final, runner r2/run-b4.sh; then staging -> c9e342e,
+  ledger row 8, final status block via md5-checked r2/b4docs.py).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
