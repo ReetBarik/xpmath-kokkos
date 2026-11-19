@@ -1109,6 +1109,16 @@ Each task is one row below, applied to one backend (dd first). For each:
 > P3.1[dd] itself by user choice, after its MI300 numbers were known;
 > the P3.1[dd] status block must say so.
 
+> **Plan: P3.1[ff] variants (amended 2026-11-19, user).** The P3.1
+> row says "FF from a float seed: test 1 and 2", but strict FF `log`
+> (`include/xp/ff_math.hpp`, `log(FloatFloat)`) already does 2
+> Newton steps from a float seed, so a 2-step fast override would be
+> bit-identical to strict and cannot be faster. P3.1[ff] pre-screens
+> the **1-step** variant only. Pass (exit 0 or 1): stage B as for
+> P3.1[dd]. Fail: reject, FF log stays at 2 steps, next P3.1[tf].
+> The base CHECK-HOST at c9e342e is the one already run by P3.1[dd]
+> B3 (`r2/checkhost-final.log`, same commit); not re-run.
+
 ---
 
 ## Phase 4 — One generic core
