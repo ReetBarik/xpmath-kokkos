@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B2b verified; slow-check scope amended; B3a issued)
+## Current state (updated 2026-11-19, P3.1[dd] B2b verified; slow-check scope amended; B3a verified; B3 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -177,6 +177,14 @@ Verify these against the files and branches before relying on them.
   (one commit after 3ab255a), pushes, STOPs. Orchestrator reviews the
   diff, then issues revised B3 (gate run in the main clone at the B3a
   commit, --perf r2/perf6; expected exit 1 under the new rule).
+- **B3a DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 / Claude Code).**
+  origin/wip/P3.1-dd-2 = 3f517c3 (parent 3ab255a; previous tip 3ab255a,
+  no force-push). 3 files, 24+/7-; patch script r2/slowscope.py md5
+  b1341d8c... (= orchestrator's); selftest 66 -> 67 cases, 0 failed
+  (r2/selftest-b3a.log). staging/gpu-perf unmoved.
+- **Revised B3 issued 2026-11-19:** gate in the main clone at 3f517c3,
+  --perf r2/perf6; exit 1 -> re-baseline fast + CHECK-HOST + lint;
+  exit 2 -> reject status block (discloses the rule change).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
