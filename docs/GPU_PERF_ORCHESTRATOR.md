@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B1 verified; B2 issued)
+## Current state (updated 2026-11-19, P3.1[dd] B2 verified; B3 waits on a user decision)
 
 Verify these against the files and branches before relying on them.
 
@@ -126,6 +126,24 @@ Verify these against the files and branches before relying on them.
   ssh shell, so node.txt lacks the count and xpm_build.sh ran `-j` (unbounded,
   but pinned to 8 cores by taskset). B2 runner shims nproc. (3) A stray
   `rm -rf /dev/null` in the worker's copy command (no effect).
+- **P3.1[dd] stage B2 DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 /
+  Claude Code).** graceblackwell01 (GB300) + amdgpu00 (MI300; nproc shim
+  used), released. Runner r2/run-node-b2.sh md5 7c25603c... (= orch copy).
+  Both status.log START..ALLDONE, 4 builds + 12 runs rc=0, FATAL 0,
+  last_error 0, 436080 rows, sweep built sweep_device_fast in wt-after.
+  MI300 sweep rc=1, fresh/mi300.exits absolute=0 monotone=1 (= sweep.log),
+  fresh/mi300.csv byte-equal to scored_fast. GB300 scored on login:
+  score.done 0 = gb300.exits absolute=0, monotone=-1, RESULT: PASS.
+  host/a100/mi250 fresh files untouched. Branches unmoved. Orchestrator
+  re-ran perf_ratios: byte-identical to r2/perf/ratios_{gfx942,sm_103}.csv.
+  Preview: DD_fast log 0.629 MI300, 0.668 GB300; cDD_fast log 1.001 /
+  1.000; DD_fast science 0.997 / 0.999. **Problem: MI300 DD_fast div chain
+  1.0347 (> 1.03, tier type, gated GPU)**, so the gate's slow check will
+  give exit 2 (reject) at B3. Per-pair ratios 1.023 / 1.035 / 1.051
+  (median 1.035). Div code is unchanged (3ab255a's only hunk is DD fast
+  log in dd_fast.hpp); unrelated unchanged rows drifted too on MI300 (FF
+  log 1.043, double log 1.117). This is the B3 table's "STOP, user decides"
+  case; raised with the user before issuing B3.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
