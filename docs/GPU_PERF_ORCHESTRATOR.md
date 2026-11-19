@@ -340,6 +340,19 @@ Verify these against the files and branches before relying on them.
   host.csv has 12 comment lines + header (436093 lines); prompts should
   expect 436093 or count data rows. **Next: P3.2[dd] B1** (A100 + MI250,
   TIER=fast sweep + perf; before = c9e342e, after = 7429482).
+- **P3.2[dd] B1 issued 2026-11-19.** Scripts as files in untracked
+  ~/xpmath-kokkos/.p32dd-b1/, worker cp's them into
+  "$HOME/gpuperf-scratch/P3.2[dd]/" and md5-checks: run-b1.sh
+  18ceaedb1ca9abd9de7c6d770ef9e77c (= P3.1 B1 runner, paths changed,
+  nproc shim, uname -m; sweep in wt, perf before wt-before = c9e342e
+  detached / after wt = 7429482), launch-b1.sh
+  3d566b2ffbd99faf53459b807231aa25 (setsid nohup taskset 0-7; refuses
+  if status.log exists), check-b1.sh fa8a011f03618075d30fe7f7bc6dc8be
+  (read-only evidence dump), ratios-b1.sh
+  59893d229f8336b63f26efd1771d3656 (perf_ratios via bracket-free link
+  ~/gpuperf-scratch/p32dd-link -> P3.2[dd]; refuses to overwrite).
+  check/ratios dry-tested on P3.1[dd] r2 data: ratios byte-identical
+  to r2/perf/ratios_{sm_80,gfx90a}.csv. No commits in B1.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
