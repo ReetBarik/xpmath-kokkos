@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED (fast tier, staging c9e342e); next P3.1[ff] stage A)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] stage A issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -241,6 +241,17 @@ Verify these against the files and branches before relying on them.
   status block "P3.1[dd] (final)"), reproduced by re-running b4docs.py.
   Cleanup lines given to the user. **Next: P3.1[ff] stage A** (host
   pre-screen, branch wip/P3.1-ff from c9e342e).
+- **P3.1[ff] stage A issued 2026-11-19** (user: 1 Newton step only;
+  strict FF log already does 2; `Plan:` b0388b9). Worktree
+  "$HOME/gpuperf-scratch/P3.1[ff]/wt" on new branch wip/P3.1-ff from
+  c9e342e (clone checkout untouched). Patch ffpatch.py md5
+  92935c224c597ca392bcb4bfd87e3e71 (input ff_fast.hpp md5 8a36d99d...,
+  +23/-1, test-compiled by orchestrator). Runner run-a.sh md5
+  0d4c7f3c5113570bfd67e6ac4fa5fa18 (status-a.log, build_1step,
+  fresh_1step). Pre-screen `--host-only --backend FF --ops log --base
+  c9e342e` -> prescreen_1step.log. Status block via adocs.py md5
+  1b2b2bd49c4f2d0b26948795f4c95d48 (16 lines). Base CHECK-HOST reused
+  from P3.1[dd] B3 (same commit). Link p31ff-link for stage B.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
