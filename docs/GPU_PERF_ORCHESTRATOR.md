@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED at stage A; next P3.1[tf])
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf] stage A issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -264,6 +264,20 @@ Verify these against the files and branches before relying on them.
   Scratch P3.1[ff] (wt, build_1step) can be removed once wip/P3.1-ff
   is no longer needed. **Next: P3.1[tf]** (plan row: measure whether
   TF log still needs 3 steps; read tf log first).
+- **P3.1[tf] stage A issued 2026-11-19** (orchestrator: 2 Newton steps
+  only; strict TF log does 3; 1 step not tested, ~48 of ~72 bits and FF
+  1 step was rejected). Worktree "$HOME/gpuperf-scratch/P3.1[tf]/wt" on
+  new branch wip/P3.1-tf from c9e342e. tfpatch.py md5
+  910b8618c51fa208f73e153bb8ad5b9a (input tf_fast.hpp md5
+  c80bc2fb46c412b248aed68044bc13a8; prints +20 lines; diff +21/-1;
+  INLINE like dd_log_fast_impl; KI-23 branch -54.1f / 88.722839f as
+  strict). Test-compiled by orchestrator: g++ 13.3 OK, 6/7 sample
+  points bit-identical to strict, 7.25 differs at 1.3e-23 rel.
+  run-a.sh md5 b9792df37f1f6f54d4f40c3755503eac (= P3.1[ff] runner with
+  [ff]->[tf], 1step->2step). adocs.py md5
+  41f4cf7546269ae5d967e73d931dbf5b (16 lines; reject -> Next P3.1[qf]).
+  Pre-screen `--host-only --backend TF --ops log --base c9e342e` ->
+  prescreen_2step.log. Link p31tf-link for stage B.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
