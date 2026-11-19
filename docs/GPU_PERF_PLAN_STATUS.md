@@ -852,3 +852,68 @@ Next session must know:
 - Carried-forward variant: 2step; fresh files in $HOME/gpuperf-scratch/P3.1[dd]/r2/fresh/.
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
 Orchestrator review (2026-11-12): Verdict PASS 2-step into fast only (pre-screen exit 1), accepted; 1-step reject (exit 2; fast-Ref 56 fails, so it fails even the fast cap). (1) Branches: origin/wip/P3.1-dd-2 = 3ab255a, two commits on 9219ffa (62c1865 1-step, 3ab255a 2-step), touching only include/xp/dd_fast.hpp; the tip's dd_fast.hpp equals origin/wip/P3.1-dd's (25f0411). Staging 9219ffa and gpu-perf 4d597fd unmoved; reflogs show plain pushes, no force-push. (2) CHECK-HOST at 9219ffa is clean this time: checkhost.log holds one run, no "Terminated", exactly one "RESULT: PASS" line, host 49/49/0, device 24/24/0 (#26 and #32 both Passed), checkhost.done = 0. This closes the P3.0c CHECK-HOST gap. (3) Pre-screen re-run by the orchestrator in a detached worktree of origin/wip/P3.1-dd-2 against fresh_1step/ and fresh_2step/: exits 2 and 1, output byte-identical to prescreen_{1step,2step}.log. Both host.exits are absolute=0 monotone=1, consistent with absolute.log (PASS) and monotone.log (FAIL); fresh/ is a byte copy of fresh_2step/. Numbers match the P3.0c sanity check (22 strict fails, 0 fast fails, worst bits lost 4.087). (4) Status block on origin/gpu-perf (9269bb8); quoted SHAs exist on origin. No discrepancies. Next: P3.1[dd] stage B (GPU flow) on wip/P3.1-dd-2. Ran on: Muse-spark-bf16 / Claude Code.
+
+## P3.1[dd] (final) — DD fast log 2 Newton steps, accepted into fast
+Date: 2026-11-19   Outcome: Done
+Commits: xpmath wip/P3.1-dd-2 = 3ab255a (candidate: DD fast log,
+2 Newton steps, dd_fast.hpp only), 3f517c3 (gate slow-check scope),
+a8c95e1 (gate perf input check), c9e342e (re-baseline fast).
+gpu-perf-staging 9219ffa -> c9e342e. xpmath gpu-perf NOT moved
+(4d597fd).
+Changed: include/xp/dd_fast.hpp; scripts/p3_tier_gate.py,
+scripts/p3_tier_gate_selftest.py, docs/PERF_ACCURACY_POLICY.md;
+validation/sweep/sweep_baseline_fast{,_a100,_mi250,_mi300}.csv.gz.
+Gate ($HOME/gpuperf-scratch/P3.1[dd]/r2/gate2.log, exit 1 = fast only), verbatim:
+```
+  host  cplx log       n=1773  ulps max/med/p99 4.483e+07/0.1802/174.6 -> 4.483e+07/0.1802/174.6 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01727 | worst bits lost vs Ref 0.000
+  host  real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.1206/2.538 | fails bound 0, strict-Ref 22, strict-Cur 22, fast-Ref 0 | worst ulps/bound 0.01025 | worst bits lost vs Ref 4.087
+  a100  cplx log       n=1773  ulps max/med/p99 4.483e+07/0.1802/174.6 -> 4.483e+07/0.1802/174.6 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01777 | worst bits lost vs Ref 0.000
+  a100  real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.1206/2.538 | fails bound 0, strict-Ref 22, strict-Cur 22, fast-Ref 0 | worst ulps/bound 0.01025 | worst bits lost vs Ref 4.087
+  mi250 cplx log       n=1773  ulps max/med/p99 4.483e+07/0.1802/174.6 -> 4.483e+07/0.1802/174.6 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01777 | worst bits lost vs Ref 0.000
+  mi250 real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.1206/2.538 | fails bound 0, strict-Ref 22, strict-Cur 22, fast-Ref 0 | worst ulps/bound 0.01025 | worst bits lost vs Ref 4.087
+  mi300 cplx log       n=1773  ulps max/med/p99 4.483e+07/0.1802/174.6 -> 4.483e+07/0.1802/174.6 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01777 | worst bits lost vs Ref 0.000
+  mi300 real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.1206/2.538 | fails bound 0, strict-Ref 22, strict-Cur 22, fast-Ref 0 | worst ulps/bound 0.01025 | worst bits lost vs Ref 4.087
+a100   speed log       ratio(after/before) 0.667 1.000
+mi250  speed log       ratio(after/before) 0.668 1.001
+mi300  speed log       ratio(after/before) 0.636 1.000
+gb300  speed log       ratio(after/before) 0.668 1.000 (REPORT ONLY, never gated)
+ops more than 3% slower on a gated GPU: 0 (changed ops + science)
+other ops more than 3% slower, code unchanged (report only): 1
+   mi300 DD_fast/sqrt ratio 1.036 (report only)
+speed: best ratio per changed op log=0.636; strict needs <= 0.9709, fast needs <= 0.9091
+RESULT: strict failed, fast passed -> accept into fast only (exit 1)
+```
+Checks (evidence under $HOME/gpuperf-scratch/P3.1[dd]/r2/):
+- TIER=fast device sweeps A100, MI250 (B1), MI300, GB300 (B2):
+  absolute=0 everywhere (fresh/*.exits; GB300 scored on login).
+- CHECK-PERF 3 interleaved pairs A100/MI250/GB300 (perf/); MI300
+  6 pairs pooled (perf6/ratios_gfx942.csv). GB300 report only.
+- CHECK-HOST at c9e342e: 49/49 + 24/24, RESULT PASS
+  (checkhost-final.log).
+- CHECK-GFX90A-LINT strict + fast: lint_rc=0 (lint/*/lint.log).
+- CHECK-SANITIZER A100 + GB300, sweep_device and
+  sweep_device_fast: ERROR SUMMARY 0 errors
+  ({a100,gb300}/san-{strict,fast}.log).
+- B200 deferred: GPU_PERF_DEFERRED.md row 8.
+Disclosures (both rule changes were made after this task's numbers
+were known, by user choice):
+- MI300 re-run (B2b): B2's 3 pairs gave DD_fast div 1.0347 (pairs
+  1.023/1.035/1.051) on unchanged code; user ordered 3 more pairs,
+  verdict fixed in advance. Pooled 6: div 1.029, DD_fast sqrt
+  1.0365 (pairs 0.990 0.875 1.032 1.057 1.041 1.052; unchanged).
+- Slow-check scope (user option A, 3f517c3, plan "slow-check
+  scope"): the 3% rule now covers only the --ops ops (real and
+  complex fast types) + science; other rows report only. Under the
+  old rule MI300 sqrt 1.0365 would have rejected this task (exit 2).
+- Gate input check (user option 1, a8c95e1): the first B3 gate run
+  stopped at exit 3 (gate.log): the gate wanted ratio ==
+  after_ns/before_ns within 1%, but perf_ratios.py's ratio is the
+  median of per-pair ratios. Now "finite and > 0". Input validation
+  only; verdict rules unchanged.
+Measured: DD_fast log after/before 0.667 A100, 0.668 MI250, 0.636
+MI300, 0.668 GB300. Host real log: 22 rows fail strict, 0 fail
+fast; worst row 0.573 -> 3.176 ulps (fast cap 4).
+Next session must know:
+- B200 owes ledger row 8 (C-b200 when there is a window).
+- Slow-check scope and the ratio input check are on staging and
+  apply from P3.1[ff] on.
