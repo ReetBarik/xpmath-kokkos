@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1 next)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1 verified, B2 next)
 
 Verify these against the files and branches before relying on them.
 
@@ -353,6 +353,22 @@ Verify these against the files and branches before relying on them.
   ~/gpuperf-scratch/p32dd-link -> P3.2[dd]; refuses to overwrite).
   check/ratios dry-tested on P3.1[dd] r2 data: ratios byte-identical
   to r2/perf/ratios_{sm_80,gfx90a}.csv. No commits in B1.
+- **P3.2[dd] B1 DONE, verified 2026-11-19 (Ran on: Sonnet 5.5 /
+  Claude Code).** gpu06 (A100) + amdgpu04 (MI250; nproc shim used),
+  released. Script md5s OK in scratch; wt-before c9e342e, wt 7429482;
+  p32dd-link resolves. Both status.log START..ALLDONE: sweep rc=1
+  (monotone vs old fast baseline, expected), copy rc=0, 4 builds + 12
+  runs rc=0; node.txt hostname, x86_64, 8; FATAL/last_error 0; 436080
+  rows; fresh/{a100,mi250}.exits absolute=0 monotone=1 (= sweep.log),
+  fresh csv cmp-equal to scored_fast. host.* and fresh_mix/ untouched
+  (17:21). Branches unmoved (gpu-perf 4d597fd, staging c9e342e,
+  wip/P3.2-dd 7429482); no worker commit. Orchestrator re-ran
+  perf_ratios (via ~/xpmath-kokkos/.p32dd-rat): byte-identical to
+  perf/ratios_{sm_80,gfx90a}.csv. Preview (B3 gate decides): DD_fast
+  exp 0.431 A100, 0.368 MI250 (fast needs <= 0.909); cDD_fast exp
+  1.000 / 1.001; DD_fast log 1.001 / 1.000; DD_fast science 1.000 /
+  0.993. No row > 1.03 on either GPU (A100 strict cDD chain bimodality
+  did not show this time). **Next: B2** (GB300 + MI300).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -432,7 +448,13 @@ Verify these against the files and branches before relying on them.
 
 ## Open questions for the user (raise them; don't decide them)
 
-None open.
+- **Orchestrator cost (raised 2026-11-19, unanswered).** Recommendation:
+  (1) run the orchestrator on Sonnet for routine stages (review, runner
+  adaptation, next prompt); stronger model for new-candidate design
+  (P3.2[ff]), gate exit 3, policy questions; (2) lighter reviews:
+  branches, md5s, status logs, cited numbers, perf_ratios re-run; no
+  re-running pre-screens/docs generators unless something looks off.
+  Record the answer under Fixed facts.
 
 Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
 probe NO-GO; workers = open models in Claude Code, ssh as before; no P3.0b
