@@ -369,6 +369,17 @@ Verify these against the files and branches before relying on them.
   1.000 / 1.001; DD_fast log 1.001 / 1.000; DD_fast science 1.000 /
   0.993. No row > 1.03 on either GPU (A100 strict cDD chain bimodality
   did not show this time). **Next: B2** (GB300 + MI300).
+- **P3.2[dd] B2 issued 2026-11-19.** Scripts in untracked
+  ~/xpmath-kokkos/.p32dd-b2/, worker cp's into P3.2[dd]/ and
+  md5-checks: run-b2.sh 3b72689584f5bb3cc53f212f1c3eef1c (= P3.1 r2
+  run-node-b2.sh with paths changed; diff is cosmetic + wt/wt-before),
+  launch-b2.sh 8bf3e4e50755a4c4536e2ea5519ba940, score-b2.sh
+  175e0239f1cec4807011fb04160599ed (GB300 raw scored on login with
+  build_mix scorer; writes fresh/gb300.{csv,exits}, gb300/score.done),
+  check-b2.sh 866652233cce6baa886146206865838b, ratios-b2.sh
+  cfa1663eccead29412645119e4618b0f. check/ratios dry-tested on P3.1
+  r2 gb300/mi300 data: ratios byte-identical. score-b2.sh untested
+  (writes /vast). No commits in B2.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
