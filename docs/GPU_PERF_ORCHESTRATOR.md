@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] next)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -302,6 +302,24 @@ Verify these against the files and branches before relying on them.
   done for all backends. **Next: P3.2[dd]** (exp: native-multiply
   reduction integer, reciprocal-factorial Taylor constants, fixed term
   count). Not yet designed; read dd exp and dd_fast.hpp first.
+- **P3.2[dd] stage A issued 2026-11-19** (user: variant `mix` only;
+  exp only, `--ops exp`; log chaining revisited after fast exp is
+  accepted; `Plan:` amendment "P3.2[dd] variant and scope"). Worktree
+  "$HOME/gpuperf-scratch/P3.2[dd]/wt" on new branch wip/P3.2-dd from
+  c9e342e. ddexppatch.py md5 f4d31efc62d94be16ef441bb26ef25ae (input
+  dd_fast.hpp md5 a8fa36c25177fcf56bf78508d5e43280; prints +46 lines;
+  diff +47/-1). Test-compiled by orchestrator (g++ 13.3, -O2
+  -ffp-contract=off, -Wall -Wextra: no warnings from dd_fast.hpp):
+  patched fast exp bit-identical to the prototype on 1e6 points, equal
+  to strict on 86.5%, max 2.96 units of 2^-106 from strict (400k-point
+  prototype run); specials (0, +-inf, overflow/underflow edges, ln2/2
+  multiples) match strict; NaN -> NaN (strict 0). Host timing proxy:
+  mix 0.62x of strict exp. run-a.sh md5
+  7bca64c9c220efe10c694298b3be9fd6 (= P3.1[tf] runner with
+  [tf]->[dd]/P3.2, 2step->mix). adocs.py md5
+  4040d98cc547b398b38968f76a1e9fae (16 lines; reject -> Next
+  P3.2[ff]). Pre-screen `--host-only --backend DD --ops exp --base
+  c9e342e` -> prescreen_mix.log. Link p32dd-link for stage B.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

@@ -1130,6 +1130,24 @@ Each task is one row below, applied to one backend (dd first). For each:
 > Outcome: reject, QF log stays at 3 steps, nothing pushed, no GPU. Next
 > task: P3.2[dd].
 
+> **Plan: P3.2[dd] variant and scope (amended 2026-11-19, user).** One
+> variant, `mix`, in `include/xp/dd_fast.hpp` only
+> (`detail::dd_exp_fast_impl`, tier.hpp pattern 1): reduction integer
+> k = rint(a.hi * 1/ln2) (one native multiply; TF exp already does the
+> same), then strict's three Cody-Waite pieces, nq = 6 squarings and
+> 2^k scaling unchanged; e^x - 1 as a fixed 12-term Horner series with
+> 1/n! constants, terms 7-12 in double (they weigh < 1e-17 of the sum
+> at |x| <= ln2/128), terms 1-6 in DD; no divide, no divide_scalar, no
+> data-dependent exit. NaN input returns NaN (strict returns 0 via its
+> iteration limit; the sweep has no NaN inputs). An all-DD 12-term form
+> was prototyped (same agreement with strict, host 0.81x vs 0.62x for
+> mix) and is not screened. **Scope:** fast exp only; fast log, pow,
+> sinh/cosh, tanh, expm1, exp2/exp10 and complex exp keep calling
+> strict exp, so the only changed op is `exp` and the gate runs with
+> `--ops exp`. Chaining fast exp into fast log is revisited after fast
+> exp is accepted (user); pow etc. have no perf row, so they cannot be
+> gated as changed ops today.
+
 ---
 
 ## Phase 4 — One generic core
