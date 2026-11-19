@@ -986,3 +986,20 @@ Measured: n/a.
 Next session must know:
 - QF log stays at 3 Newton steps. P3.1 is complete for all four backends (dd landed fast-only at c9e342e; ff, tf, qf rejected).
 - Next: P3.2[dd] (exp). No ledger row (nothing landed). Parked rows 1-2 unchanged.
+
+## P3.2[dd] (stage A) — DD fast exp (native-multiply reduction, fixed 12-term series), host pre-screen
+Date: 2026-11-19   Outcome: Partial (pre-screen PASS, exit 1; GPU stage B next)
+Commits: xpmath@7429482b699c6468917a99cd6996f648598dca9e on wip/P3.2-dd only (from c9e342e; gpu-perf-staging c9e342e and gpu-perf 4d597fd NOT moved). xpmath-kokkos: this block only.
+Changed: xpmath include/xp/dd_fast.hpp (fast exp override detail::dd_exp_fast_impl, variant mix: k = rint(a.hi * 1/ln2); e^x - 1 as a fixed 12-term Horner series with 1/n! constants, terms 7-12 in double, 1-6 in DD; no divide, no divide_scalar, no data-dependent exit). Fast log, pow, sinh/cosh etc. still call strict exp (--ops exp; chaining into log revisited after fast exp is accepted, user). NaN input returns NaN (strict returns 0 via its iteration limit); not in the sweep.
+Checks:
+  CHECK-HOST at c9e342e: reused from P3.1[dd] B3 (same commit, RESULT: PASS, 49/49 + 24/24); log $HOME/gpuperf-scratch/P3.1[dd]/r2/checkhost-final.log
+  mix pre-screen: host.exits absolute=0, monotone=1; prescreen exit 1
+    host  cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+    host  real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+    RESULT: strict failed, fast passed -> accept into fast only (exit 1) HOST-ONLY: accuracy pre-screen, no speed verdict
+    log $HOME/gpuperf-scratch/P3.2[dd]/prescreen_mix.log
+  NOT RUN (stage B or not needed): device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, full gate.
+Measured: n/a (host pre-screen only).
+Next session must know:
+- Carried-forward variant: mix; fresh files in $HOME/gpuperf-scratch/P3.2[dd]/fresh/ (byte copy of fresh_mix/). Next: stage B (GPU pairs, gate --ops exp).
+- No ledger row (nothing landed). Parked rows 1-2 unchanged.
