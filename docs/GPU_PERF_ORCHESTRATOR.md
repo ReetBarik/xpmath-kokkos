@@ -320,6 +320,14 @@ Verify these against the files and branches before relying on them.
   4040d98cc547b398b38968f76a1e9fae (16 lines; reject -> Next
   P3.2[ff]). Pre-screen `--host-only --backend DD --ops exp --base
   c9e342e` -> prescreen_mix.log. Link p32dd-link for stage B.
+- **P3.2[dd] stage A STOPPED at step 4 (2026-11-19), correctly.** The
+  pasted prompt was hard-wrapped at ~72 columns inside the heredocs, so
+  no md5 could match; the worker wrote nothing, committed nothing (only
+  the wt worktree at c9e342e and its own /tmp/p32gen/). Orchestrator
+  recovered all three scripts byte-exact (md5s above) from the issuing
+  session's transcript into ~/xpmath-kokkos/.p32dd-scripts/ (untracked)
+  and re-tested the patch on c9e342e dd_fast.hpp: +46 lines, numstat
+  47 1. Resume: worker copies + md5-checks the files, then continues.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -437,6 +445,11 @@ GPU validation.
 - **The ancestor check fails for a new branch** (no remote ref). Prompts
   now say: for a new branch, confirm `git ls-remote origin <branch>` is
   empty, then push.
+- **Pasted prompts get hard-wrapped at ~72 columns** (P3.2[dd],
+  2026-11-19), including inside heredocs, which breaks the md5 check.
+  Keep every heredoc line <= 72 columns (check with
+  `awk 'length>72'`), or put the scripts in an untracked folder in
+  ~/xpmath-kokkos and have the worker `cp` + md5sum them.
 - Workers sometimes return a free-form HANDOFF instead of the checklist, or
   stop without writing a status block. Verify the evidence and write a
   Stopped block yourself, as was done for P2.1[ff].
