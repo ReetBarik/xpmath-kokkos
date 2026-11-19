@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B2b verified; slow-check scope amended; B3a verified; B3 issued)
+## Current state (updated 2026-11-19, P3.1[dd] B3 STOPPED at gate exit 3 — gate input-check bug; awaiting user)
 
 Verify these against the files and branches before relying on them.
 
@@ -185,6 +185,20 @@ Verify these against the files and branches before relying on them.
 - **Revised B3 issued 2026-11-19:** gate in the main clone at 3f517c3,
   --perf r2/perf6; exit 1 -> re-baseline fast + CHECK-HOST + lint;
   exit 2 -> reject status block (discloses the rule change).
+- **B3 STOPPED 2026-11-19 (verified; Ran on: Sonnet 5.5 / Claude Code):**
+  gate run once, r2/gate.log (01:59Z) = one line, exit 3: "ratio 1.029
+  is not after/before (0.0026/0.0026) for DD_fast/div" in
+  perf6/ratios_gfx942.csv. Nothing committed/pushed; wip 3f517c3,
+  staging 9219ffa, gpu-perf 4d597fd; wt-final absent. Cause = GATE BUG
+  since P3.0b (464cdd2): load_ratios requires |ratio - after/before|
+  <= 1%, but perf_ratios.py defines ratio = median of per-pair ratios
+  and before/after = medians, printed %.4f. Selftest fixtures write
+  ratio = a/b exactly, so never caught. Fails on 27 rows of perf6
+  gfx942 (4 DD_fast/cDD_fast) and would have failed on B2's 3-pair
+  perf/ratios_gfx942 too (cDD_fast/mul). Data is fine. Recommended fix
+  (needs user OK, gate change disclosed in status block): B3b patch
+  replacing the check with "before, after, ratio finite and > 0",
+  selftest case updated, then re-issue B3 unchanged.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
