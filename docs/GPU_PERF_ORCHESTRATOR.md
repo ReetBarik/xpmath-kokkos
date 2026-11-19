@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] B3 STOPPED at gate exit 3 — gate input-check bug; awaiting user)
+## Current state (updated 2026-11-19, P3.1[dd] B3 stopped at exit 3; user chose fix; B3b+B3 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -199,6 +199,21 @@ Verify these against the files and branches before relying on them.
   (needs user OK, gate change disclosed in status block): B3b patch
   replacing the check with "before, after, ratio finite and > 0",
   selftest case updated, then re-issue B3 unchanged.
+- **User 2026-11-19: option 1** (replace the ratio==after/before check
+  with finite > 0; disclose in final status block). **B3b+B3 issued** as
+  one worker prompt: patch r2/ratiocheck.py md5
+  9c37c0e0e5edfe21918b9e19dc1d8eed (8 edits: gate, selftest 67 -> 69
+  incl. set_ratio cases, policy Speed line; diff 3 files +38/-9),
+  r2/selftest-b3b.log, commit on wip (parent 3f517c3), gate ONCE ->
+  r2/gate2.log (r2/gate.log = exit-3 evidence, keep). Exit 1 -> 4 .gz
+  (gzip -9 -n), gen_domains no diff, re-baseline commit, wt-final,
+  runner r2/run-b3-final.sh md5 6e2be1ef411a4dd499a1e8e6b2a6fcbc
+  (CHECK-HOST r2/checkhost-final + lint r2/lint/{strict,fast} from
+  scripts/sweep_device.cpp, status r2/status-b3.log). Exit 2/other ->
+  STOP. Orchestrator in-memory prediction with the patched check: exit
+  1; speed log a100 0.667, mi250 0.668, mi300 0.636, gb300 0.668
+  (report only); slower 0; report-only drift 1 (mi300 DD_fast sqrt
+  1.036; div 1.029 is under 3%).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
