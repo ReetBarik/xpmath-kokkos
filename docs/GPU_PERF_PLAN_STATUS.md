@@ -1003,3 +1003,20 @@ Measured: n/a (host pre-screen only).
 Next session must know:
 - Carried-forward variant: mix; fresh files in $HOME/gpuperf-scratch/P3.2[dd]/fresh/ (byte copy of fresh_mix/). Next: stage B (GPU pairs, gate --ops exp).
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
+
+Orchestrator review (2026-11-19, stage A resume; Ran on: Sonnet 5.5 /
+Claude Code): verified against files. origin/wip/P3.2-dd = 7429482
+(parent c9e342e, only include/xp/dd_fast.hpp +47/-1, one-line subject,
+reflog one push); its dd_fast.hpp is cmp-equal to the orchestrator's
+patched test copy. gpu-perf 4d597fd, staging c9e342e unmoved. Script
+md5s f4d31efc / 7bca64c9 / 4040d98c match. status-a.log one START
+7429482, build rc=0, absolute=0 monotone=1, ALLDONE; nohup-a.out
+empty; host.csv 436093 lines = 12 comments + header + 436080 rows
+(the resume prompt's 436081 omitted the comments; harmless). fresh/
+== fresh_mix/ (cmp). Orchestrator re-ran the pre-screen in wt: exit
+1, output identical to prescreen_mix.log. adocs.py --dry on the
+9f87d7c docs reproduces this block byte for byte. "accuracy rows
+failing the strict rules: 28" = 6 real exp + 22 real log (P3.1[dd]
+fast log, already accepted; every DD row is checked). Worker's step-2
+command (rev-parse --short with two refs) failed; user approved
+ls-remote instead. Next: stage B1 (A100 + MI250).

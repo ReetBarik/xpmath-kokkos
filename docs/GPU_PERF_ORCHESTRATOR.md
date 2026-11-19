@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A issued)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1 next)
 
 Verify these against the files and branches before relying on them.
 
@@ -328,6 +328,18 @@ Verify these against the files and branches before relying on them.
   session's transcript into ~/xpmath-kokkos/.p32dd-scripts/ (untracked)
   and re-tested the patch on c9e342e dd_fast.hpp: +46 lines, numstat
   47 1. Resume: worker copies + md5-checks the files, then continues.
+- **P3.2[dd] stage A (resume) verified 2026-11-19: PASS, fast only
+  (pre-screen exit 1). (Ran on: Sonnet 5.5 / Claude Code.)** Candidate
+  xpmath 7429482 (parent c9e342e, dd_fast.hpp +47/-1) on wip/P3.2-dd;
+  staging c9e342e, gpu-perf 4d597fd unmoved. dd_fast.hpp cmp-equal to
+  the orchestrator's test copy; script md5s OK; status-a.log clean;
+  436080 rows; pre-screen re-run identical; adocs.py --dry reproduces
+  block 07ca432. Real exp: strict-Ref 6, fast-Ref 0, worst 6.0 bits
+  lost vs Ref; complex exp unchanged. Strict-rule count 28 = 6 exp + 22
+  log (P3.1[dd] fast log). Review note appended to the block. Lesson:
+  host.csv has 12 comment lines + header (436093 lines); prompts should
+  expect 436093 or count data rows. **Next: P3.2[dd] B1** (A100 + MI250,
+  TIER=fast sweep + perf; before = c9e342e, after = 7429482).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
