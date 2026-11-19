@@ -466,6 +466,24 @@ Verify these against the files and branches before relying on them.
   branches, md5s, status logs, cited numbers, perf_ratios re-run; no
   re-running pre-screens/docs generators unless something looks off.
   Record the answer under Fixed facts.
+- **Chain tracking file (proposed 2026-11-19; user: "before that,
+  give me the B2 prompt", so pending, not refused).** Create
+  docs/GPU_PERF_CHAINS.md: one row per accepted fast op; callers that
+  still call strict (fill from grepping <b>_fast.hpp for to_strict
+  wrappers, not from memory); which callers have a perf row; status.
+  Rows: DD log (c9e342e) and, once accepted, DD exp. Each chain is its
+  own small task after the backend's current task closes; user picks.
+- **Chain timing (2026-11-19).** User asked whether to test exp
+  callers with fast exp while A100/MI250 were held. Orchestrator
+  recommended finishing fast exp first, chaining later as its own
+  task (one change per gate run; stacked log+exp error could fail
+  log's fast rule with unclear blame). User then asked for B2, so
+  the chain run was not done. Facts: only fast log's two strict exp
+  calls (wt dd_fast.hpp:197,200) are a 2-line chain; pow, sinh/cosh,
+  tanh, expm1, exp2/exp10 have no perf row; the science kernel
+  (perf/science_kernel.hpp) uses complex mul/add/div/sqrt/log and
+  real atan2, no exp, so it measures fast exp only after chaining
+  into log.
 
 Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
 probe NO-GO; workers = open models in Claude Code, ssh as before; no P3.0b
@@ -657,6 +675,9 @@ acceptable; breaking a rule is not.
 
 ## How the user likes answers
 
+**Less ceremony (user, 2026-11-19):** "You are spending way too many
+tokens on ceremony. Just give me the plain facts." Short answers, no
+recaps of what was verified unless asked, no long option menus.
 Concise, plain English. Tables with a copy-pasteable session-ID column.
 Worker prompts always go in the chat reply, fully expanded from the
 canonical template (RESUME NOTE on top), ready to paste into a Sonnet
