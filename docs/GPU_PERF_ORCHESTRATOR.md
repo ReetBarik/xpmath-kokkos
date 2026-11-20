@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1+B2 verified, B3 issued)
+## Current state (updated 2026-11-20, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1-B3 verified, B4 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -405,6 +405,21 @@ Verify these against the files and branches before relying on them.
   perf, sanitizer both binaries on the candidate commit), then login.
   Keep it simple; the user rejected batching/option questions as
   over-engineering.
+- **P3.2[dd] B3 DONE, verified 2026-11-20 (Ran on: Sonnet 5.5 /
+  Claude Code).** Script md5s OK in scratch. gate.log cmp-equal to
+  .p32dd-rat2/gate-pred.log, gate.exit 1 (fast only). origin/
+  wip/P3.2-dd 7429482 -> bbaa8fe (FINAL, reflog one push, ancestor):
+  4 fast .gz only, each zcat == fresh/<loc>.csv, message ==
+  rebaseline-msg.txt. wt-final = bbaa8fe; status-b3.log START
+  bbaa8fe..ALLDONE (17:40-17:59Z); CHECK-HOST rc=0, 49/49 + 24/24,
+  RESULT PASS, Terminated 0; lint strict + fast hipcc_rc=0, 252
+  kernels, lint_rc=0. fresh/ and perf/ timestamps unchanged. gpu-perf
+  4d597fd, staging c9e342e unmoved. **B4 issued** (A100 + GB300
+  sanitizer on wt-final; scripts in untracked .p32dd-b4/): run-b4.sh
+  eca630dd... (= P3.1 r2 copy, path only), launch-b4.sh ad462676...,
+  check-b4.sh 5023866a... (dry-tested on P3.1 r2 data), ff-b4.sh
+  616a18de... (staging c9e342e -> bbaa8fe), b4docs.py a109bf61...
+  (ledger row 9 + "P3.2[dd] (final)" block; --dry OK, 64 lines).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
