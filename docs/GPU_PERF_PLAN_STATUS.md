@@ -1085,3 +1085,12 @@ Next session must know:
 - User decision pending: chain fast exp into fast log (2 lines,
   dd_fast.hpp), as its own task. Then P3.2[ff] stage A, with the
   new GPU order (MI250+MI300, then A100+GB300 with sanitizer).
+
+Orchestrator review (2026-11-20, B4): verified against files.
+Script md5s OK in scratch. a100 (gpu07) + gb300 (graceblackwell01)
+status-b4.log START bbaa8fe..ALLDONE, all rc=0; sanitizer ERROR
+SUMMARY 0 errors x4, 436080 rows x4; san-fast data rows equal the
+B1/B2 fast sweeps on both. origin/gpu-perf-staging c9e342e ->
+bbaa8fe (reflog, fast-forward); gpu-perf 4d597fd unmoved. Docs
+commit ff49e71 reproduced byte for byte by re-running b4docs.py on
+its parent. P3.2[dd] CLOSED: accepted into the FAST tier only.

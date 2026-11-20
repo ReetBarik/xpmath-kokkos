@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1-B3 verified, B4 issued)
+## Current state (updated 2026-11-20, P3.1[dd] CLOSED (fast); P3.1[ff]/[tf]/[qf] REJECTED; P3.2[dd] CLOSED (fast))
 
 Verify these against the files and branches before relying on them.
 
@@ -420,6 +420,15 @@ Verify these against the files and branches before relying on them.
   check-b4.sh 5023866a... (dry-tested on P3.1 r2 data), ff-b4.sh
   616a18de... (staging c9e342e -> bbaa8fe), b4docs.py a109bf61...
   (ledger row 9 + "P3.2[dd] (final)" block; --dry OK, 64 lines).
+- **P3.2[dd] B4 DONE, verified 2026-11-20. P3.2[dd] CLOSED:
+  accepted into the FAST tier only.** Sanitizer clean on gpu07 (A100)
+  + graceblackwell01 (GB300), both binaries, 436080 rows each;
+  san-fast data == B1/B2 fast sweeps. Staging c9e342e -> bbaa8fe
+  (ff). Docs commit ff49e71 (ledger row 9 = B200, OPEN; block
+  "P3.2[dd] (final)"), reproduced by re-running b4docs.py. Cleanup
+  lines given to the user. **Next:** user decides open question
+  "chain fast exp into fast log"; then P3.2[ff] stage A (new GPU
+  order; stronger orchestrator model for the design).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -435,7 +444,8 @@ Verify these against the files and branches before relying on them.
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
   done-marker for long runs, mandatory checklist. Review harder.
-- **Ledger.** Rows 1-7 CLOSED. Row 8 OPEN (P3.1[dd] b200, §1.9).
+- **Ledger.** Rows 1-7 CLOSED. Rows 8-9 OPEN (P3.1[dd], P3.2[dd]
+  b200, §1.9).
 - **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
   Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
   Re-test at `P3.4[tf]`. Parked by explicit user exception to §1.10's
