@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1 verified, B2 next)
+## Current state (updated 2026-11-19, P3.1[dd] CLOSED; P3.1[ff] REJECTED; P3.1[tf]/[qf] REJECTED; P3.2[dd] stage A PASS (fast), B1+B2 verified, B3 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -380,6 +380,25 @@ Verify these against the files and branches before relying on them.
   cfa1663eccead29412645119e4618b0f. check/ratios dry-tested on P3.1
   r2 gb300/mi300 data: ratios byte-identical. score-b2.sh untested
   (writes /vast). No commits in B2.
+- **P3.2[dd] B2 DONE, verified 2026-11-20 (Ran on: Sonnet 5.5 /
+  Claude Code).** graceblackwell01 (GB300) + amdgpu01 (MI300; nproc
+  shim used), released. Script md5s OK in scratch. Both status.log
+  START..ALLDONE; gb300 sweep rc=0 (copy skipped), mi300 sweep rc=1
+  (expected), copy rc=0; 4 builds + 12 runs rc=0; node.txt aarch64 8 /
+  x86_64 8; FATAL/last_error/isolating 0; 436080 rows; mi300.exits
+  absolute=0 monotone=1 (= sweep.log), CMP_OK. GB300 score.done 0,
+  gb300.exits absolute=0 monotone=-1, RESULT: PASS. host/a100/mi250
+  fresh files untouched (Nov 19). Branches unmoved. Orchestrator re-ran
+  perf_ratios (.p32dd-rat2): byte-identical. after/before: DD_fast exp
+  0.432 GB300, 0.394 MI300; cDD_fast exp 1.000 / 1.014; DD_fast
+  science 1.000 / 1.002. MI300 > 1.03: DD_fast sqrt 1.073, FF sqrt
+  1.037 (not gated). Orchestrator ran the gate read-only
+  (.p32dd-rat2/gate-pred.log): exit 1, fast only; speed a100 0.431,
+  mi250 0.367, mi300 0.394, gb300 0.432; strict-rule rows 112 = (6 exp
+  + 22 log) x 4 locations. **B3 issued**: scripts in untracked
+  ~/xpmath-kokkos/.p32dd-b3/: gate-b3.sh 52c944d4..., rebase-b3.sh
+  35b251da..., run-b3-final.sh c595b733... (= P3.1 r2 copy, paths),
+  launch-b3.sh 3c00034d..., check-b3.sh 2df72f2e....
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
