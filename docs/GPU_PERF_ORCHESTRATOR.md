@@ -496,16 +496,16 @@ Verify these against the files and branches before relying on them.
 - **The user does not want prompts stored in files.** Prompts go in chat.
 - **P2.1 dropped after dd; P2.3, P2.4 dropped; B200 deferred (§1.9).**
 - **Not done yet:** P0.5c (login node; can slot in any time).
+- **Orchestrator cost (user, 2026-11-20: yes).** Run the
+  orchestrator on Sonnet for routine stages (review, runner
+  adaptation, next prompt); stronger model for new-candidate design
+  (e.g. P3.2[ff] stage A), gate exit 3, policy questions. Lighter
+  reviews: branches, md5s, status logs, cited numbers, perf_ratios
+  re-run; no re-running pre-screens or docs generators unless
+  something looks off.
 
 ## Open questions for the user (raise them; don't decide them)
 
-- **Orchestrator cost (raised 2026-11-19, unanswered).** Recommendation:
-  (1) run the orchestrator on Sonnet for routine stages (review, runner
-  adaptation, next prompt); stronger model for new-candidate design
-  (P3.2[ff]), gate exit 3, policy questions; (2) lighter reviews:
-  branches, md5s, status logs, cited numbers, perf_ratios re-run; no
-  re-running pre-screens/docs generators unless something looks off.
-  Record the answer under Fixed facts.
 - **Chain tracking file (proposed 2026-11-19; user: "before that,
   give me the B2 prompt", so pending, not refused).** Create
   docs/GPU_PERF_CHAINS.md: one row per accepted fast op; callers that
