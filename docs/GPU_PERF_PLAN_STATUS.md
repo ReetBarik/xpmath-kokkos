@@ -1020,3 +1020,68 @@ failing the strict rules: 28" = 6 real exp + 22 real log (P3.1[dd]
 fast log, already accepted; every DD row is checked). Worker's step-2
 command (rev-parse --short with two refs) failed; user approved
 ls-remote instead. Next: stage B1 (A100 + MI250).
+
+## P3.2[dd] (final) — DD fast exp, accepted into fast
+Date: 2026-11-20   Outcome: Done
+Commits: xpmath wip/P3.2-dd = 7429482 (candidate: DD fast exp,
+variant mix, dd_fast.hpp only), bbaa8fe (re-baseline fast).
+gpu-perf-staging c9e342e -> bbaa8fe. xpmath gpu-perf NOT moved
+(4d597fd).
+Changed: include/xp/dd_fast.hpp (detail::dd_exp_fast_impl: k =
+rint(a.hi * 1/ln2); strict's Cody-Waite pieces, 6 squarings, 2^k
+scaling; e^x-1 as a fixed 12-term Horner series, 1/n! constants,
+terms 7-12 in double, 1-6 in DD; no divide, no data-dependent
+exit); validation/sweep/sweep_baseline_fast{,_a100,_mi250,
+_mi300}.csv.gz.
+Gate ($HOME/gpuperf-scratch/P3.2[dd]/gate.log, exit 1 = fast only), verbatim:
+```
+  host  cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+  host  real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+  a100  cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+  a100  real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+  mi250 cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+  mi250 real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+  mi300 cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+  mi300 real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+a100   speed exp       ratio(after/before) 0.431 1.000
+mi250  speed exp       ratio(after/before) 0.367 1.001
+mi300  speed exp       ratio(after/before) 0.394 1.014
+gb300  speed exp       ratio(after/before) 0.432 1.000 (REPORT ONLY, never gated)
+ops more than 3% slower on a gated GPU: 0 (changed ops + science)
+other ops more than 3% slower, code unchanged (report only): 1
+   mi300 DD_fast/sqrt ratio 1.073 (report only)
+speed: best ratio per changed op exp=0.367; strict needs <= 0.9709, fast needs <= 0.9091
+RESULT: strict failed, fast passed -> accept into fast only (exit 1)
+```
+Checks (evidence under $HOME/gpuperf-scratch/P3.2[dd]/):
+- TIER=fast device sweeps A100, MI250 (B1), MI300, GB300 (B2):
+  absolute=0 everywhere (fresh/*.exits; GB300 scored on login).
+- CHECK-PERF 3 interleaved pairs on A100, MI250, MI300, GB300
+  (perf/ratios_*.csv). GB300 report only.
+- CHECK-HOST at bbaa8fe: 49/49 + 24/24, RESULT PASS
+  (checkhost-final.log).
+- CHECK-GFX90A-LINT strict + fast: lint_rc=0 (lint/*/lint.log).
+- CHECK-SANITIZER A100 + GB300 at bbaa8fe, sweep_device and
+  sweep_device_fast: ERROR SUMMARY 0 errors
+  ({a100,gb300}/san-{strict,fast}.log); san-fast data rows equal
+  the B1/B2 fast sweeps.
+- B200 deferred: GPU_PERF_DEFERRED.md row 9.
+Disclosures:
+- NaN input: fast exp returns NaN; strict exp returns 0 (its
+  iteration limit). The sweep has no NaN inputs.
+- Scope: only exp is fast. Fast log, pow, sinh/cosh, tanh, expm1,
+  exp2/exp10 and complex exp still call strict exp.
+- The 112 strict-rule rows are (6 exp + 22 log) x 4 locations;
+  the 22 log rows are P3.1[dd]'s already accepted fast log.
+- No gate or rule changes in this task.
+Measured: DD_fast exp after/before 0.431 A100, 0.367 MI250, 0.394
+MI300, 0.432 GB300 (report only). cDD_fast exp 1.000 / 1.001 /
+1.014 / 1.000; DD_fast science 1.000 / 0.993 / 1.002 / 1.000.
+MI300 DD_fast sqrt 1.073 (code unchanged, report only). Host real
+exp: 6 rows fail strict, 0 fail fast; max 1.439 ulps unchanged,
+worst 6.0 bits lost vs Ref.
+Next session must know:
+- B200 owes ledger row 9 (C-b200 when there is a window).
+- User decision pending: chain fast exp into fast log (2 lines,
+  dd_fast.hpp), as its own task. Then P3.2[ff] stage A, with the
+  new GPU order (MI250+MI300, then A100+GB300 with sanitizer).
