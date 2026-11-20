@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain stage A/B1 issued)
+## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain A/B1 DONE, B2 next)
 
 Verify these against the files and branches before relying on them.
 
@@ -455,6 +455,22 @@ Verify these against the files and branches before relying on them.
   Then MI250 + MI300 (B2), then login (B3: gate, re-baseline,
   CHECK-HOST, lint, landing). Scratch "P3.2[dd]-chain", link
   p32ddc-link.
+- **P3.2[dd]-chain A + B1 DONE, verified 2026-11-20 (Ran on:
+  Sonnet 5.5 / Claude Code).** origin wip/P3.2-dd-chain = 1fce03c
+  (new, = candidate.sha; parent b72fcab = chain1; numstat 3/2 +
+  15/2); dd_fast.hpp md5 at b72fcab/1fce03c = 54a5cc6b/1b0464c2.
+  gpu-perf 4d597fd, staging bbaa8fe unmoved. Script md5s OK in
+  scratch. Pre-screen full + chain1 both exit 1 (strict failed, fast
+  passed; 0 fast-rule failures; strict rows 53 / 32). gpu07 (A100) +
+  graceblackwell01 (GB300) ALLDONE, released: A100 absolute=0,
+  monotone=1, CMP_OK; GB300 absolute=0, PASS; sanitizer both
+  binaries 436080 rows, 0 errors each; FAST_DATA_EQUAL both. Ratios
+  re-run into .p32ddc-rat/, cmp-equal. after/before sm_80 | sm_103:
+  DD log 0.485 | 0.481, DD exp 1.000 | 1.000, cDD exp 0.999 | 0.858,
+  cDD log 0.999 | 0.795, DD science 0.985 | 0.834; 0 rows > 1.03.
+  A100 complex flat (real log is 0.24 of 31.9 ns cDD log). **Next:
+  B2** on amdgpu04 (MI250) + amdgpu00 (MI300), TIER=fast sweep +
+  perf, no sanitizer.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
