@@ -1,0 +1,47 @@
+# GPU perf: fast-op chains
+
+Tracks, for each fast op accepted in Phase 3, which other fast-tier
+functions still reach the **strict** version of that op. A fast
+override (tier.hpp pattern 1) speeds up only direct calls of the op
+in the fast type. Every other fast function is a one-line forwarder
+`to_fast(f(to_strict(x)))`, so its strict body calls strict exp,
+strict log, and so on. Wiring a caller to the fast op ("chaining")
+changes result bits, so each chain is its own gated task (one change
+per gate run). The user picks which chains to run, after the
+backend's current task closes.
+
+How to fill a row: grep `include/xp/<b>_fast.hpp` for overrides and
+forwarders, and the strict bodies (`<b>_math.hpp`,
+`<b>_complex.hpp`) for calls to the op. Not from memory.
+
+Perf rows that exist (perf harness, per backend): real add, atan2,
+div, exp, log, mul, sin, sqrt; complex abs, add, div, exp, log, mul,
+sqrt; science kernel. A chain can be gated only through ops that
+have a perf row (gate `--ops` must list them).
+
+**Fact that limits every chain (checked 2026-11-20 at xpmath
+bbaa8fe):** the complex fast types forward the whole complex
+function to strict (`log(DoubleDoubleComplexFast)` ->
+strict complex `log` -> strict real `log`). So `cDD_fast` rows and
+the science kernel (complex mul/add/div/sqrt/log, real atan2) see
+**no** fast real op today, neither P3.1[dd] fast log nor P3.2[dd]
+fast exp. Only the real `DD_fast` row of the op itself measures it.
+
+## DD
+
+| Fast op | Accepted at (staging) | Strict callers still reached from the fast tier | Callers with a perf row | Status |
+|---|---|---|---|---|
+| log (2 Newton steps) | c9e342e (P3.1[dd]) | real: log2, log10, log1p, asinh, acosh, atanh; pow via dd_log_ext. complex: log, log10, pow, atan, asinh, acosh, atanh | cDD log (complex log calls strict real log twice) | none chained |
+| exp (mix, 12-term series) | bbaa8fe (P3.2[dd]), pending B4 | real: fast log's Newton steps (dd_fast.hpp `dd_log_fast_impl`, 2 calls), strict log, exp2, exp10, expm1 (-> tanh), sinhcosh (-> sinh, cosh); real pow uses its own dd_exp_ext, not exp. complex: exp, tan, tanh, pow, sin/cos/sinh/cosh via sinhcosh | DD log (via fast log, 2-line change); cDD exp (complex exp calls strict real exp twice) | none chained |
+
+Candidate chains (DD), smallest first:
+1. fast exp into fast log: 2 lines in `dd_log_fast_impl`. Gated via
+   `DD_fast log` only (`--ops log`). Open user decision after
+   P3.2[dd] closes.
+2. complex exp/log overrides that call the fast real ops: changes
+   `cDD_fast exp` / `cDD_fast log` and, for log, the science kernel.
+   Not yet designed.
+
+## FF, TF, QF
+
+No fast op accepted yet (P3.1[ff], [tf], [qf] rejected).

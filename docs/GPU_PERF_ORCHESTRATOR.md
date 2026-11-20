@@ -496,6 +496,8 @@ Verify these against the files and branches before relying on them.
 - **The user does not want prompts stored in files.** Prompts go in chat.
 - **P2.1 dropped after dd; P2.3, P2.4 dropped; B200 deferred (§1.9).**
 - **Not done yet:** P0.5c (login node; can slot in any time).
+- **Chain tracking (user, 2026-11-20: yes).** docs/GPU_PERF_CHAINS.md
+  created; update a row when a fast op is accepted or chained.
 - **Orchestrator cost (user, 2026-11-20: yes).** Run the
   orchestrator on Sonnet for routine stages (review, runner
   adaptation, next prompt); stronger model for new-candidate design
@@ -506,13 +508,6 @@ Verify these against the files and branches before relying on them.
 
 ## Open questions for the user (raise them; don't decide them)
 
-- **Chain tracking file (proposed 2026-11-19; user: "before that,
-  give me the B2 prompt", so pending, not refused).** Create
-  docs/GPU_PERF_CHAINS.md: one row per accepted fast op; callers that
-  still call strict (fill from grepping <b>_fast.hpp for to_strict
-  wrappers, not from memory); which callers have a perf row; status.
-  Rows: DD log (c9e342e) and, once accepted, DD exp. Each chain is its
-  own small task after the backend's current task closes; user picks.
 - **Chain timing (2026-11-19).** User asked whether to test exp
   callers with fast exp while A100/MI250 were held. Orchestrator
   recommended finishing fast exp first, chaining later as its own
@@ -524,6 +519,11 @@ Verify these against the files and branches before relying on them.
   (perf/science_kernel.hpp) uses complex mul/add/div/sqrt/log and
   real atan2, no exp, so it measures fast exp only after chaining
   into log.
+  **Correction (2026-11-20):** complex fast types forward the
+  whole complex function to strict, so cDD_fast log and science see
+  no fast real op (not fast log, not fast exp). Chaining exp into
+  fast log is measured by DD_fast log only. See
+  docs/GPU_PERF_CHAINS.md.
 
 Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
 probe NO-GO; workers = open models in Claude Code, ssh as before; no P3.0b
