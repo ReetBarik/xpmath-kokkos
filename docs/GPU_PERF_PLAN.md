@@ -1148,6 +1148,22 @@ Each task is one row below, applied to one backend (dd first). For each:
 > exp is accepted (user); pow etc. have no perf row, so they cannot be
 > gated as changed ops today.
 
+> **Plan: one allocation per GPU (amended 2026-11-20, user).** Each
+> GPU is allocated once per candidate and does all its work before it
+> is released. From P3.2[ff] on, the "GPUs, two at a time" order is:
+> 1. MI250 + MI300: candidate `TIER=fast` sweep, perf.
+> 2. A100 + GB300: candidate `TIER=fast` sweep, perf, and
+>    CHECK-SANITIZER for both binaries (`sweep_device`,
+>    `sweep_device_fast`) on the candidate commit.
+> 3. Login node: gate, re-baseline, CHECK-HOST, CHECK-GFX90A-LINT,
+>    landing. No further GPU pass on exit 1 or 2.
+> The sanitizer runs on the candidate commit, not the re-baseline
+> commit: the re-baseline commit changes only `.gz` baseline files, so
+> the device binaries are the same. Exit 0 (promotion to strict changes
+> code) still needs the `TIER=both` pass on both pairs, as in the table
+> above. P3.2[dd] keeps its old B4 (A100 + GB300 sanitizer), since its
+> nodes were already released.
+
 ---
 
 ## Phase 4 — One generic core

@@ -399,6 +399,12 @@ Verify these against the files and branches before relying on them.
   ~/xpmath-kokkos/.p32dd-b3/: gate-b3.sh 52c944d4..., rebase-b3.sh
   35b251da..., run-b3-final.sh c595b733... (= P3.1 r2 copy, paths),
   launch-b3.sh 3c00034d..., check-b3.sh 2df72f2e....
+- **User 2026-11-20: one allocation per GPU** ("get a GPU, max use,
+  release; don't re-allocate it later"). Plan amendment: from P3.2[ff]
+  on, pairs are MI250+MI300 (sweep, perf), then A100+GB300 (sweep,
+  perf, sanitizer both binaries on the candidate commit), then login.
+  Keep it simple; the user rejected batching/option questions as
+  over-engineering.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
