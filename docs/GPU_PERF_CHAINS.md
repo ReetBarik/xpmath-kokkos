@@ -34,6 +34,15 @@ fast exp. Only the real `DD_fast` row of the op itself measures it.
 | log (2 Newton steps) | c9e342e (P3.1[dd]) | real: log2, log10, log1p, asinh, acosh, atanh; pow via dd_log_ext. complex: log, log10, pow, atan, asinh, acosh, atanh | cDD log (complex log calls strict real log twice) | none chained |
 | exp (mix, 12-term series) | bbaa8fe (P3.2[dd]) | real: fast log's Newton steps (dd_fast.hpp `dd_log_fast_impl`, 2 calls), strict log, exp2, exp10, expm1 (-> tanh), sinhcosh (-> sinh, cosh); real pow uses its own dd_exp_ext, not exp. complex: exp, tan, tanh, pow, sin/cos/sinh/cosh via sinhcosh | DD log (via fast log, 2-line change); cDD exp (complex exp calls strict real exp twice) | none chained |
 
+Correction (2026-11-20, read at bbaa8fe dd_complex.hpp): strict
+complex log calls real log ONCE (`log(abs(z))`, plus atan2), and
+strict complex exp calls real exp ONCE (plus sincos). The table
+above said "twice".
+
+**User decision 2026-11-20:** chains 1 and 2 run as ONE task,
+P3.2[dd]-chain (plan amendment), tested whole; chain 1 alone is
+pre-screened for blame only.
+
 Candidate chains (DD), smallest first:
 1. fast exp into fast log: 2 lines in `dd_log_fast_impl`. Gated via
    `DD_fast log` only (`--ops log`). Open user decision after

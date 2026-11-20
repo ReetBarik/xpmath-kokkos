@@ -1164,6 +1164,23 @@ Each task is one row below, applied to one backend (dd first). For each:
 > above. P3.2[dd] keeps its old B4 (A100 + GB300 sanitizer), since its
 > nodes were already released.
 
+> **Plan: P3.2[dd]-chain (amended 2026-11-20, user).** A fast op only
+> counts if it reaches a real kernel (the science kernel), so the DD
+> chain is ONE task, tested whole. Candidate, `include/xp/dd_fast.hpp`
+> only (strict code untouched), branch `wip/P3.2-dd-chain` from
+> staging bbaa8fe, two commits: (1) `dd_log_fast_impl`'s two Newton
+> steps call `dd_exp_fast_impl` instead of strict exp; (2)
+> `exp(DoubleDoubleComplexFast)` = strict complex exp's body with the
+> fast real exp, and `log(DoubleDoubleComplexFast)` = strict complex
+> log's body (|z|, atan2) with the fast real log, kept
+> `XPMATH_NOINLINE_FUNCTION` like strict (TD-4). Commit 2 is the
+> candidate. Host pre-screen `--ops log,exp` on commit 2 decides;
+> commit 1 is pre-screened too, for blame only. If commit 2 fails
+> and commit 1 passes, stop and ask (the user does not want an op
+> win that no kernel uses). Gate `--ops log,exp` (real and complex;
+> science row gated). GPU order for this task only: A100 + GB300
+> first (the user held them), then MI250 + MI300, then login.
+
 ---
 
 ## Phase 4 — One generic core

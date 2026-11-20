@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.1[dd] CLOSED (fast); P3.1[ff]/[tf]/[qf] REJECTED; P3.2[dd] CLOSED (fast))
+## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain stage A/B1 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -429,6 +429,32 @@ Verify these against the files and branches before relying on them.
   lines given to the user. **Next:** user decides open question
   "chain fast exp into fast log"; then P3.2[ff] stage A (new GPU
   order; stronger orchestrator model for the design).
+- **Cleanup 2026-11-20:** user ran a throwaway script (worktrees
+  P3.0/P3.0b/P3.1[dd]r2/P3.1[tf]/P3.2[dd], build trees, links,
+  .p32dd-*): scratch 15G -> 12G. Untracked sweep logs of the two
+  dirty worktrees saved to `P3.1[dd]/r2/wt-after-logs/` and
+  `P3.2[dd]/wt-logs/`. On /vast `git worktree remove` can leave files
+  ("Directory not empty"): follow it with rm -rf, then prune.
+- **P3.2[dd]-chain designed + stage A/B1 issued 2026-11-20 (Opus
+  orchestrator).** User: chains 1+2 as one task (plan amendment).
+  Candidate in dd_fast.hpp only, branch wip/P3.2-dd-chain from
+  bbaa8fe; commit 1 = chain1 (fast log -> fast exp, +3/-2), commit 2
+  = full (+15/-2: fast complex exp / log overrides; log NOINLINE).
+  Scripts in untracked ~/xpmath-kokkos/.p32ddc/: ddchainpatch.py
+  7ee5e0ae... (chain1 in af8779ac -> out 54a5cc6b; full out
+  1b0464c2), run-a.sh 47761981..., run-gpu.sh dd3a2139...,
+  launch-gpu.sh 9fb40162..., score-gb300.sh 4d8ee1db...,
+  check-gpu.sh 7cbc1ea0..., ratios.sh 89cb65a2... (dry-tested on
+  P3.2[dd] a100/gb300 data: byte-identical ratios). Orchestrator host
+  test (g++ 13.3, -O2 -ffp-contract=off, 200k points, test dir
+  .p32ddc-test): real log fast/strict host time 0.669 -> 0.443;
+  full vs strict: cplx log max 13.8 units 2^-106 rel (74% identical),
+  cplx exp max 4.97 (82% identical); no new warnings. Order this
+  task: A100 (gpu07) + GB300 (graceblackwell01) first (user held
+  them): host pre-screen, then sweep + perf + sanitizer on commit 2.
+  Then MI250 + MI300 (B2), then login (B3: gate, re-baseline,
+  CHECK-HOST, lint, landing). Scratch "P3.2[dd]-chain", link
+  p32ddc-link.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -534,6 +560,8 @@ Verify these against the files and branches before relying on them.
   no fast real op (not fast log, not fast exp). Chaining exp into
   fast log is measured by DD_fast log only. See
   docs/GPU_PERF_CHAINS.md.
+  **SETTLED 2026-11-20 (user):** yes, and with chain 2 in the same
+  task (a fast op must reach the science kernel). P3.2[dd]-chain.
 
 Settled: 2026-11-11 land 4d597fd; rows 4-7 closed. 2026-11-12 tf NO-GO, qf
 probe NO-GO; workers = open models in Claude Code, ssh as before; no P3.0b
