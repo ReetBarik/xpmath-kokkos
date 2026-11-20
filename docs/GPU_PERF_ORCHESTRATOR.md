@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain A/B1 DONE, B2 next)
+## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain A/B1 DONE, B2 issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -471,6 +471,13 @@ Verify these against the files and branches before relying on them.
   A100 complex flat (real log is 0.24 of 31.9 ns cDD log). **Next:
   B2** on amdgpu04 (MI250) + amdgpu00 (MI300), TIER=fast sweep +
   perf, no sanitizer.
+- **P3.2[dd]-chain B2 issued 2026-11-20.** New scripts in
+  .p32ddc/ (list in amd.md5): run-amd.sh de4663b9... (from run-gpu.sh
+  + P3.2[dd] run-b1/b2 AMD parts; gcc 13.3 lib path both; nproc
+  shim), launch-amd.sh 4a68a7a5..., check-amd.sh 2b0abe6c... (dry
+  run on P3.2[dd] mi250/mi300 data OK). ratios.sh reused (dry:
+  gfx90a/gfx942 ratios byte-equal to P3.2[dd] via a temp link
+  .p32ddc-rat/olddd; the bracket path breaks perf_ratios' glob).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
