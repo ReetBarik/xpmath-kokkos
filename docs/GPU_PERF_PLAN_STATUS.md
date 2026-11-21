@@ -1275,7 +1275,7 @@ Checks (evidence under $HOME/gpuperf-scratch/P3.2[ff]/):
 Disclosures:
 - NaN input: fast exp returns NaN (explicit guard). Strict exp has no
   NaN guard (the (int) cast of NaN is undefined); a host build
-  (g++ 7.5, -O2) of strict exp(NaN) returned NaN, so no difference
+  (g++ 13.3.0, -O2 -ffp-contract=off) of strict exp(NaN) returned NaN, so no difference
   seen there; not checked on GPU. The sweep has no NaN inputs.
 - Scope: only exp is fast. Fast log, exp2, exp10, expm1, sinh/cosh,
   erf/erfc, zeta, incgamma, and complex exp/tan/tanh/pow still call
