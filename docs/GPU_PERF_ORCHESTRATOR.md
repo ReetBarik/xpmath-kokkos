@@ -674,6 +674,21 @@ Verify these against the files and branches before relying on them.
   observation for xpmath (no verdict): strict FF clog(1e-30+1e-30i)
   and (1e-38+1e-38i) give NaN imag, (3e38+3e38i) +inf real,
   (inf+inf i) NaN imag; fast identical.
+- **P3.2[ff]-chain NVIDIA prompt issued 2026-11-21.** A100 + GB300 on
+  commit 2 (d469318): fast sweep, perf (before a6b5626), sanitizer
+  both binaries, special values. New files in untracked
+  ~/xpmath-kokkos/.p32ffc-nv/ (nv.md5 adc4e88a...): run-nv.sh (=
+  P3.2[ff] run-nv.sh + sp block), launch-nv.sh, build-sp-nv.sh
+  (sweep's nvcc_wrapper per arch, ARCH_CONTRACT, -fext-numeric-
+  literals -O3 -DNDEBUG -std=c++17; device tree is CXX so no
+  -Wno-attributes; stops if a module fails: gcc/11.2.0 exists only on
+  the GB300 node), sp_nv.cpp (= sp_device.cpp + sweep's 16384 B CUDA
+  stack limit, STACK line), sp-explain.sh (UNEXPLAINED_TOTAL; AMD
+  sp.out -> 0, negative test -> 1), splicefile.py (GB300 report-only
+  vs P3.2[ff] fresh/gb300.csv), score-gb300.sh (build_full scorer;
+  dry: re-scoring P3.2[ff] raw == its fresh/gb300.csv), check-nv.sh
+  (dry on P3.2[ff] data OK). sp_nv compiled on login for sm_80 and
+  sm_103 (cubins checked). ratios.sh reused.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
