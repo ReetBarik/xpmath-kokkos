@@ -630,6 +630,21 @@ Verify these against the files and branches before relying on them.
   section written. **P3.2[ff] CLOSED: accepted into the FAST tier
   only.** Next: P3.2[ff]-chain, base a6b5626 (not ff25642/5c1511d);
   AMD pair still held by the user.
+- **P3.2[ff]-chain stage A + AMD prompt issued 2026-11-21 (Sonnet
+  5.5 worker).** Scripts in untracked ~/xpmath-kokkos/.p32ffc-a/
+  (chain.md5, 13 files), copied to "$HOME/gpuperf-scratch/
+  P3.2[ff]-chain" (link ~/gpuperf-scratch/p32ffc-link). Steps: mk-wt
+  (wip/P3.2-ff-chain from a6b5626: wt = commit 2, wt-c1 = commit 1,
+  wt-before = a6b5626), go-a (full then chain1 host pre-screen
+  --ops log --base a6b5626), decision table, push-a, AMD launch
+  (amdgpu04 MI250 + amdgpu00 MI300: fast sweep, special-value
+  check sp_device.cpp, perf), check-amd, sp-compare, ratios; STOP.
+  Host special-value result of sp_device.cpp (patched headers):
+  exp/log/clog fast vs strict differ in ordinary last bits on 11 of
+  72 real inputs, NaN rows differ in the lo word, 1 of 22 complex.
+  Next: review the report, then NVIDIA prompt (A100 + GB300 sweep,
+  perf, sp check built with nvcc, sanitizer both binaries on commit
+  2, GB300 raw scored on login), then login B3.
 - **Requirement for P3.2[ff]-chain GPU runs (user, 2026-11-21):**
   add a special-value check, fast vs strict, bit compare on device
   (A100, GB300, MI250, MI300): 46 inputs of .p32ff-test/sp.cpp, for
