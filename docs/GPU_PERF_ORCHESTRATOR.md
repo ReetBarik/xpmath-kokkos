@@ -552,6 +552,14 @@ Verify these against the files and branches before relying on them.
   **Next: B1** (MI250 + MI300, TIER=fast sweep + perf; check also
   confirms all non-FF/r/exp device rows equal the spliced ff25642
   fast baselines).
+- **P3.2[ff] B1 issued 2026-11-21.** Scripts in untracked
+  ~/xpmath-kokkos/.p32ff-b1/ (b1.md5): run-b1.sh 0d41b3e4... (=
+  P3.2[dd]-chain run-amd.sh, paths only), launch-b1.sh b47a15ff...
+  (wt = 5c1511d, wt-before = ff25642), splicecheck.py 717e32dc...
+  (fresh device CSV vs ff25642 fast baseline; only FF/r/exp may
+  differ; dry: 1fce03c fresh -> SPLICE_BAD DD/c/exp 82, baseline
+  itself -> OK), check-b1.sh f4925c45..., ratios-b1.sh 59691d50...
+  (dry: chain gfx90a/gfx942 ratios byte-identical). No commits.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
