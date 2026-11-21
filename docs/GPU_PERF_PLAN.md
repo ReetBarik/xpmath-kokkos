@@ -1180,6 +1180,18 @@ Each task is one row below, applied to one backend (dd first). For each:
 > win that no kernel uses). Gate `--ops log,exp` (real and complex;
 > science row gated). GPU order for this task only: A100 + GB300
 > first (the user held them), then MI250 + MI300, then login.
+>
+> **Plan: P3.2[dd]-chain trimmed (user exception, amended
+> 2026-11-21, user).** 1fce03c (chain 1 + fast complex log + fast
+> complex exp) is not landed: gate predicted exit 2 on speed
+> (complex exp). Landed instead: chain 1 (b72fcab) + the
+> complex-log hunk only (11c139c), re-baseline ff25642, staging
+> bbaa8fe -> ff25642. No GPU sweep, perf, sanitizer or speed gate
+> on the trimmed commit; login-only checks (host pre-screen exit 1,
+> CHECK-HOST, gfx90a lint). Device fast baselines spliced from the
+> 1fce03c sweeps with DD,c,exp rows from bbaa8fe, valid because the
+> host splice equals the host measured. One-time exception, not a
+> rule change; B200 ledger row 10.
 
 ---
 

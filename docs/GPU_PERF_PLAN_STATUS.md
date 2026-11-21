@@ -1094,3 +1094,104 @@ B1/B2 fast sweeps on both. origin/gpu-perf-staging c9e342e ->
 bbaa8fe (reflog, fast-forward); gpu-perf 4d597fd unmoved. Docs
 commit ff49e71 reproduced byte for byte by re-running b4docs.py on
 its parent. P3.2[dd] CLOSED: accepted into the FAST tier only.
+
+## P3.2[dd]-chain (final) — DD fast log chained (trimmed), accepted into fast
+Date: 2026-11-21   Outcome: Done (user exception: no GPU pass on
+the landed commit)
+Commits: xpmath b72fcab (chain 1: fast log Newton steps call fast
+exp), 11c139c (candidate-l: fast complex log calls the fast real
+log, trimmed), ff25642 (re-baseline fast, trimmed). Pushed as
+wip/P3.2-dd-chainlog = ff25642; gpu-perf-staging bbaa8fe ->
+ff25642 (fast-forward). xpmath gpu-perf NOT moved (4d597fd).
+Not landed: wip/P3.2-dd-chain = 1fce03c (b72fcab + fast complex
+log AND fast complex exp; measured, gate predicted exit 2).
+Changed: include/xp/dd_fast.hpp only (11c139c vs b72fcab 8+/1-,
+file md5 fcdfe7188c472a86471091a7b06ec617):
+- detail::dd_log_fast_impl: the two Newton steps call
+  dd_exp_fast_impl instead of strict exp (b72fcab).
+- log(DoubleDoubleComplexFast) = strict complex log body (|z|,
+  atan2) with detail::dd_log_fast_impl for the real part, kept
+  XPMATH_NOINLINE_FUNCTION like strict (TD-4) (11c139c).
+- exp(DoubleDoubleComplexFast) unchanged: still forwards to strict
+  complex exp (strict real exp).
+- validation/sweep/sweep_baseline_fast{,_a100,_mi250,_mi300}.csv.gz
+  (ff25642).
+Measured on 1fce03c (B1 A100 + GB300, B2 MI250 + MI300; 3
+interleaved perf pairs; GB300 report only), after/before vs
+bbaa8fe:
+
+| op | sm_80 | sm_103 | gfx90a | gfx942 |
+|---|---|---|---|---|
+| DD_fast log | 0.485 | 0.481 | 0.424 | 0.465 |
+| DD_fast exp | 1.000 | 1.000 | 0.999 | 1.010 |
+| cDD_fast exp | 0.999 | 0.858 | 1.064 | 0.927 |
+| cDD_fast log | 0.999 | 0.795 | 0.970 | 0.914 |
+| DD_fast science | 0.985 | 0.834 | 0.853 | 0.900 |
+
+The trimmed commit was not timed. Its real log and complex log code
+is the same as 1fce03c's; its complex exp is bbaa8fe's (whose cDD
+exp rows were ~1.000 in P3.2[dd]). The science kernel uses complex
+log, not complex exp, so the science column should carry over.
+Not measured.
+Gate on 1fce03c, predicted read-only, never run officially (user
+decision; .p32ddc-test/gate-pred.log): exit 2, accuracy 0 fast-rule
+rows, rejected on speed: (a) MI250 cDD_fast exp 1.064 > 1.03 on a
+changed op; (b) best exp ratio on a gated GPU 0.927 (MI300 cDD)
+misses the fast rule 0.9091 (GB300 0.858 report only). (b) alone
+rejects.
+Checks:
+- Stage A host pre-screen on 1fce03c (--ops log,exp): exit 1; chain
+  1 alone pre-screened for blame.
+- B1 A100 + GB300 and B2 MI250 + MI300 on 1fce03c: TIER=fast sweep
+  absolute=0 everywhere, 436080 rows; CHECK-SANITIZER A100 + GB300
+  (sweep_device, sweep_device_fast): 0 errors.
+- Stage L on the trimmed commit, login only (scratch
+  "$HOME/gpuperf-scratch/P3.2[dd]-chain", status-l.log START
+  11c139c .. ALLDONE, no STOP): build rc=0; host sweep absolute=0,
+  monotone=1; prescreen --ops log,exp --base bbaa8fe exit 1, 0
+  fast-rule rows (prescreen_l.log); SPLICE_OK x4 (rows_from_base
+  1780), SPLICE_HOST_EQUAL; GZ_OK x4; DOMAINS_UNCHANGED; CHECK-HOST
+  49/49 + 24/24 RESULT PASS (checkhost-l.log); gfx90a lint strict +
+  fast lint_rc=0 (lint-l/).
+- Stage L first attempt stopped at Step 2: the prompt passed two
+  refs to `git rev-parse --short` (rc 128, prompt bug). Nothing was
+  changed; resumed with the two calls separate (Step 2b), then
+  Steps 3-7 as written.
+- B200 deferred: GPU_PERF_DEFERRED.md row 10.
+Host gate lines on the trimmed commit (re-baseline message), verbatim:
+```
+  host  cplx exp       n=1668  ulps max/med/p99 2.714/0.2529/1.677 -> 2.714/0.2529/1.677 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.02343 | worst bits lost vs Ref 0.000
+  host  cplx log       n=1773  ulps max/med/p99 4.483e+07/0.1802/174.6 -> 4.483e+07/0.1803/174.6 | fails bound 0, strict-Ref 17, strict-Cur 17, fast-Ref 0 | worst ulps/bound 0.01727 | worst bits lost vs Ref 4.087
+  host  real exp       n=1550  ulps max/med/p99 1.439/0.1801/1.083 -> 1.439/0.1634/1.033 | fails bound 0, strict-Ref 6, strict-Cur 6, fast-Ref 0 | worst ulps/bound 0.006305 | worst bits lost vs Ref 6.022
+  host  real log       n=1690  ulps max/med/p99 4.82e+15/0.1209/1.971 -> 4.82e+15/0.121/2.508 | fails bound 0, strict-Ref 26, strict-Cur 26, fast-Ref 0 | worst ulps/bound 0.006475 | worst bits lost vs Ref 4.346
+accuracy rows failing the strict rules: 49
+accuracy rows failing the fast rules: 0
+RESULT: strict failed, fast passed -> accept into fast only (exit 1) HOST-ONLY: accuracy pre-screen, no speed verdict
+```
+**USER EXCEPTION (2026-11-21).** The trimmed commit landed without
+a GPU sweep, perf run, sanitizer run or speed gate. Device fast
+baselines a100/mi250/mi300 are SPLICED, not measured: every row
+from the 1fce03c GPU sweeps except the DD,c,exp rows, which come
+from the bbaa8fe baseline (1780 rows per file). 1fce03c and bbaa8fe
+baselines differ only in DD r log, c log and c exp rows. The splice
+was valid only if the host splice equals the host sweep measured on
+the trimmed commit, byte for byte (SPLICE_HOST_EQUAL). The host
+baseline is measured.
+Next session must know:
+- B200 owes ledger row 10, and rows 8-9.
+- A later GPU sweep on the trimmed staging (any task's "before") is
+  the first device check of the spliced baselines.
+- Next: P3.2[ff] stage A (new-candidate design, stronger model).
+
+Orchestrator review (2026-11-21, stage L): verified against git and
+scratch. Ran on: A/B1/B2 Sonnet 5.5 / Claude Code; L Sonnet 5.5 /
+Claude Code. l.md5 78693b04... and all 7 scripts OK. origin:
+gpu-perf 4d597fd, gpu-perf-staging ff25642 (bbaa8fe an ancestor, no
+force-push), wip/P3.2-dd-chainlog ff25642, wip/P3.2-dd-chain
+1fce03c. ff25642~1 = 11c139c, ~2 = b72fcab, ~3 = bbaa8fe;
+11c139c diff only dd_fast.hpp 8+/1- (md5 fcdfe718...); ff25642
+diff only the 4 fast gz. Each committed gz unzips cmp-equal to
+fresh_l/host.csv and fresh_l/splice_{a100,mi250,mi300}.csv.
+status-l.log 19 lines, no STOP; prescreen exit 1, 0 fast-rule rows;
+CHECK-HOST 49/49 + 24/24 PASS; lint_rc=0 x2. P3.2[dd]-chain CLOSED:
+trimmed variant accepted into the FAST tier by user exception.

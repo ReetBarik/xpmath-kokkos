@@ -31,8 +31,8 @@ fast exp. Only the real `DD_fast` row of the op itself measures it.
 
 | Fast op | Accepted at (staging) | Strict callers still reached from the fast tier | Callers with a perf row | Status |
 |---|---|---|---|---|
-| log (2 Newton steps) | c9e342e (P3.1[dd]) | real: log2, log10, log1p, asinh, acosh, atanh; pow via dd_log_ext. complex: log, log10, pow, atan, asinh, acosh, atanh | cDD log (complex log calls strict real log twice) | none chained |
-| exp (mix, 12-term series) | bbaa8fe (P3.2[dd]) | real: fast log's Newton steps (dd_fast.hpp `dd_log_fast_impl`, 2 calls), strict log, exp2, exp10, expm1 (-> tanh), sinhcosh (-> sinh, cosh); real pow uses its own dd_exp_ext, not exp. complex: exp, tan, tanh, pow, sin/cos/sinh/cosh via sinhcosh | DD log (via fast log, 2-line change); cDD exp (complex exp calls strict real exp twice) | none chained |
+| log (2 Newton steps) | c9e342e (P3.1[dd]); chained ff25642 (P3.2[dd]-chain, trimmed) | real: log2, log10, log1p, asinh, acosh, atanh; pow via dd_log_ext. complex: log10, pow, atan, asinh, acosh, atanh | cDD log now calls the fast real log (fast complex log = strict body + fast real log, NOINLINE) | chained: complex log (ff25642) |
+| exp (mix, 12-term series) | bbaa8fe (P3.2[dd]) | real: strict log, exp2, exp10, expm1 (-> tanh), sinhcosh (-> sinh, cosh); real pow uses its own dd_exp_ext, not exp. complex: exp (still strict body + strict real exp), tan, tanh, pow, sin/cos/sinh/cosh via sinhcosh | cDD exp (not chained: 1fce03c measured, MI250 1.064, best 0.927 misses the fast rule) | chained: fast log Newton steps (b72fcab) |
 
 Correction (2026-11-20, read at bbaa8fe dd_complex.hpp): strict
 complex log calls real log ONCE (`log(abs(z))`, plus atan2), and
@@ -43,7 +43,13 @@ above said "twice".
 P3.2[dd]-chain (plan amendment), tested whole; chain 1 alone is
 pre-screened for blame only.
 
-Candidate chains (DD), smallest first:
+**Update 2026-11-21 (P3.2[dd]-chain CLOSED, trimmed, user
+exception):** staging ff25642 = chain 1 (fast log's Newton steps
+call fast exp) + fast complex log calling the fast real log. The
+science kernel now reaches a fast real op (complex log -> fast real
+log -> fast exp). Fast complex exp stays a forwarder to strict.
+
+Candidate chains (DD), smallest first (historical):
 1. fast exp into fast log: 2 lines in `dd_log_fast_impl`. Gated via
    `DD_fast log` only (`--ops log`). Open user decision after
    P3.2[dd] closes.

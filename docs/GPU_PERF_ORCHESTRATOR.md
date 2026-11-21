@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain B2 DONE, gate predicts exit 2)
+## Current state (updated 2026-11-21, P3.2[dd]-chain CLOSED (trimmed, user exception); next P3.2[ff] stage A)
 
 Verify these against the files and branches before relying on them.
 
@@ -520,6 +520,16 @@ Verify these against the files and branches before relying on them.
   After review: orchestrator writes status block "P3.2[dd]-chain
   (final)" (user exception + predicted 1fce03c exit 2), ledger row
   10 (B200), chains doc row, plan amendment.
+- **P3.2[dd]-chain stage L DONE, verified 2026-11-21 (Ran on:
+  Sonnet 5.5 / Claude Code). Task CLOSED.** Step 2 stopped on the
+  rev-parse prompt bug; resumed as 2b. Candidate 11c139c, final
+  ff25642; origin staging bbaa8fe -> ff25642 (ff),
+  wip/P3.2-dd-chainlog ff25642, gpu-perf 4d597fd unmoved. All
+  status-l lines present incl. SPLICE_HOST_EQUAL; gz cmp-equal x4;
+  prescreen exit 1; CHECK-HOST PASS; lint 0 x2. Status block
+  "P3.2[dd]-chain (final)", ledger row 10, chains doc, plan
+  amendment written. Next: cleanup, then P3.2[ff] stage A on a
+  stronger model, base = staging ff25642.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
@@ -535,8 +545,8 @@ Verify these against the files and branches before relying on them.
   workflow unchanged (they ssh to GPU nodes themselves). Prompts still
   spell out every rule (no reliance on CLAUDE.md/memory), nohup + log +
   done-marker for long runs, mandatory checklist. Review harder.
-- **Ledger.** Rows 1-7 CLOSED. Rows 8-9 OPEN (P3.1[dd], P3.2[dd]
-  b200, §1.9).
+- **Ledger.** Rows 1-7 CLOSED. Rows 8-10 OPEN (P3.1[dd], P3.2[dd],
+  P3.2[dd]-chain trimmed; b200, §1.9).
 - **Parked register:** row 2 = qf FULL (5e59302), Re-test at `P3.4[qf]`.
   Row 1 = tf FULL (xpmath `wip/P2.2-tf` = ddd5701),
   Re-test at `P3.4[tf]`. Parked by explicit user exception to §1.10's
