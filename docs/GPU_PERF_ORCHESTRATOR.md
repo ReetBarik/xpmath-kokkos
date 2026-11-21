@@ -621,6 +621,15 @@ Verify these against the files and branches before relying on them.
   in untracked .p32ff-b3/ (b3.md5): gate, rebase, push (wip +
   wt-final), run-b3-final/launch/check (CHECK-HOST + lint), ff-b3.sh
   (staging ff25642 -> final, only if checks pass).
+- **P3.2[ff] B3 DONE, verified 2026-11-21 (Ran on: TBD, user to
+  give).** Gate exit 1, gate.log == gate-pred.log. Re-baseline commit
+  a6b5626 (parent 5c1511d, 4 fast .gz only), pushed to wip/P3.2-ff;
+  staging ff25642 -> a6b5626 (one push each, fast-forward); gpu-perf
+  4d597fd unmoved. CHECK-HOST 49/49 + 24/24 PASS, lint rc 0 x2.
+  Status block "P3.2[ff] (final)", ledger row 11, chains doc FF
+  section written. **P3.2[ff] CLOSED: accepted into the FAST tier
+  only.** Next: P3.2[ff]-chain, base a6b5626 (not ff25642/5c1511d);
+  AMD pair still held by the user.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

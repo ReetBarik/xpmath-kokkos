@@ -57,6 +57,15 @@ Candidate chains (DD), smallest first (historical):
    `cDD_fast exp` / `cDD_fast log` and, for log, the science kernel.
    Not yet designed.
 
-## FF, TF, QF
+## FF
 
-No fast op accepted yet (P3.1[ff], [tf], [qf] rejected).
+Checked 2026-11-21 at xpmath a6b5626 (grep of ff_math.hpp,
+ff_complex.hpp for `exp(` calls).
+
+| Fast op | Accepted at (staging) | Strict callers still reached from the fast tier | Callers with a perf row | Status |
+|---|---|---|---|---|
+| exp (mix8, 8-term series) | a6b5626 (P3.2[ff]; candidate 5c1511d) | real: strict log (Newton step, 2 calls), exp2, exp10, expm1, sinhcosh, erf, erfc, zeta, incgamma, tgamma (Lanczos). complex: exp (strict body + strict real exp), tan, tanh, pow (exp(w*log z)). Real pow: no direct exp( call found in ff_math.hpp, not traced further | cFF exp (not chained, measured 1.000 / 1.001 / 1.000 / 1.002); FF log (strict log calls strict exp) | chain designed: P3.2[ff]-chain |
+
+## TF, QF
+
+No fast op accepted yet (P3.1[tf], [qf] rejected).

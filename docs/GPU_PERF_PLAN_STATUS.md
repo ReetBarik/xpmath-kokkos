@@ -1221,3 +1221,85 @@ parent ff25642, ff_fast.hpp 46/1, md5 df425676 = patch output); gpu-perf
 ALLDONE, build rc=0; 436081 data lines; prescreen exit 1, strict-rule row
 FF/r/exp/477 (fresh 1.178 ulps, Ref 0.327, bound 92); fresh/host.{csv,exits}
 cmp-equal to fresh_mix8/. PASS -> stage B1 (MI250 + MI300).
+
+## P3.2[ff] (final) — FF fast exp, accepted into fast
+Date: 2026-11-21   Outcome: Done
+Commits: xpmath wip/P3.2-ff = 5c1511d (candidate: FF fast exp,
+variant mix8, ff_fast.hpp only), a6b5626 (re-baseline fast).
+gpu-perf-staging ff25642 -> a6b5626. xpmath gpu-perf NOT moved
+(4d597fd).
+Changed: include/xp/ff_fast.hpp (detail::ff_exp_fast_impl: k =
+rint(a.hi * 1/ln2), one float multiply; strict's guards, 4
+Cody-Waite pieces, 4 squarings, 2^k scaling; e^x-1 as a fixed 8-term
+Horner series, 1/n! constants, terms 5-8 in float, 1-4 in FF; no
+divide, no data-dependent exit); validation/sweep/sweep_baseline_fast
+{,_a100,_mi250,_mi300}.csv.gz.
+Gate ($HOME/gpuperf-scratch/P3.2[ff]/gate.log, exit 1 = fast only),
+verbatim:
+```
+  host  cplx exp       n=1602  ulps max/med/p99 9.878e+12/0.4206/4.799e+12 -> 9.878e+12/0.4206/4.799e+12 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.05823 | worst bits lost vs Ref 0.000
+  host  real exp       n=836   ulps max/med/p99 4.799e+12/0.1642/1.582e+10 -> 4.799e+12/0.1597/1.582e+10 | fails bound 0, strict-Ref 1, strict-Cur 1, fast-Ref 0 | worst ulps/bound 0.02937 | worst bits lost vs Ref 7.138
+  (a100, mi250, mi300 rows identical to host)
+accuracy rows failing the strict rules: 4
+   host FF/r/exp/477 fresh 1.17803, Current 0.327106, Reference 0.327106, bound 92
+   a100 FF/r/exp/477 fresh 1.17803, Current 0.327106, Reference 0.327106, bound 92
+   mi250 FF/r/exp/477 fresh 1.17803, Current 0.327106, Reference 0.327106, bound 92
+accuracy rows failing the fast rules: 0
+a100   speed exp       ratio(after/before) 0.517 1.000
+mi250  speed exp       ratio(after/before) 0.414 1.000
+mi300  speed exp       ratio(after/before) 0.416 1.002
+gb300  speed exp       ratio(after/before) 0.606 1.000 (REPORT ONLY, never gated)
+ops more than 3% slower on a gated GPU: 0 (changed ops + science)
+other ops more than 3% slower, code unchanged (report only): 2
+   mi300 FF_fast/log ratio 1.057 (report only)
+   mi300 cFF_fast/mul ratio 1.042 (report only)
+speed: best ratio per changed op exp=0.414; strict needs <= 0.9709, fast needs <= 0.9091
+RESULT: strict failed, fast passed -> accept into fast only (exit 1)
+```
+(Rows above are the gate.log lines; the "(a100...)" line abbreviates
+six identical rows. Full text in gate.log.)
+Checks (evidence under $HOME/gpuperf-scratch/P3.2[ff]/):
+- Stage A: host pre-screen exit 1, fast only.
+- B1 A100 + GB300: CHECK-SANITIZER sweep_device and sweep_device_fast,
+  0 errors, 436080 rows x4; fast data equal on both.
+- B1/B2 TIER=fast sweeps A100, GB300, MI250, MI300: absolute=0,
+  CMP_OK, SPLICE_OK (only "differ FF/r/exp 148", keys 0). The spliced
+  ff25642 fast baselines now match measured a100/mi250/mi300.
+- CHECK-PERF 3 interleaved pairs, A100, MI250, MI300, GB300 (report
+  only).
+- B3 CHECK-HOST at a6b5626: 49/49 + 24/24, RESULT PASS, 0 Terminated
+  (checkhost-final.log); CHECK-GFX90A-LINT strict + fast lint_rc=0,
+  252 kernels (lint/*/lint.log).
+- Rebaseline: each of the 4 .gz zcat == fresh/<loc>.csv; gen_domains
+  no diff.
+Disclosures:
+- NaN input: fast exp returns NaN (explicit guard). Strict exp has no
+  NaN guard (the (int) cast of NaN is undefined); a host build
+  (g++ 7.5, -O2) of strict exp(NaN) returned NaN, so no difference
+  seen there; not checked on GPU. The sweep has no NaN inputs.
+- Scope: only exp is fast. Fast log, exp2, exp10, expm1, sinh/cosh,
+  erf/erfc, zeta, incgamma, and complex exp/tan/tanh/pow still call
+  strict exp (docs/GPU_PERF_CHAINS.md).
+- The 4 strict-rule rows are FF/r/exp/477 on host, a100, mi250,
+  mi300 (the gate lists 3).
+- No gate or rule changes in this task.
+- MI300 FF_fast log 1.057 and cFF_fast mul 1.042: code unchanged,
+  report only (drift in "before").
+- B200 owes ledger row 11.
+Measured: FF_fast exp after/before 0.517 A100, 0.606 GB300 (report
+only), 0.415 MI250, 0.416 MI300. cFF_fast exp 1.000 / 1.001 / 1.000
+/ 1.002; FF_fast science 1.000 / 0.999 / 1.003 / 1.000.
+Next session must know:
+- B200 owes ledger row 11 (C-b200 when there is a window).
+- Next: P3.2[ff]-chain (plan amendment "P3.2[ff]-chain"); base
+  a6b5626; AMD pair (amdgpu04 + amdgpu00) held by the user.
+Orchestrator review (2026-11-21): verified against git and scratch.
+b3.md5 9 OK; gate.exit 1, gate.log == gate-pred.log; each of the 4
+.gz zcat == fresh/<loc>.csv; commit message == rebaseline-msg.txt
+(trailing newline only); wt-final HEAD a6b5626; status-b3.log START
+a6b5626 .. ALLDONE; checkhost-final.log 49/49 + 24/24 PASS, 0
+Terminated; lint rc 0 x2. origin: wip/P3.2-ff 5c1511d -> a6b5626 and
+staging ff25642 -> a6b5626, one push each (reflog); gpu-perf 4d597fd
+unmoved; diff 5c1511d..a6b5626 = the 4 .gz only. P3.2[ff] CLOSED:
+accepted into the FAST tier only. Ran on: Stage A, B1, B2: Claude
+Sonnet 5.5 / Claude Code CLI; B3: TBD (user to give).
