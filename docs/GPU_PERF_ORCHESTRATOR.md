@@ -587,6 +587,9 @@ Verify these against the files and branches before relying on them.
   science 1.000 | 0.999. Rows > 1.03: sm_80 cDD div chain 1.067
   (strict DD, not gated), sm_103 none. **Next: B2** (MI250 + MI300,
   .p32ff-b1/ scripts).
+- **P3.2[ff] B2 issued 2026-11-21:** amdgpu04 (MI250) + amdgpu00
+  (MI300), .p32ff-b1/ scripts (b1.md5), outputs check-b1.log and
+  ratios-b1.log in scratch. No commits.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
