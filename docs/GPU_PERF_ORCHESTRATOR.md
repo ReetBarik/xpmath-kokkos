@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-21, P3.2[ff] stage A verified)
+## Current state (updated 2026-11-21, P3.2[ff] B1 verified)
 
 Verify these against the files and branches before relying on them.
 
@@ -571,6 +571,22 @@ Verify these against the files and branches before relying on them.
   = P3.2[dd]-chain NVIDIA scripts, paths/SHAs only; dry tests on
   chain data OK (ratios byte-identical). B2 = MI250 + MI300 with the
   .p32ff-b1/ scripts above (names say b1; cosmetic).
+- **P3.2[ff] B1 DONE, verified 2026-11-21 (Ran on: Claude Sonnet
+  5.5 / Claude Code CLI).** gpu06 (A100) + graceblackwell01 (GB300),
+  released. Branches unmoved (gpu-perf 4d597fd, staging ff25642, wip
+  5c1511d; xpmath-kokkos ce80533, no worker commit). nv.md5 OK in
+  scratch; wt 5c1511d, wt-before ff25642. status.log both one START
+  <dev> 5c1511d .. ALLDONE; a100 sweep rc=1 (expected), all else
+  rc=0. check-nv.log: FATAL/last_error/isolating 0; sanitizer 0
+  errors, 436080 rows x4; FAST_DATA_EQUAL x2; a100 absolute=0
+  monotone=1, CMP_OK, SPLICE_OK (only "differ FF/r/exp 148", 0 keys
+  missing); gb300 score.done 0, absolute=0 monotone=-1, RESULT PASS.
+  Ratios re-run into .p32ff-test/ratb1, cmp-equal. after/before
+  sm_80 | sm_103: FF_fast exp 0.517 | 0.606 (GB300 report only;
+  A100 meets fast <= 0.909), cFF_fast exp 1.000 | 1.001, FF_fast
+  science 1.000 | 0.999. Rows > 1.03: sm_80 cDD div chain 1.067
+  (strict DD, not gated), sm_103 none. **Next: B2** (MI250 + MI300,
+  .p32ff-b1/ scripts).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
