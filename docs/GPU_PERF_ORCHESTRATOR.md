@@ -689,6 +689,23 @@ Verify these against the files and branches before relying on them.
   dry: re-scoring P3.2[ff] raw == its fresh/gb300.csv), check-nv.sh
   (dry on P3.2[ff] data OK). sp_nv compiled on login for sm_80 and
   sm_103 (cubins checked). ratios.sh reused.
+- **P3.2[ff]-chain NVIDIA DONE, verified 2026-11-21 (Ran on: Sonnet 5.5
+  / Claude Code).** gpu07 (A100) + graceblackwell01 (GB300), released.
+  Script md5s OK (nv 8, chain 13); branches unmoved (wip/P3.2-ff-chain
+  d469318). Both status.log START..ALLDONE, all rc 0 (a100 sweep rc=1
+  expected), FATAL/last_error/isolating 0, sanitizer + sp-san 0 errors,
+  436080 rows x2, FAST_DATA_EQUAL, STACK set_rc 0 limit 16384,
+  sp rows 498. a100 absolute 0 monotone 1, CMP_OK, SPLICE_OK (only FF
+  r/log 146 and c/log 56 differ); gb300 score.done 0, RESULT PASS,
+  SPLICE_OK (report only). sp-explain: UNEXPLAINED_TOTAL 0 on both;
+  CLASS_MISMATCH 0 and INHERITED 0 (NVIDIA libm matches host; only NaN
+  classes: log 4, clog 4). perf_ratios re-run cmp-equal; 0 rows > 1.03
+  on sm_80 and sm_103. after/before FF_fast log 0.585 a100 / 0.597
+  gb300; cFF_fast log 1.006 / 0.986; FF_fast science 0.963 / 1.007.
+  Orchestrator gate prediction (.p32ff-test/gate-pred-c.log): exit 1,
+  fast only; strict-rule rows 12 (FF r/exp 477, r/log 347 + 457 x 4
+  locations); fast-rule 0; speed log a100 0.585, mi250 0.460, mi300
+  0.456, gb300 0.597 (report only); slower 0. Next: login B3.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
