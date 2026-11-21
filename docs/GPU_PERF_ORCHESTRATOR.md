@@ -601,6 +601,26 @@ Verify these against the files and branches before relying on them.
   log 0.74x, complex log 0.91x. Stage A scripts after P3.2[ff] B3.
   User 2026-11-21: keeps amdgpu04 (MI250) + amdgpu00 (MI300) after
   P3.2[ff] B2 for the chain's first GPU pair.
+- **P3.2[ff] B2 DONE, verified 2026-11-21 (Ran on: Claude Sonnet
+  5.5 / Claude Code CLI).** amdgpu04 (MI250) + amdgpu00 (MI300), held
+  by the user for the chain. Branches unmoved (gpu-perf 4d597fd,
+  staging ff25642, wip 5c1511d). b1.md5 OK in scratch; status.log
+  both START 5c1511d .. ALLDONE, sweep rc=1, all else rc=0;
+  check-b1.log: node.txt x86_64 8, FATAL/last_error/isolating 0,
+  436080 rows, absolute=0 monotone=1, CMP_OK, SPLICE_OK (only
+  "differ FF/r/exp 148", keys 0) on both, so the spliced ff25642
+  fast baselines now match measured MI250/MI300 (and A100, B1).
+  Ratios re-run into .p32ff-test/ratb2, cmp-equal. after/before
+  gfx90a | gfx942: FF_fast exp 0.415 | 0.416, cFF_fast exp 1.000 |
+  1.002, FF_fast science 1.003 | 1.000; report only: gfx942 FF_fast
+  log 1.057 (code unchanged; the chain's "before" drift), cFF_fast
+  mul 1.042. Gate predicted read-only (.p32ff-test/gate-pred.log):
+  exit 1, fast only; speed a100 0.517, mi250 0.414, mi300 0.416,
+  gb300 0.606; strict-rule rows 4 (gate lists 3: FF/r/exp/477 on
+  host, a100, mi250); fast-rule rows 0. **B3 issued**: scripts
+  in untracked .p32ff-b3/ (b3.md5): gate, rebase, push (wip +
+  wt-final), run-b3-final/launch/check (CHECK-HOST + lint), ff-b3.sh
+  (staging ff25642 -> final, only if checks pass).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
