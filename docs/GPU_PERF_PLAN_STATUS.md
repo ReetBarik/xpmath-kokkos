@@ -1308,4 +1308,4 @@ Terminated; lint rc 0 x2. origin: wip/P3.2-ff 5c1511d -> a6b5626 and
 staging ff25642 -> a6b5626, one push each (reflog); gpu-perf 4d597fd
 unmoved; diff 5c1511d..a6b5626 = the 4 .gz only. P3.2[ff] CLOSED:
 accepted into the FAST tier only. Ran on: Stage A, B1, B2: Claude
-Sonnet 5.5 / Claude Code CLI; B3: TBD (user to give).
+Sonnet 5.5 / Claude Code CLI; B3: Claude Sonnet 5.5 / Claude Code.

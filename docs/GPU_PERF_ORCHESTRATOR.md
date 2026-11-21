@@ -621,8 +621,8 @@ Verify these against the files and branches before relying on them.
   in untracked .p32ff-b3/ (b3.md5): gate, rebase, push (wip +
   wt-final), run-b3-final/launch/check (CHECK-HOST + lint), ff-b3.sh
   (staging ff25642 -> final, only if checks pass).
-- **P3.2[ff] B3 DONE, verified 2026-11-21 (Ran on: TBD, user to
-  give).** Gate exit 1, gate.log == gate-pred.log. Re-baseline commit
+- **P3.2[ff] B3 DONE, verified 2026-11-21 (Ran on: Claude Sonnet 5.5 / Claude
+  Code CLI).** Gate exit 1, gate.log == gate-pred.log. Re-baseline commit
   a6b5626 (parent 5c1511d, 4 fast .gz only), pushed to wip/P3.2-ff;
   staging ff25642 -> a6b5626 (one push each, fast-forward); gpu-perf
   4d597fd unmoved. CHECK-HOST 49/49 + 24/24 PASS, lint rc 0 x2.
