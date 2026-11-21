@@ -1214,3 +1214,10 @@ Measured: n/a (host pre-screen only).
 Next session must know:
 - Carried-forward variant: mix8; fresh files in $HOME/gpuperf-scratch/P3.2[ff]/fresh/ (byte copy of fresh_mix8/). Next: stage B1 (MI250 + MI300, TIER=fast sweep + perf).
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
+Orchestrator review (2026-11-21; Ran on: Claude Sonnet 5.5 / Claude Code CLI):
+verified from git and scratch. origin/wip/P3.2-ff = 5c1511d (new, one push,
+parent ff25642, ff_fast.hpp 46/1, md5 df425676 = patch output); gpu-perf
+4d597fd, staging ff25642 unmoved. a.md5 OK; status-a.log START 5c1511d ..
+ALLDONE, build rc=0; 436081 data lines; prescreen exit 1, strict-rule row
+FF/r/exp/477 (fresh 1.178 ulps, Ref 0.327, bound 92); fresh/host.{csv,exits}
+cmp-equal to fresh_mix8/. PASS -> stage B1 (MI250 + MI300).

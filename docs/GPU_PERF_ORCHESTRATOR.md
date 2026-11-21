@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-21, P3.2[ff] stage A issued)
+## Current state (updated 2026-11-21, P3.2[ff] stage A verified)
 
 Verify these against the files and branches before relying on them.
 
@@ -544,6 +544,14 @@ Verify these against the files and branches before relying on them.
   GB300 (sweep + perf + sanitizer both binaries on the candidate),
   B3 = login (gate, re-baseline, CHECK-HOST, lint, staging ff, B200
   ledger row 11). Link p32ff-link for perf_ratios.
+- **P3.2[ff] stage A verified 2026-11-21: PASS, fast only (exit 1).
+  (Ran on: Claude Sonnet 5.5 / Claude Code CLI.)** Candidate xpmath
+  5c1511d on wip/P3.2-ff (parent ff25642, ff_fast.hpp 46/1, md5
+  df425676). Strict-rule row 1 (FF/r/exp/477, 1.178 vs Ref 0.327
+  ulps), fast-rule rows 0. Status block b76d7da + review note.
+  **Next: B1** (MI250 + MI300, TIER=fast sweep + perf; check also
+  confirms all non-FF/r/exp device rows equal the spliced ff25642
+  fast baselines).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
