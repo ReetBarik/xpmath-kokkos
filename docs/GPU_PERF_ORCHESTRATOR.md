@@ -505,6 +505,21 @@ Verify these against the files and branches before relying on them.
   run login-only: host pre-screen (--ops log), CHECK-HOST, gfx90a
   lint strict+fast. 1fce03c is not landed; its predicted exit 2 is
   recorded in the same status block instead of a separate B3 run.
+- **P3.2[dd]-chain trimmed (stage L) issued 2026-11-21.** Login
+  only. Scripts in untracked .p32ddl/ (l.md5): ddchainlogpatch.py
+  (chain1 54a5cc6b -> fcdfe718 = 1fce03c's file minus the cexp
+  hunk; local t.cpp: cexp bit-identical to strict, logs = 1fce03c),
+  splice.py (device fast CSVs = 1fce03c fresh rows, DD,c,exp rows
+  from the bbaa8fe baseline; dry run OK on all 4), prep-l.sh (new
+  branch wip/P3.2-dd-chainlog in wt-c1 + commit), run-l.sh (host
+  sweep, prescreen --ops log,exp expect exit 1, SPLICE_HOST_EQUAL
+  required, 4 gz, gen_domains, re-baseline commit, CHECK-HOST, lint
+  strict+fast), launch-l.sh, check-l.sh, push-l.sh (wip push + ff
+  staging bbaa8fe -> final). 1fce03c vs bbaa8fe baseline differs
+  only in DD r log / c log / c exp rows on host and all 3 GPUs.
+  After review: orchestrator writes status block "P3.2[dd]-chain
+  (final)" (user exception + predicted 1fce03c exit 2), ledger row
+  10 (B200), chains doc row, plan amendment.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
