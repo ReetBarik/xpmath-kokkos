@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain A/B1 DONE, B2 issued)
+## Current state (updated 2026-11-20, P3.2[dd] CLOSED (fast); P3.2[dd]-chain B2 DONE, gate predicts exit 2)
 
 Verify these against the files and branches before relying on them.
 
@@ -478,6 +478,33 @@ Verify these against the files and branches before relying on them.
   run on P3.2[dd] mi250/mi300 data OK). ratios.sh reused (dry:
   gfx90a/gfx942 ratios byte-equal to P3.2[dd] via a temp link
   .p32ddc-rat/olddd; the bracket path breaks perf_ratios' glob).
+- **P3.2[dd]-chain B2 DONE, verified 2026-11-21 (Ran on: Sonnet
+  5.5 / Claude Code).**
+  amdgpu04 (MI250) + amdgpu00 (MI300), released. Branches unmoved
+  (gpu-perf 4d597fd, staging bbaa8fe, wip 1fce03c). Scratch script
+  md5s OK vs amd.md5 (e1355e15...). status.log both START 1fce03c ..
+  ALLDONE, sweep rc=1, every other rc=0. check-amd.log: absolute=0,
+  monotone=1, CMP_OK, 436080 rows both. Ratios re-run into
+  .p32ddc-rat/, cmp-equal. after/before gfx90a | gfx942: DD log
+  0.424 | 0.465, DD exp 0.999 | 1.010, cDD exp 1.064 | 0.927, cDD
+  log 0.970 | 0.914, DD science 0.853 | 0.900. Rows > 1.03: gfx90a 1
+  (cDD_fast exp), gfx942 9 (unchanged ops; DD_fast sqrt 1.056).
+  **Gate predicted read-only (.p32ddc-test/gate-pred.log): exit 2.**
+  0 fast-rule accuracy rows, but (a) MI250 cDD_fast exp 1.064 is a
+  changed op > 3% slower, and (b) best exp = 0.927 (MI300 cDD) misses
+  the fast 0.9091 rule; GB300 cDD exp 0.858 is report only. (b) alone
+  rejects, so a re-run would not change it. Log alone is a clean win
+  (best 0.424; cDD log <= 0.970 everywhere). Raised with the user:
+  B3 = gate + reject block, then a log-only chain variant.
+- **User decision 2026-11-21: land the trimmed variant without GPU
+  validation.** Trimmed = chain1 (b72fcab) + the complex-log hunk of
+  1fce03c; complex exp stays as in bbaa8fe. Its parts were each
+  measured above; the user accepts whatever the combined speed is.
+  No GPU sweep/perf/sanitizer and no speed gate on the trimmed
+  commit (disclose as a user exception in its status block). Still
+  run login-only: host pre-screen (--ops log), CHECK-HOST, gfx90a
+  lint strict+fast. 1fce03c is not landed; its predicted exit 2 is
+  recorded in the same status block instead of a separate B3 run.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
