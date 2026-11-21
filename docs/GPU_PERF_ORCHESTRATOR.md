@@ -651,6 +651,29 @@ Verify these against the files and branches before relying on them.
   exp (candidate P3.2[ff]) and for log through the chain. Known
   host result: exp NaN lo word differs (strict NaN, fast 0). Report
   every difference; no accuracy verdict.
+- **P3.2[ff]-chain stage A + AMD DONE, verified 2026-11-21 (Ran on:
+  claudesonnet55 / Claude Code CLI).** origin wip/P3.2-ff-chain =
+  d469318 (new, one push; parent e3bd4cb = chain1, parent a6b5626);
+  ff_fast.hpp md5 bd3ddbe9 / fc7c0fa4; gpu-perf 4d597fd, staging and
+  wip/P3.2-ff a6b5626 unmoved. chain.md5 13 OK. Pre-screen full and
+  chain1 both exit 1 (strict rows exp/477, r/log/347, r/log/457;
+  fast-rule 0). amdgpu04 (MI250) + amdgpu00 (MI300), released: every
+  check-amd EXPECT met (436080 rows, absolute=0 monotone=1, CMP_OK,
+  SPLICE_OK: only FF r/log 136 + c/log 48 differ). Ratios re-run
+  (.p32ff-test/ratca), cmp-equal. after/before gfx90a | gfx942:
+  FF_fast log 0.460 | 0.456, cFF_fast log 0.951 | 0.983, FF_fast
+  science 0.949 | 0.964, exp ~1.00. gfx942 rows > 1.03: 6, none FF
+  (DD_fast log 1.124, sqrt 1.127: unchanged code, MI300 drift); the
+  worker misreported them as none. **CLASS_MISMATCH log 3 (EXPECT 0)
+  was a wrong orchestrator EXPECT:** every dev_fast_vs_host_fast
+  non-BITEQ row (real log inputs 88.7, 1e30, 0.9, 0.95, 1.1; clog 9,
+  15-18) has the same device-vs-host difference in strict (float
+  log seed ff_math.hpp:645 / atan2 via device vs host libm; clog
+  NaN sign bits). MI250 and MI300 sp.out identical. User accepted;
+  NVIDIA pass uses sp-explain.sh (UNEXPLAINED 0) instead. Side
+  observation for xpmath (no verdict): strict FF clog(1e-30+1e-30i)
+  and (1e-38+1e-38i) give NaN imag, (3e38+3e38i) +inf real,
+  (inf+inf i) NaN imag; fast identical.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
