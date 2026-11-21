@@ -1193,6 +1193,24 @@ Each task is one row below, applied to one backend (dd first). For each:
 > host splice equals the host measured. One-time exception, not a
 > rule change; B200 ledger row 10.
 
+> **Plan: P3.2[ff] variant and scope (amended 2026-11-21,
+> orchestrator).** One variant, `mix8`, in `include/xp/ff_fast.hpp`
+> only (`detail::ff_exp_fast_impl`, tier.hpp pattern 1), the FF
+> mirror of P3.2[dd] `mix`: k = rint(a.hi * 1/ln2) as one float
+> multiply (error <= 150 * 2^-24, so k can be off by one only within
+> ~1e-5 of a tie, which leaves |r| <= ln2/2 + 1e-5); strict's guards,
+> four 16-bit Cody-Waite pieces (|k| <= 150 keeps k*piece exact), nq
+> = 4 squarings and 2^k scaling unchanged; e^x - 1 as a fixed 8-term
+> Horner series (strict's loop stops after term 8 at the largest |x| =
+> ln2/32), terms 5-8 in float (weight <= 1.9e-9 of the sum, so their
+> float rounding is < 2^-53 relative), terms 1-4 in FF; no divide, no
+> divide_scalar, no data-dependent exit. NaN returns NaN. Scope as
+> P3.2[dd]: fast exp only, `--ops exp`; chaining is a later task.
+> Orchestrator host prototype (g++ 13.3, -O2 -ffp-contract=off, 400k
+> points, DD exp as reference): 82% bit-identical to strict, max
+> 2.13 vs strict 2.15 units of 2^-48, 0 points over the fast cap;
+> host time 0.78x strict. GPU order: the one-allocation order above.
+
 ---
 
 ## Phase 4 — One generic core

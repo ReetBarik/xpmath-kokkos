@@ -54,7 +54,7 @@ cd ~/kokkos-extended-precision-demo && git fetch && \
   plan and xpmath leaves it unscored (states U/N). It's a candidate xpmath
   correctness issue.
 
-## Current state (updated 2026-11-21, P3.2[dd]-chain CLOSED (trimmed, user exception); next P3.2[ff] stage A)
+## Current state (updated 2026-11-21, P3.2[ff] stage A issued)
 
 Verify these against the files and branches before relying on them.
 
@@ -530,6 +530,20 @@ Verify these against the files and branches before relying on them.
   "P3.2[dd]-chain (final)", ledger row 10, chains doc, plan
   amendment written. Next: cleanup, then P3.2[ff] stage A on a
   stronger model, base = staging ff25642.
+- **P3.2[ff] designed + stage A issued 2026-11-21 (Opus
+  orchestrator).** Variant mix8 (plan amendment "P3.2[ff] variant
+  and scope"). Scripts in untracked ~/xpmath-kokkos/.p32ff/ (a.md5):
+  ffexppatch.py 5e7530c0... (input ff_fast.hpp 8a36d99d, out
+  df425676, +45 lines, numstat 46/1), run-a.sh a96acae0... (build,
+  host sweep, prescreen --backend FF --ops exp --base ff25642, copy
+  to fresh/ on exit 0/1), adocs.py 79f217a9... (18-line block; dry
+  OK). Worktree "$HOME/gpuperf-scratch/P3.2[ff]/wt", new branch
+  wip/P3.2-ff from ff25642. Base CHECK-HOST reused from stage L
+  (checkhost-l.log, ff25642). Test dir .p32ff-test (prototype t.cpp).
+  Next after a pass: B1 = MI250 + MI300 (sweep + perf), B2 = A100 +
+  GB300 (sweep + perf + sanitizer both binaries on the candidate),
+  B3 = login (gate, re-baseline, CHECK-HOST, lint, staging ff, B200
+  ledger row 11). Link p32ff-link for perf_ratios.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
