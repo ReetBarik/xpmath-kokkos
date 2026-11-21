@@ -599,6 +599,8 @@ Verify these against the files and branches before relying on them.
   .p32ff-test (c0/c1/full headers, tc.cpp, tg.cpp): control
   bit-identical; sweep grid 0 predicted fast-rule rows; host real
   log 0.74x, complex log 0.91x. Stage A scripts after P3.2[ff] B3.
+  User 2026-11-21: keeps amdgpu04 (MI250) + amdgpu00 (MI300) after
+  P3.2[ff] B2 for the chain's first GPU pair.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
