@@ -1195,3 +1195,22 @@ fresh_l/host.csv and fresh_l/splice_{a100,mi250,mi300}.csv.
 status-l.log 19 lines, no STOP; prescreen exit 1, 0 fast-rule rows;
 CHECK-HOST 49/49 + 24/24 PASS; lint_rc=0 x2. P3.2[dd]-chain CLOSED:
 trimmed variant accepted into the FAST tier by user exception.
+
+## P3.2[ff] (stage A) — FF fast exp (native-multiply reduction, fixed 8-term series), host pre-screen
+Date: 2026-11-21   Outcome: Partial (pre-screen PASS, exit 1; GPU stage B next)
+Commits: xpmath@5c1511dc776fd3ec08b7c70d17ee82327194ce7b on wip/P3.2-ff only (from ff25642; gpu-perf-staging ff25642 and gpu-perf 4d597fd NOT moved). xpmath-kokkos: this block only.
+Changed: xpmath include/xp/ff_fast.hpp (fast exp override detail::ff_exp_fast_impl, variant mix8: k = rint(a.hi * 1/ln2) (one float multiply); strict's guards, 4 Cody-Waite pieces, nq = 4 squarings and 2^k scaling; e^x - 1 as a fixed 8-term Horner series with 1/n! constants, terms 5-8 in float, 1-4 in FF; no divide, no divide_scalar, no data-dependent exit). FF fast log, pow, sinh/cosh etc. and complex exp still call strict exp (--ops exp). NaN input returns NaN; not in the sweep.
+Checks:
+  CHECK-HOST at ff25642: reused from P3.2[dd]-chain stage L (same commit, RESULT: PASS, 49/49 + 24/24); log $HOME/gpuperf-scratch/P3.2[dd]-chain/checkhost-l.log
+  mix8 pre-screen: host.exits absolute=0, monotone=1; prescreen exit 1
+    host  cplx exp       n=1602  ulps max/med/p99 9.878e+12/0.4206/4.799e+12 -> 9.878e+12/0.4206/4.799e+12 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.05823 | worst bits lost vs Ref 0.000
+    host  real exp       n=836   ulps max/med/p99 4.799e+12/0.1642/1.582e+10 -> 4.799e+12/0.1597/1.582e+10 | fails bound 0, strict-Ref 1, strict-Cur 1, fast-Ref 0 | worst ulps/bound 0.02937 | worst bits lost vs Ref 7.138
+    accuracy rows failing the strict rules: 1
+    accuracy rows failing the fast rules: 0
+    RESULT: strict failed, fast passed -> accept into fast only (exit 1) HOST-ONLY: accuracy pre-screen, no speed verdict
+    log $HOME/gpuperf-scratch/P3.2[ff]/prescreen_mix8.log
+  NOT RUN (stage B or not needed): device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, full gate.
+Measured: n/a (host pre-screen only).
+Next session must know:
+- Carried-forward variant: mix8; fresh files in $HOME/gpuperf-scratch/P3.2[ff]/fresh/ (byte copy of fresh_mix8/). Next: stage B1 (MI250 + MI300, TIER=fast sweep + perf).
+- No ledger row (nothing landed). Parked rows 1-2 unchanged.
