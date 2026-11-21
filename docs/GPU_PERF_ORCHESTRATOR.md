@@ -590,6 +590,15 @@ Verify these against the files and branches before relying on them.
 - **P3.2[ff] B2 issued 2026-11-21:** amdgpu04 (MI250) + amdgpu00
   (MI300), .p32ff-b1/ scripts (b1.md5), outputs check-b1.log and
   ratios-b1.log in scratch. No commits.
+- **P3.2[ff]-chain designed 2026-11-21 (Opus orchestrator, while B2
+  ran).** Plan amendment "P3.2[ff]-chain": chain1 = fast real log
+  override (strict body, exp -> ff_exp_fast_impl), full = + fast
+  complex log (NOINLINE) calling it; complex exp stays strict; gate
+  --ops log. Patch untracked ~/xpmath-kokkos/.p32ffc/ffchainpatch.py
+  (chain1 df425676 -> bd3ddbe9; full -> fc7c0fa4). Host test in
+  .p32ff-test (c0/c1/full headers, tc.cpp, tg.cpp): control
+  bit-identical; sweep grid 0 predicted fast-rule rows; host real
+  log 0.74x, complex log 0.91x. Stage A scripts after P3.2[ff] B3.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

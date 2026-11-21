@@ -1211,6 +1211,48 @@ Each task is one row below, applied to one backend (dd first). For each:
 > 2.13 vs strict 2.15 units of 2^-48, 0 points over the fast cap;
 > host time 0.78x strict. GPU order: the one-allocation order above.
 
+> **Plan: P3.2[ff]-chain (amended 2026-11-21, orchestrator; user
+> agreed in principle).** Runs after P3.2[ff] closes, if its fast exp
+> landed (gate exit 1); if P3.2[ff] is rejected, this task is
+> dropped. The FF mirror of the TRIMMED DD chain: complex exp stays
+> a forwarder to strict (DD's cexp chain failed speed: MI250 1.064,
+> best 0.927; FF cFF exp read 1.000/1.001 in P3.2[ff] B1).
+> Candidate in `include/xp/ff_fast.hpp` only (strict untouched),
+> branch `wip/P3.2-ff-chain` from the P3.2[ff] FINAL commit (its
+> ff_fast.hpp equals 5c1511d's, md5 df425676), two commits:
+> (1) **chain1:** `detail::ff_log_fast_impl` = strict FF `log` body
+> (2 Newton steps from a float seed, KI-23 branch) with its two exp
+> calls -> `detail::ff_exp_fast_impl`; `log(FloatFloatFast)` calls
+> it. FF has no fast log yet (P3.1[ff] rejected), so this is a new
+> override, but the same algorithm as strict: a chain, not a new log.
+> XPMATH_INLINE_FUNCTION, as DD's fast impls.
+> (2) **full (the candidate):** `log(FloatFloatComplexFast)` =
+> strict complex log body (|z|, atan2) with the fast real log,
+> XPMATH_NOINLINE_FUNCTION. Strict FF complex log is inline, but its
+> real log is a call; the fast body inlines log + two fast exps, so
+> it is marked noinline like DD's (TD-4).
+> Patch: `ffchainpatch.py chain1|full` (chain1 df425676 ->
+> bd3ddbe9, +25 lines; full -> fc7c0fa4, +8 lines).
+> Host pre-screen `--backend FF --ops log --base <P3.2[ff] final>` on
+> commit 2 decides; commit 1 is pre-screened for blame only. Commit 2
+> fails and commit 1 passes: stop and ask. Gate `--ops log` (real and
+> complex; science row gated); exp is not listed (its code does not
+> change). GPU order: one allocation per GPU; the AMD pair first if
+> the user still holds it after P3.2[ff] B2, else whichever pair is
+> available; the NVIDIA pair also runs CHECK-SANITIZER (both
+> binaries) on commit 2. Then login: gate, re-baseline fast,
+> CHECK-HOST, gfx90a lint, staging fast-forward, B200 ledger row.
+> Orchestrator host test (g++ 13.3, -O2 -ffp-contract=off,
+> .p32ff-test/tc.cpp, tg.cpp): control (chain1 with strict exp put
+> back) is bit-identical to strict log on 400k random points and all
+> sweep grid points. On the 1658 S-state FF r log grid points, 142
+> differ, est. worst 1.39 ulps, 0 over the fast rule; complex log 56
+> of 1729 differ, 0 over. On 400k random points, 231 real-log points
+> (inputs ~0.9-1.2, |log a| ~0.1) exceed max(4, strict+1) in units
+> of 2^-48 |log a| (e.g. 7.4 vs strict 5.2); the grid does not
+> sample them; disclose in the status block. Host time real log
+> 0.74x strict, complex log 0.91x.
+
 ---
 
 ## Phase 4 — One generic core
