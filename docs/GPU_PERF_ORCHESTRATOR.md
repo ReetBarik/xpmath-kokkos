@@ -560,6 +560,17 @@ Verify these against the files and branches before relying on them.
   differ; dry: 1fce03c fresh -> SPLICE_BAD DD/c/exp 82, baseline
   itself -> OK), check-b1.sh f4925c45..., ratios-b1.sh 59691d50...
   (dry: chain gfx90a/gfx942 ratios byte-identical). No commits.
+- **P3.2[ff] order swapped 2026-11-21 (user had gpu06 A100 +
+  graceblackwell01 GB300 first; one-allocation rule still holds).**
+  B1 = A100 + GB300: sweep + perf + sanitizer both binaries on
+  5c1511d; GB300 raw scored on login. Scripts in untracked
+  ~/xpmath-kokkos/.p32ff-nv/ (nv.md5): run-nv.sh d9fe51af...,
+  launch-nv.sh cf2ea32c..., score-gb300.sh f8cc0864... (build_mix8
+  scorer), splicecheck.py 717e32dc... (a100 only; no gb300 fast
+  baseline), check-nv.sh 3b82cd97..., ratios-nv.sh a292d12c...; all
+  = P3.2[dd]-chain NVIDIA scripts, paths/SHAs only; dry tests on
+  chain data OK (ratios byte-identical). B2 = MI250 + MI300 with the
+  .p32ff-b1/ scripts above (names say b1; cosmetic).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
