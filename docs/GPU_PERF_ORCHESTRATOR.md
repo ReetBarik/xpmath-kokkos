@@ -630,6 +630,12 @@ Verify these against the files and branches before relying on them.
   section written. **P3.2[ff] CLOSED: accepted into the FAST tier
   only.** Next: P3.2[ff]-chain, base a6b5626 (not ff25642/5c1511d);
   AMD pair still held by the user.
+- **Requirement for P3.2[ff]-chain GPU runs (user, 2026-11-21):**
+  add a special-value check, fast vs strict, bit compare on device
+  (A100, GB300, MI250, MI300): 46 inputs of .p32ff-test/sp.cpp, for
+  exp (candidate P3.2[ff]) and for log through the chain. Known
+  host result: exp NaN lo word differs (strict NaN, fast 0). Report
+  every difference; no accuracy verdict.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

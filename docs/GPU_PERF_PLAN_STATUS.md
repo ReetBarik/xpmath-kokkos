@@ -1273,10 +1273,16 @@ Checks (evidence under $HOME/gpuperf-scratch/P3.2[ff]/):
 - Rebaseline: each of the 4 .gz zcat == fresh/<loc>.csv; gen_domains
   no diff.
 Disclosures:
-- NaN input: fast exp returns NaN (explicit guard). Strict exp has no
-  NaN guard (the (int) cast of NaN is undefined); a host build
-  (g++ 13.3.0, -O2 -ffp-contract=off) of strict exp(NaN) returned NaN, so no difference
-  seen there; not checked on GPU. The sweep has no NaN inputs.
+- Special values (host, g++ 13.3.0, -O2 -ffp-contract=off, 46
+  inputs: +-NaN, +-inf, +-0, tiny, the 88.7228 and -104 guard edges,
+  the -87.3 subnormal edge, +-1e30; each with lo = 0 and lo != 0):
+  fast exp vs strict exp bit-identical in 44; the other 2 are NaN
+  input, where hi is NaN in both (sign kept) but lo is NaN in strict
+  and 0 in fast. Fast has an explicit NaN guard; strict has none and
+  casts NaN to int (undefined behavior), so GPU behavior is NOT
+  checked here. The sweep has no special values. Source
+  .p32ff-test/sp.cpp (untracked). To be checked on device in the
+  P3.2[ff]-chain runs.
 - Scope: only exp is fast. Fast log, exp2, exp10, expm1, sinh/cosh,
   erf/erfc, zeta, incgamma, and complex exp/tan/tanh/pow still call
   strict exp (docs/GPU_PERF_CHAINS.md).
