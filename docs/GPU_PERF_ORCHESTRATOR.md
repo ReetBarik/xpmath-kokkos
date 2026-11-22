@@ -759,6 +759,17 @@ Verify these against the files and branches before relying on them.
   tf_fast.hpp 55/1, md5 17c46892 == .p32tf-test/pinc); staging
   2f68b93 and gpu-perf 4d597fd unmoved; xpmath-kokkos 937fb12 only
   touches the status doc. Next: stage B, NVIDIA pair first.
+- **P3.2[tf] stage B (NVIDIA pair) issued 2026-11-22** (prompt in
+  chat; scripts untracked .p32tf-nv/, nv.md5; copy to scratch
+  "P3.2[tf]"). One allocation per GPU: A100 + GB300. Per node:
+  TIER=fast sweep of wt, sp_nv.cpp (TF exp, 36 hi values x 3 low
+  variants, dev/host, plain + memcheck), perf before=wt-before
+  (2f68b93) / after=wt, 3 pairs, CHECK-SANITIZER both binaries.
+  GB300 raw scored on login (score-gb300.sh, build_mix9). check-nv.sh
+  (host splice first: TF/r/exp 168 differ expected = grid
+  prediction; dry-tested on ff-chain data), ratios.sh. AMD pair
+  next. Rule: fast <= 0.909 on one gated GPU; no changed op
+  (TF_fast/cTF_fast exp) or TF_fast science > 1.03 on A100.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
