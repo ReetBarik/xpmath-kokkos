@@ -706,6 +706,24 @@ Verify these against the files and branches before relying on them.
   fast only; strict-rule rows 12 (FF r/exp 477, r/log 347 + 457 x 4
   locations); fast-rule 0; speed log a100 0.585, mi250 0.460, mi300
   0.456, gb300 0.597 (report only); slower 0. Next: login B3.
+- **P3.2[ff]-chain B3 prompt issued 2026-11-22.** Login only. Scripts
+  as files in untracked ~/xpmath-kokkos/.p32ffc-b3/ (b3.md5, md5
+  abc0d0cceb74776cd1e9e54960b35690; the worker cp's them into
+  "$HOME/gpuperf-scratch/P3.2[ff]-chain/" and md5-checks): pre-b3.sh
+  484f5901..., gate-b3.sh c16d1cc8... (gate ONCE in wt, writes
+  gate.log/gate.exit/gate.cmp = EQUAL|DIFF vs gate-pred-c.log md5
+  87a701a84bffde21ab693b5d5db5fa8c), rebase-b3.sh d78fa13e... (needs
+  exit 1 + EQUAL; 4 .gz, gen_domains unchanged, commit on
+  wip/P3.2-ff-chain), push-b3.sh 9ce36e40... (ff push, then wt-final),
+  launch-b3.sh b0e922c6..., run-b3-final.sh d78527c9... (CHECK-HOST +
+  gfx90a lint strict/fast), check-b3.sh f4ebe92c..., ff-b3.sh
+  1458c2e4... (staging a6b5626 -> FINAL, ff only). Dry-tested:
+  gate-b3 on a fake task dir (output EQUAL), pre-b3 PRE_B3_OK,
+  gen_domains unchanged, bash -n all, <= 72 cols. Untested (write /vast
+  or move branches): rebase, push, ff, launch. Expect gate exit 1.
+  After the report: verify from git/scratch, then docs (ledger row 12,
+  chains doc, status block "P3.2[ff]-chain (final)", Current-state
+  bullet), cleanup lines, then P3.2[tf] (Opus).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
