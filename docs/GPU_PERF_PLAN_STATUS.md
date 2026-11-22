@@ -1467,3 +1467,14 @@ Orchestrator review (2026-11-22, Ran on: claudesonnet55[1m] / Claude Code; worke
 - Speed (ratios, after/before): A100 TF_fast exp 0.5342 (rule <= 0.909 MET), cTF_fast exp 1.0001, TF_fast science 1.0000; GB300 (report only) 0.4978 / 0.9998 / 0.9987. Rows > 1.03: none on either arch.
 - wt shows 5 untracked validation/*/logs files written by the sweep scripts (scratch worktree, harmless).
 Next: stage B AMD (MI250 + MI300).
+
+## P3.2[tf] (stage B AMD) — MI250 + MI300, TF fast exp 8f72843
+
+Orchestrator review (2026-11-22, Ran on: claudesonnet55[1m] / Claude Code; worker Ran on: claudesonnet55 / Claude Code): PASS. Read from scratch (check-amd.log, ratios-amd.log, status.logs, node.txt), not from the worker's report.
+- Git unmoved (xpmath gpu-perf 4d597fd, staging 2f68b93, wip/P3.2-tf 8f72843; xpmath-kokkos origin/gpu-perf 229ac0f, no worker commits). amd.md5 9 OK; 8 copied scripts cmp-equal to .p32tf-amd.
+- mi250 (amdgpu04) and mi300 (amdgpu00): one START each, no RESUME, sweep rc=5 (monotone=5, informational), all build/sp/run rc=0, ALLDONE; node.out 0 bytes. FATAL 0, last_error 0, isolating 0, 436080 rows, absolute=0, CMP_OK.
+- Splice vs 2f68b93 fast baselines: both GPUs exactly 168 TF/r/exp rows differ, 0 elsewhere (SPLICE_OK).
+- Special values (108 inputs, both): dev fast vs host fast BITEQ 108; dev strict vs dev fast BITEQ 104 / DIFF 4 (same as host); CLASS_MISMATCH exp 0; UNEXPLAINED_TOTAL 0, INHERITED 0; sp.err 0 bytes, 324 rows, SP_END.
+- Speed (after/before): gfx90a TF_fast exp 0.6310, cTF_fast exp 0.9999, TF_fast science 0.9992, rows > 1.03: none. gfx942 TF_fast exp 0.7679, cTF_fast exp 1.0074, TF_fast science 1.0060; rows > 1.03: 8, all unchanged ops (FF log 1.042, cFF_fast mul 1.036, cTF add 1.031, cdouble exp/log, double log, cfloat add, float div); none is a changed op.
+- wt untracked validation/*/logs files only (sweep scripts; harmless).
+Next: Login B3 (gate, re-baseline fast, CHECK-HOST, lint, staging ff).

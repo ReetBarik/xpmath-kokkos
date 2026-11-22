@@ -776,6 +776,11 @@ Verify these against the files and branches before relying on them.
   errors, splices 168 TF/r/exp rows only, sp 108 dev==host BITEQ;
   CLASS_MISMATCH 6 = the NaN inputs (strict UB path), accepted. AMD
   stage B next.
+- **P3.2[tf] stage B AMD verified 2026-11-22** (me, from
+  scratch; section "P3.2[tf] (stage B AMD)" in the status doc). MI250
+  TF_fast exp 0.631, MI300 0.768 (fast rule already met on A100); no
+  changed op or TF_fast science > 1.03. Splices 168 TF/r/exp rows only,
+  sp dev fast == host fast BITEQ 108, CLASS_MISMATCH 0. Login B3 next.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
