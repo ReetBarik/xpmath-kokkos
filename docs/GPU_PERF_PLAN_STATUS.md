@@ -1454,3 +1454,16 @@ Next session must know:
 - Exit 0: strict rules pass too. Whether a final gate exit 0 promotes to strict or lands fast-only is a user decision (plan amendment "P3.2[tf] variant and scope").
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
 Orchestrator review (2026-11-22, Ran on: Claude Sonnet 5.5 / Claude Code; worker Ran on: Claude Sonnet 5.5 / Claude Code): PASS. origin/wip/P3.2-tf = 8f72843 = candidate.sha, parent 2f68b93, diff tf_fast.hpp 55/1, md5 17c46892 equals the orchestrator host-test header; staging and gpu-perf unmoved; a.md5 OK; host.csv 436080 data rows; fresh/ == fresh_mix9/; prescreen_mix9.log read whole (exit 0, TF real exp n=835 all 0). Stage B next.
+
+## P3.2[tf] (stage B NVIDIA) — A100 + GB300, TF fast exp 8f72843
+
+Orchestrator review (2026-11-22, Ran on: claudesonnet55[1m] / Claude Code; worker Ran on: claudesonnet55[1m] / Claude Code CLI): PASS. Read from scratch, not from the worker.
+- Git unmoved (xpmath gpu-perf 4d597fd, staging 2f68b93, wip/P3.2-tf 8f72843; xpmath-kokkos no worker commits). nv.md5 11 OK.
+- Run was interrupted ~01:06 UTC (ssh drop). Sweep and special-value phases finished before it; perf (all 6 rounds) and sanitizer were fully re-run: A100 on gpu07 (same node), GB300 on graceblackwell00 (sweep + sp on graceblackwell01; node.txt says 01). Old perf dirs deleted. Each node.out 0 bytes.
+- Sweeps: FATAL 0, last_error 0, isolating 0. san-strict and san-fast ERROR SUMMARY 0 errors, FAST_DATA_EQUAL both nodes. sp-san 0 errors, SP_END 1. STACK limit 16384.
+- Splice vs 2f68b93 fast baseline: host, a100, gb300 each 168 TF/r/exp rows differ, 0 elsewhere (SPLICE_OK). a100 absolute=0 (monotone=5, informational); gb300 score rc 0, absolute PASS.
+- Special values (108 inputs, both nodes): dev fast == host fast BITEQ 108; strict vs fast on device BITEQ 98 / NANEQ 6 / DIFF 4 (host BITEQ 104 / DIFF 4). UNEXPLAINED_TOTAL 0, INHERITED 0.
+- CLASS_MISMATCH exp 6 (criterion was 0): the six rows are exactly inputs 0-5 (NaN). Device strict returns 7fffffff (the (int)NaN UB path), host strict and fast return the input NaN. Fast is bit-identical device/host; the difference is in untouched strict. Accepted.
+- Speed (ratios, after/before): A100 TF_fast exp 0.5342 (rule <= 0.909 MET), cTF_fast exp 1.0001, TF_fast science 1.0000; GB300 (report only) 0.4978 / 0.9998 / 0.9987. Rows > 1.03: none on either arch.
+- wt shows 5 untracked validation/*/logs files written by the sweep scripts (scratch worktree, harmless).
+Next: stage B AMD (MI250 + MI300).
