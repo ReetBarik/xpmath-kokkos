@@ -1293,8 +1293,13 @@ Each task is one row below, applied to one backend (dd first). For each:
 > the gate table maps to promotion. Promotion would change strict
 > TF log, pow, sinh/cosh, expm1 etc. (they call strict exp), which
 > this gate does not judge, and the table's limb check would stop
-> on them. How exit 0 is handled is a user decision, needed before
-> the final login stage. GPU order: one allocation per GPU; every
+> on them. **User decision 2026-11-22:** for P3.2[tf], a gate exit 0
+> (pre-screen or final) is handled exactly like exit 1: keep
+> fast-only, re-baseline fast only, strict TF exp untouched, no
+> TIER=both pass. The status block quotes the gate's exit 0 verbatim
+> and says it was landed fast-only by this decision. Promotion to
+> strict is not done now (it would need its own task gating every
+> strict exp caller). GPU order: one allocation per GPU; every
 > GPU also runs the device special-value check (fast vs strict, as
 > P3.2[ff]-chain); the NVIDIA pair also runs CHECK-SANITIZER (both
 > binaries).
