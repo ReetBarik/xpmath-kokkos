@@ -737,6 +737,15 @@ Verify these against the files and branches before relying on them.
   pending in B3), run-a.sh, launch-a.sh, check-a.sh (dry OK on a
   fake dir), push-a.sh, adocs.py (dry OK, 18-19 lines). Base
   CHECK-HOST = B3's checkhost-final (2f68b93).
+- **P3.2[ff]-chain B3 DONE, verified 2026-11-22 (Ran on: Claude
+  Sonnet 5.5 / Claude Code CLI). P3.2[ff]-chain CLOSED: accepted into
+  the FAST tier only.** Gate exit 1, gate.log == gate-pred-c.log.
+  Re-baseline 2f68b93 (parent d469318, 4 fast .gz only, each zcat ==
+  fresh/<loc>.csv); wip/P3.2-ff-chain d469318 -> 2f68b93 and staging
+  a6b5626 -> 2f68b93, one push each (reflog); gpu-perf 4d597fd
+  unmoved. CHECK-HOST 49/49 + 24/24 PASS, Terminated 0; lint 0 x2,
+  252 kernels. Docs: status block "P3.2[ff]-chain (final)", ledger
+  row 12, chains doc FF log row. Next: P3.2[tf] stage A, base 2f68b93.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

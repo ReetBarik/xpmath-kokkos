@@ -64,7 +64,13 @@ ff_complex.hpp for `exp(` calls).
 
 | Fast op | Accepted at (staging) | Strict callers still reached from the fast tier | Callers with a perf row | Status |
 |---|---|---|---|---|
-| exp (mix8, 8-term series) | a6b5626 (P3.2[ff]; candidate 5c1511d) | real: strict log (Newton step, 2 calls), exp2, exp10, expm1, sinhcosh, erf, erfc, zeta, incgamma, tgamma (Lanczos). complex: exp (strict body + strict real exp), tan, tanh, pow (exp(w*log z)). Real pow: no direct exp( call found in ff_math.hpp, not traced further | cFF exp (not chained, measured 1.000 / 1.001 / 1.000 / 1.002); FF log (strict log calls strict exp) | chain designed: P3.2[ff]-chain |
+| exp (mix8, 8-term series) | a6b5626 (P3.2[ff]; candidate 5c1511d) | real: strict log (Newton step, 2 calls), exp2, exp10, expm1, sinhcosh, erf, erfc, zeta, incgamma, tgamma (Lanczos). complex: exp (strict body + strict real exp), tan, tanh, pow (exp(w*log z)). Real pow: no direct exp( call found in ff_math.hpp, not traced further | cFF exp (not chained, measured 1.000 / 1.001 / 1.000 / 1.002); FF log now calls the fast exp | chained: fast log Newton steps (e3bd4cb, staging 2f68b93) |
+| log (strict algorithm, 2 Newton steps, calling fast exp) | 2f68b93 (P3.2[ff]-chain; candidate d469318) | real: log2, log10, log1p, asinh, acosh, atanh, pow_int, ff_log_ext (pow), bessel_y0/y1, expint, incgamma, zeta. complex: log10, pow, atan, asinh, acosh, atanh, xp_log_hypot2 (grep of `log(` at 2f68b93) | cFF log calls the fast real log (fast complex log = strict body + fast real log, NOINLINE) | chained: complex log (d469318). Complex exp still strict body + strict real exp |
+
+**Update 2026-11-22 (P3.2[ff]-chain CLOSED):** staging 2f68b93 =
+fast real log (strict algorithm) calling fast exp + fast complex
+log calling the fast real log. The FF science kernel now reaches a
+fast real op. Fast complex exp stays a forwarder to strict.
 
 ## TF, QF
 
