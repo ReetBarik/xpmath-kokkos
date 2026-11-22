@@ -1304,6 +1304,53 @@ Each task is one row below, applied to one backend (dd first). For each:
 > P3.2[ff]-chain); the NVIDIA pair also runs CHECK-SANITIZER (both
 > binaries).
 
+> **Plan: P3.2[tf]-chain (amended 2026-11-22, orchestrator; user
+> go 2026-11-22).** The TF mirror of P3.2[ff]-chain. Candidate in
+> `include/xp/tf_fast.hpp` only (strict untouched), branch
+> `wip/P3.2-tf-chain` from the P3.2[tf] FINAL f2d94cc (its
+> tf_fast.hpp = 8f72843's, md5 17c46892), two commits:
+> (1) **chain1:** `detail::tf_log_fast_impl` = strict TF `log` body
+> (3 Newton steps from a float seed, KI-23 branch -54.1f /
+> 88.722839f; step count untouched, P3.1[tf] rejected 2) with its
+> two exp calls -> `detail::tf_exp_fast_impl`;
+> `XPMATH_NOINLINE_FUNCTION` like strict TF log (TD-4, P2.2[tf]
+> code-size lesson); `log(TripleFloatFast)` calls it.
+> (2) **full (the candidate):** `log(TripleFloatComplexFast)` =
+> strict complex log body (|z|, atan2) with the fast real log,
+> NOINLINE. Complex exp stays a forwarder to strict.
+> Patch `tfchainpatch.py chain1|full` (md5 2b8fcd61..., in
+> untracked ~/xpmath-kokkos/.p32tfc-test; chain1 17c46892 ->
+> 7c8d755a, numstat 25/1; full -> fefb958a, numstat 8/1).
+> Host pre-screen `--backend TF --ops log --base f2d94cc` on commit
+> 2 decides; commit 1 for blame only; commit 2 fails and commit 1
+> passes: stop and ask. Gate `--ops log` (real and complex; science
+> row gated). **User 2026-11-22: a gate exit 0 (pre-screen or
+> final) is handled as exit 1** (fast-only, re-baseline fast only,
+> no promotion), as for P3.2[tf]. GPU order: one allocation per
+> GPU, AMD pair first, then NVIDIA (+ CHECK-SANITIZER both binaries
+> on commit 2); every GPU runs the device special-value check (TF
+> log and complex log, fast vs strict). Then login B3: gate,
+> re-baseline fast, CHECK-HOST, gfx90a lint, staging fast-forward,
+> B200 ledger row 14.
+> Orchestrator host test (g++ 13.3, -O2 -ffp-contract=off, DD
+> reference, ulp = 2^-72 |ref|, complex modulus-relative;
+> .p32tfc-test/tl.cpp): control (chain1 with strict exp put back)
+> bit-identical on 400k random + all grid points. Sweep grid S rows:
+> real log 200/1680 differ, max |f-s| 0.77 ulps, est. worst 0.99;
+> complex log 164/1753 differ; 0 fast-rule rows even with the
+> rigorous bound r + |f-s|; est. strict-rule rows 0 real, 2 complex
+> (pts 1720/1721, r = 38410), so pre-screen exit 1 expected (exit 0
+> possible). 400k random real points: 82.3% bit-identical, 117 over
+> the fast rule (105 at |log a| ~ 2^-18, where strict itself is up
+> to 1.4e5 ulps; 130 mirror points where strict is worse by the
+> same margin; all inside the conditioning bound; the grid does not
+> sample them; disclose). 200k complex: 0 over. Specials: real
+> 68/72 bit-identical (4 ordinary last-word), complex 15/15. Host
+> time real log 0.665x, complex log 0.811x. GPU estimate from the
+> P3.2[tf] perf rows (log = 3 exp + rest): TF_fast log A100 0.59,
+> GB300 0.67, MI250 0.68, MI300 0.79; cTF_fast log 0.973 / 0.987 /
+> 0.955 / 0.962 (real log is 4-18% of cTF log on GPUs).
+
 ---
 
 ## Phase 4 — One generic core
