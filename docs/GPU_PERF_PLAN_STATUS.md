@@ -1433,3 +1433,23 @@ hipcc_rc 0 / 252 kernels / lint_rc 0, nohup 0 bytes. origin
 reflogs: wip/P3.2-ff-chain d469318 -> 2f68b93, staging a6b5626 ->
 2f68b93, one push each, ancestors; gpu-perf 4d597fd unmoved.
 P3.2[ff]-chain CLOSED: accepted into the FAST tier only.
+
+## P3.2[tf] (stage A) — TF fast exp (fixed 9-term series), host pre-screen
+Date: 2026-11-22   Outcome: Partial (pre-screen PASS, exit 0; GPU stage B next)
+Commits: xpmath@8f728433afc59e392acc2631d036ab73361afce7 on wip/P3.2-tf only (from 2f68b93; gpu-perf-staging 2f68b93 and gpu-perf 4d597fd NOT moved). xpmath-kokkos: this block only.
+Changed: xpmath include/xp/tf_fast.hpp (fast exp override detail::tf_exp_fast_impl, NOINLINE, variant mix9: strict's guards, reduction integer (one float multiply, as strict), 5 Cody-Waite pieces, nq = 5 squarings and 2^m scaling; r/32 by mul_pwr2; e^x - 1 as a fixed 9-term Horner series with 1/n! constants, terms 7-9 in float, 1-6 in TF; no divide_scalar, no data-dependent exit). TF log, pow, sinh/cosh etc. and complex exp still call strict exp (--ops exp). NaN input returns NaN in all words (bit-equal to strict on host); not in the sweep.
+Checks:
+  CHECK-HOST at 2f68b93: reused from P3.2[ff]-chain B3 (same commit, RESULT: PASS, 49/49 + 24/24); log $HOME/gpuperf-scratch/P3.2[ff]-chain/checkhost-final.log
+  mix9 pre-screen: host.exits absolute=0, monotone=5; prescreen exit 0
+    host  cplx exp       n=1536  ulps max/med/p99 0.434/0.05587/0.3412 -> 0.434/0.05587/0.3412 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.00607 | worst bits lost vs Ref 0.000
+    host  real exp       n=835   ulps max/med/p99 3.209e+18/0.04287/2.655e+17 -> 3.209e+18/0.03709/2.655e+17 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01554 | worst bits lost vs Ref 7.341
+    accuracy rows failing the strict rules: 0
+    accuracy rows failing the fast rules: 0
+    RESULT: strict pass -> accept into strict (exit 0) HOST-ONLY: accuracy pre-screen, no speed verdict
+    log $HOME/gpuperf-scratch/P3.2[tf]/prescreen_mix9.log
+  NOT RUN (stage B or not needed): device sweeps, CHECK-PERF, CHECK-SANITIZER, CHECK-GFX90A-LINT, full gate.
+Measured: n/a (host pre-screen only).
+Next session must know:
+- Carried-forward variant: mix9; fresh files in $HOME/gpuperf-scratch/P3.2[tf]/fresh/ (byte copy of fresh_mix9/). Next: stage B (GPU pairs, one allocation each, TIER=fast sweep + perf; NVIDIA pair also sanitizer).
+- Exit 0: strict rules pass too. Whether a final gate exit 0 promotes to strict or lands fast-only is a user decision (plan amendment "P3.2[tf] variant and scope").
+- No ledger row (nothing landed). Parked rows 1-2 unchanged.
