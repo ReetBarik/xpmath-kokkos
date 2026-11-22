@@ -72,6 +72,15 @@ fast real log (strict algorithm) calling fast exp + fast complex
 log calling the fast real log. The FF science kernel now reaches a
 fast real op. Fast complex exp stays a forwarder to strict.
 
-## TF, QF
+## TF
 
-No fast op accepted yet (P3.1[tf], [qf] rejected).
+Checked 2026-11-22 at xpmath f2d94cc (grep of tf_math.hpp,
+tf_complex.hpp for `exp(` calls).
+
+| Fast op | Accepted at (staging) | Strict callers still reached from the fast tier | Callers with a perf row | Status |
+|---|---|---|---|---|
+| exp (mix9, 9-term series) | f2d94cc (P3.2[tf]; candidate 8f72843; gate exit 0 landed fast-only) | real: strict log (Newton step, 3 calls), exp2, exp10, expm1, sinhcosh (-> sinh, cosh, tanh); real pow uses its own tf_exp_ext. complex: exp (strict body + strict real exp), tan, tanh, pow | TF log, cTF exp | not chained (P3.2[tf]-chain designed) |
+
+## QF
+
+No fast op accepted yet (P3.1[qf] rejected).

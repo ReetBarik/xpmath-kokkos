@@ -781,6 +781,22 @@ Verify these against the files and branches before relying on them.
   TF_fast exp 0.631, MI300 0.768 (fast rule already met on A100); no
   changed op or TF_fast science > 1.03. Splices 168 TF/r/exp rows only,
   sp dev fast == host fast BITEQ 108, CLASS_MISMATCH 0. Login B3 next.
+- **P3.2[tf] B3 DONE, verified 2026-11-22 (worker Ran on:
+  claudesonnet55[1m] / Claude Code CLI; reviewed by the Opus
+  orchestrator). P3.2[tf] CLOSED: accepted into the FAST tier only
+  (gate exit 0 handled as exit 1 by user decision).** Gate.log ==
+  prediction; re-baseline f2d94cc (parent 8f72843, 4 fast .gz only);
+  staging 2f68b93 -> f2d94cc; CHECK-HOST PASS, lint 0 x2. Docs:
+  status block "P3.2[tf] (final)", ledger row 13, chains doc TF
+  section. Next: P3.2[tf]-chain (designed in .p32tfc-test).
+- **P3.2[tf]-chain designed 2026-11-22 (Opus orchestrator); user
+  go, exit 0 handled as exit 1.** Plan amendment "P3.2[tf]-chain"
+  (patch, host numbers, GPU estimates). Untracked test dir
+  ~/xpmath-kokkos/.p32tfc-test: tfchainpatch.py (md5 2b8fcd61...),
+  c0/c1/full/ctl include trees, tl.cpp (modes rand, ties, sp, grid,
+  time), *_rand/ties/sp/grid.out. Next: stage A + AMD scripts in
+  untracked .p32tfc-a (adapt .p32ffc-a + .p32tf-amd), base f2d94cc,
+  scratch "P3.2[tf]-chain", link ~/gpuperf-scratch/p32tfc-link.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is

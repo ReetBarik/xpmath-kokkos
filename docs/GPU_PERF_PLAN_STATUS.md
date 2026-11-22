@@ -1478,3 +1478,101 @@ Orchestrator review (2026-11-22, Ran on: claudesonnet55[1m] / Claude Code; worke
 - Speed (after/before): gfx90a TF_fast exp 0.6310, cTF_fast exp 0.9999, TF_fast science 0.9992, rows > 1.03: none. gfx942 TF_fast exp 0.7679, cTF_fast exp 1.0074, TF_fast science 1.0060; rows > 1.03: 8, all unchanged ops (FF log 1.042, cFF_fast mul 1.036, cTF add 1.031, cdouble exp/log, double log, cfloat add, float div); none is a changed op.
 - wt untracked validation/*/logs files only (sweep scripts; harmless).
 Next: Login B3 (gate, re-baseline fast, CHECK-HOST, lint, staging ff).
+
+## P3.2[tf] (final) — TF fast exp, accepted into fast
+Date: 2026-11-22   Outcome: Done
+Commits: xpmath 8f72843 (candidate: detail::tf_exp_fast_impl, mix9),
+f2d94cc (re-baseline fast). wip/P3.2-tf = f2d94cc;
+gpu-perf-staging 2f68b93 -> f2d94cc (fast-forward). xpmath gpu-perf
+NOT moved (4d597fd).
+Changed: include/xp/tf_fast.hpp only (8f72843 md5
+17c468927f42a60a1346eb15862f4da1, numstat 55/1): fast exp override,
+strict's guards, reduction integer, five Cody-Waite pieces, nq = 5
+squarings and 2^m scaling kept; r/32 by mul_pwr2; fixed 9-term
+Horner series (terms 7-9 float, 1-6 TF); NOINLINE; NaN -> NaN x3.
+TF log, pow (tf_exp_ext), sinh/cosh, expm1, exp2/exp10 and complex
+exp still call strict exp. Plus
+validation/sweep/sweep_baseline_fast{,_a100,_mi250,_mi300}.csv.gz
+(f2d94cc).
+Gate ($HOME/gpuperf-scratch/P3.2[tf]/gate.log, exit 0; ==
+orchestrator prediction, gate.cmp EQUAL), verbatim:
+```
+P3 tier gate: backend TF, ops exp, base 2f68b93
+pre-checks: register, Reference, scorer and kUlpAllowance unchanged since base
+host   scorer exits: absolute=0 monotone=5 (monotone is informational)
+a100   scorer exits: absolute=0 monotone=5 (monotone is informational)
+mi250  scorer exits: absolute=0 monotone=5 (monotone is informational)
+mi300  scorer exits: absolute=0 monotone=5 (monotone is informational)
+b200   DEFERRED: a ledger row is owed (docs/GPU_PERF_DEFERRED.md)
+  host  cplx exp       n=1536  ulps max/med/p99 0.434/0.05587/0.3412 -> 0.434/0.05587/0.3412 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.00607 | worst bits lost vs Ref 0.000
+  host  real exp       n=835   ulps max/med/p99 3.209e+18/0.04287/2.655e+17 -> 3.209e+18/0.03709/2.655e+17 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01554 | worst bits lost vs Ref 7.341
+  a100  cplx exp       n=1536  ulps max/med/p99 0.434/0.05587/0.3412 -> 0.434/0.05587/0.3412 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.00607 | worst bits lost vs Ref 0.000
+  a100  real exp       n=835   ulps max/med/p99 3.209e+18/0.04287/2.655e+17 -> 3.209e+18/0.03709/2.655e+17 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01554 | worst bits lost vs Ref 7.341
+  mi250 cplx exp       n=1536  ulps max/med/p99 0.434/0.05587/0.3412 -> 0.434/0.05587/0.3412 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.00607 | worst bits lost vs Ref 0.000
+  mi250 real exp       n=835   ulps max/med/p99 3.209e+18/0.04287/2.655e+17 -> 3.209e+18/0.03709/2.655e+17 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01554 | worst bits lost vs Ref 7.341
+  mi300 cplx exp       n=1536  ulps max/med/p99 0.434/0.05587/0.3412 -> 0.434/0.05587/0.3412 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.00607 | worst bits lost vs Ref 0.000
+  mi300 real exp       n=835   ulps max/med/p99 3.209e+18/0.04287/2.655e+17 -> 3.209e+18/0.03709/2.655e+17 | fails bound 0, strict-Ref 0, strict-Cur 0, fast-Ref 0 | worst ulps/bound 0.01554 | worst bits lost vs Ref 7.341
+accuracy rows failing the strict rules: 0
+accuracy rows failing the fast rules: 0
+a100   speed exp       ratio(after/before) 0.534 1.000
+mi250  speed exp       ratio(after/before) 0.631 1.000
+mi300  speed exp       ratio(after/before) 0.768 1.007
+gb300  speed exp       ratio(after/before) 0.498 1.000 (REPORT ONLY, never gated)
+ops more than 3% slower on a gated GPU: 0 (changed ops + science)
+other ops more than 3% slower, code unchanged (report only): 0
+speed: best ratio per changed op exp=0.534; strict needs <= 0.9709, fast needs <= 0.9091
+RESULT: strict pass -> accept into strict (exit 0)
+```
+**Landed fast-only by user decision 2026-11-22** (plan amendment
+"P3.2[tf] variant and scope"): gate exit 0 is handled as exit 1;
+strict TF exp untouched, re-baseline fast only, no TIER=both pass,
+no promotion. Promotion would change strict TF log, sinh/cosh, expm1
+etc., which this gate does not judge.
+Measured (after/before vs 2f68b93, 3 interleaved pairs; GB300
+report only):
+
+| op | sm_80 | sm_103 | gfx90a | gfx942 |
+|---|---|---|---|---|
+| TF_fast exp | 0.534 | 0.498 | 0.631 | 0.768 |
+| cTF_fast exp | 1.000 | 1.000 | 1.000 | 1.007 |
+| TF_fast science | 1.000 | 0.999 | 0.999 | 1.006 |
+
+Checks (evidence under $HOME/gpuperf-scratch/P3.2[tf]/):
+- Stage A host pre-screen --ops exp --base 2f68b93: exit 0
+  (prescreen_mix9.log).
+- NVIDIA (gpu07 A100; GB300 sweep + sp on graceblackwell01, perf +
+  sanitizer re-run on graceblackwell00 after an ssh drop) and AMD
+  (amdgpu04 MI250, amdgpu00 MI300): TIER=fast sweeps absolute=0,
+  436080 rows, SPLICE_OK (only 168 TF/r/exp rows differ from the
+  2f68b93 fast baselines on every location); GB300 scored on login,
+  PASS (check-nv.log, check-amd.log).
+- CHECK-SANITIZER A100 + GB300 on 8f72843, sweep_device and
+  sweep_device_fast: 0 errors; fast data equal to the sweeps.
+- CHECK-PERF 3 interleaved pairs on all four (perf/ratios_*.csv);
+  no changed op or TF_fast science > 1.03 anywhere; gfx942 has 8
+  report-only rows > 1.03 on unchanged code (MI300 drift).
+- Special values (108 inputs; fast vs strict bit compare, no
+  accuracy verdict): device fast == host fast BITEQ 108 on all four
+  GPUs; UNEXPLAINED 0. NVIDIA CLASS_MISMATCH 6 = the NaN inputs:
+  device strict returns 7fffffff (its (int)NaN path), fast returns
+  the NaN; difference is in untouched strict. AMD CLASS_MISMATCH 0.
+- B3: gate exit 0; 4 .gz each zcat == fresh/<loc>.csv; gen_domains
+  unchanged; CHECK-HOST at f2d94cc 49/49 + 24/24 RESULT PASS, 0
+  Terminated (checkhost-final.log); CHECK-GFX90A-LINT strict + fast
+  hipcc_rc=0 lint_rc=0, 252 kernels (lint/{strict,fast}/lint.log;
+  status-b3.log START 03:18:15Z .. ALLDONE 03:37:53Z).
+- B200 deferred: GPU_PERF_DEFERRED.md row 13.
+Next session must know:
+- B200 owes ledger row 13 (and rows 8-12).
+- Next: P3.2[tf]-chain (designed; user go 2026-11-22), base f2d94cc.
+
+Orchestrator review (2026-11-22, B3; Ran on: claudesonnet55[1m] /
+Claude Code CLI; reviewed by the Opus orchestrator): verified
+against git and scratch. b3.md5 8 OK; gate.exit 0, gate.cmp EQUAL,
+gate.log read whole; f2d94cc parent 8f72843, diff = the 4 fast .gz
+only, each zcat == fresh/<loc>.csv; message == rebaseline-msg.txt
+(trailing newline only); status-b3.log START f2d94cc .. ALLDONE;
+checkhost-final.log 49/49 + 24/24 PASS, Terminated 0; lint strict +
+fast lint_rc=0, 252 kernels; nohup-b3.out 0 bytes. origin reflog:
+staging 2f68b93 -> f2d94cc, one push, ancestor; gpu-perf 4d597fd
+unmoved. P3.2[tf] CLOSED: accepted into the FAST tier only.
