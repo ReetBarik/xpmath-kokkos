@@ -1253,6 +1253,52 @@ Each task is one row below, applied to one backend (dd first). For each:
 > sample them; disclose in the status block. Host time real log
 > 0.74x strict, complex log 0.91x.
 
+> **Plan: P3.2[tf] variant and scope (amended 2026-11-22,
+> orchestrator).** One variant, `mix9`, in `include/xp/tf_fast.hpp`
+> only (`detail::tf_exp_fast_impl`, tier.hpp pattern 1). Strict TF
+> exp already takes its reduction integer from one float multiply
+> (`floor(a.f0 * 1/ln2 + 0.5)`), so that part of the P3.2 row is
+> already done; the fast impl keeps it, strict's KI-6 guards
+> (-104 / 88.722839, overflow print), the five 16-bit Cody-Waite
+> pieces, nq = 5 squarings on e^x - 1 and the 2^m scaling. Changes:
+> r/32 by `mul_pwr2` (exact; same results as with strict's
+> `divide_scalar` on all 400k test points), and e^x - 1 as a fixed
+> 9-term Horner series
+> with 1/n! constants (strict's loop also stops after term 9 at the
+> largest |x| = ln2/64): terms 7-9 in float (weight < 3.2e-16 of the
+> sum, float rounding < 0.1 ulp of 2^-72), terms 1-6 in TF with
+> three-word constants (first TF step `multiply_scalar`); no
+> divide_scalar, no data-dependent exit. 8 terms was tested and not
+> carried: +0.43 ulps worst, 75 random points over the strict rule.
+> NaN returns NaN in all three words (bit-equal to strict on host;
+> strict reaches `(int)NaN`, undefined, so device NaN behaviour is
+> checked by the GPU special-value runs). `XPMATH_NOINLINE_FUNCTION`
+> like strict TF exp (TD-4, and the P2.2[tf] NVIDIA code-size
+> lesson). **Scope:** fast exp only, `--ops exp`; TF log (strict, 3
+> Newton steps; P3.1[tf] rejected 2 steps), pow, sinh/cosh, expm1,
+> exp2/exp10 and complex exp keep calling strict exp. Chaining into
+> log is revisited after fast exp is accepted, as for DD and FF.
+> Patch `tfexppatch.py` (tf_fast.hpp c80bc2fb -> 17c46892, numstat
+> 55/1). Orchestrator host test (g++ 13.3, -O2 -ffp-contract=off,
+> DD exp as reference, ulp = 2^-72 |v|; .p32tf-test): 400k random
+> points, 87.1% bit-identical to strict, max 1.247 ulps = strict's
+> 1.247, 0 points over the strict rule max(1, s+0.5) and 0 over the
+> fast rule; 835 S-state sweep grid points: 168 differ, |f - r| <=
+> 0.34 ulps, worst 0.19, 0 over either rule; 25k points near the
+> reduction ties: 0 over either rule; 108 special inputs (NaN, inf,
+> 0, tiny, subnormal, guard edges, each with 0-2 low words): 104
+> bit-identical, 4 ordinary points differ in the last word; host
+> time 0.71x strict. **Expect pre-screen exit 0** (strict accuracy
+> passes too), so the final gate is expected to give exit 0, which
+> the gate table maps to promotion. Promotion would change strict
+> TF log, pow, sinh/cosh, expm1 etc. (they call strict exp), which
+> this gate does not judge, and the table's limb check would stop
+> on them. How exit 0 is handled is a user decision, needed before
+> the final login stage. GPU order: one allocation per GPU; every
+> GPU also runs the device special-value check (fast vs strict, as
+> P3.2[ff]-chain); the NVIDIA pair also runs CHECK-SANITIZER (both
+> binaries).
+
 ---
 
 ## Phase 4 — One generic core

@@ -724,6 +724,19 @@ Verify these against the files and branches before relying on them.
   After the report: verify from git/scratch, then docs (ledger row 12,
   chains doc, status block "P3.2[ff]-chain (final)", Current-state
   bullet), cleanup lines, then P3.2[tf] (Opus).
+- **P3.2[tf] designed 2026-11-22 (Opus orchestrator, while B3 ran).**
+  Plan amendment "P3.2[tf] variant and scope": mix9 (fixed 9-term
+  series, terms 7-9 float, r/32 by mul_pwr2, NOINLINE, NaN -> NaN x3).
+  Host test in untracked .p32tf-test (proto.cpp, grid.cpp, ties.cpp,
+  sp.cpp, check.cpp; patched header pinc/): 0 strict-rule points on
+  random, grid and ties, so **pre-screen exit 0 expected**; how a
+  final gate exit 0 is handled (promote vs fast-only) is open with
+  the user. Stage A scripts in untracked ~/xpmath-kokkos/.p32tf/
+  (a.md5): tfexppatch.py, mk-wt.sh (staging must equal 2f68b93 =
+  the FF chain re-baseline, pushed to wip/P3.2-ff-chain; staging ff
+  pending in B3), run-a.sh, launch-a.sh, check-a.sh (dry OK on a
+  fake dir), push-a.sh, adocs.py (dry OK, 18-19 lines). Base
+  CHECK-HOST = B3's checkhost-final (2f68b93).
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
