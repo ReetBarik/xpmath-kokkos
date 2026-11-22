@@ -1453,3 +1453,4 @@ Next session must know:
 - Carried-forward variant: mix9; fresh files in $HOME/gpuperf-scratch/P3.2[tf]/fresh/ (byte copy of fresh_mix9/). Next: stage B (GPU pairs, one allocation each, TIER=fast sweep + perf; NVIDIA pair also sanitizer).
 - Exit 0: strict rules pass too. Whether a final gate exit 0 promotes to strict or lands fast-only is a user decision (plan amendment "P3.2[tf] variant and scope").
 - No ledger row (nothing landed). Parked rows 1-2 unchanged.
+Orchestrator review (2026-11-22, Ran on: Claude Sonnet 5.5 / Claude Code; worker Ran on: Claude Sonnet 5.5 / Claude Code): PASS. origin/wip/P3.2-tf = 8f72843 = candidate.sha, parent 2f68b93, diff tf_fast.hpp 55/1, md5 17c46892 equals the orchestrator host-test header; staging and gpu-perf unmoved; a.md5 OK; host.csv 436080 data rows; fresh/ == fresh_mix9/; prescreen_mix9.log read whole (exit 0, TF real exp n=835 all 0). Stage B next.

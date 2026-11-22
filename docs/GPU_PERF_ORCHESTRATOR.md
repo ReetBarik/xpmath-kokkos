@@ -752,6 +752,13 @@ Verify these against the files and branches before relying on them.
   P3.2[ff]-chain done by the user (only wt-final kept, 452M left).
   **User 2026-11-22: gate exit 0 for P3.2[tf] = handled as exit 1
   (fast-only, no promotion)**; plan amendment updated.
+- **P3.2[tf] stage A verified 2026-11-22 (Ran on: Claude Sonnet 5.5 /
+  Claude Code; reviewed by the Sonnet 5.5 orchestrator).** Prescreen
+  exit 0 (real exp n=835: strict-Ref 0, strict-Cur 0, fast-Ref 0,
+  bound 0; cplx exp unchanged). wip/P3.2-tf 8f72843 (parent 2f68b93,
+  tf_fast.hpp 55/1, md5 17c46892 == .p32tf-test/pinc); staging
+  2f68b93 and gpu-perf 4d597fd unmoved; xpmath-kokkos 937fb12 only
+  touches the status doc. Next: stage B, NVIDIA pair first.
 - **Stage B1 prompt first given 2026-11-12** (A100 + MI250 TIER=fast sweep + perf, no
   commits; node runner "$HOME/gpuperf-scratch/P3.1[dd]/r2/run-node.sh",
   worktrees r2/wt-before = 9219ffa, r2/wt-after = 3ab255a). Gate exit 0 is
